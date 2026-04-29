@@ -1,0 +1,64 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_RESULT_BACKEND=redis://redis:6379/1
+      - DATABASE_URL=sqlite:////data/music.db
+      - DOWNLOADS_PATH=/downloads
+      - DATA_PATH=/data
+    volumes:
+      - ./downloads:/downloads
+      - ./data:/data
+      - ./frontend:/app/frontend:ro
+    depends_on:
+      - redis
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_RESULT_BACKEND=redis://redis:6379/1
+      - DATABASE_URL=sqlite:////data/music.db
+      - DOWNLOADS_PATH=/downloads
+      - DATA_PATH=/data
+    volumes:
+      - ./downloads:/downloads
+      - ./data:/data
+    depends_on:
+      - redis
+    command: celery -A app.tasks.celery_app.celery_app worker --loglevel=info -Q downloads,scheduler
+
+  beat:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_RESULT_BACKEND=redis://redis:6379/1
+      - DATABASE_URL=sqlite:////data/music.db
+      - DOWNLOADS_PATH=/downloads
+      - DATA_PATH=/data
+    volumes:
+      - ./data:/data
+    depends_on:
+      - redis
+    command: celery -A app.tasks.celery_app.celery_app beat --loglevel=info
+
+volumes:
+  redis-data:
