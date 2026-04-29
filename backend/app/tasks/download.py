@@ -40,6 +40,7 @@ def resolve_url(self, url_source_id: int) -> None:
             job = DownloadJob(
                 url_source_id=url_source_id,
                 youtube_id=youtube_id,
+                title=entry.get("title"),
                 status="pending",
             )
             db.add(job)

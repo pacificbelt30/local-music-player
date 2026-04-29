@@ -82,7 +82,7 @@ function jobHTML(job) {
   const pct = job.progress_pct || 0;
   return `
     <div class="job-header">
-      <span class="job-title">${escHtml(job.youtube_id)}</span>
+      <span class="job-title">${escHtml(job.title || job.youtube_id)}</span>
       <span class="status-badge status-${job.status}">${job.status}</span>
       ${job.status === "failed" ? `<button class="btn btn-ghost retry-job" data-id="${job.id}">↺</button>` : ""}
       <button class="btn btn-ghost cancel-job" data-id="${job.id}">✕</button>

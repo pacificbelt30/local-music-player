@@ -42,6 +42,7 @@ class DownloadJobResponse(BaseModel):
     id: int
     url_source_id: int | None
     youtube_id: str
+    title: str | None
     status: str
     progress_pct: float
     celery_task_id: str | None

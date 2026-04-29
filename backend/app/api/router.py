@@ -1,8 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.api import urls, queue, tracks, stream, syncthing, youtube_playlists, settings
+from app.api.deps import verify_token
 
-api_router = APIRouter(prefix="/api/v1")
+api_router = APIRouter(prefix="/api/v1", dependencies=[Depends(verify_token)])
 api_router.include_router(urls.router)
 api_router.include_router(queue.router)
 api_router.include_router(tracks.router)

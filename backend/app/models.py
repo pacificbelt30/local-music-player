@@ -87,6 +87,7 @@ class DownloadJob(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     url_source_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("url_sources.id", ondelete="CASCADE"))
     youtube_id: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    title: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default="pending")  # pending/downloading/complete/failed/skipped
     progress_pct: Mapped[float] = mapped_column(Float, default=0.0)
     celery_task_id: Mapped[str | None] = mapped_column(String(64))
