@@ -2,52 +2,50 @@
 
 ## コンポーネント構成
 
+```mermaid
+graph TB
+    Browser["ブラウザ (PWA)\nQueue / Playlists / Library"]
+
+    subgraph Backend["バックエンド"]
+        FastAPI["FastAPI\nport 8000"]
+        Worker["Celery Worker"]
+        Beat["Celery Beat\n(5分ごと)"]
+        Redis["Redis\nブローカー / 進捗キャッシュ"]
+        SQLite["SQLite\nmusic.db"]
+    end
+
+    subgraph Storage["ストレージ"]
+        Downloads["downloads/"]
+        Playlists["playlists/"]
+    end
+
+    Syncthing["Syncthing"]
+    Mobile["モバイル端末"]
+
+    Browser -->|"HTTP / SSE"| FastAPI
+    FastAPI -->|"タスク投入"| Redis
+    FastAPI -->|"状態参照"| SQLite
+    Redis -->|"タスク受信"| Worker
+    Redis -->|"スケジュール"| Beat
+    Beat -->|"定期タスク"| Worker
+    Worker -->|"ファイル保存"| Downloads
+    Worker -->|"ファイル保存"| Playlists
+    Worker -->|"メタデータ保存"| SQLite
+    Worker -->|"進捗書き込み"| Redis
+    Downloads -->|"フォルダ監視"| Syncthing
+    Syncthing -->|"自動同期"| Mobile
 ```
-┌─────────────────────────────────────────────┐
-│               ブラウザ (PWA)                 │
-│  Queue Panel │ Playlist Panel │ Library Panel│
-│              Player Bar                      │
-└──────────────────┬──────────────────────────┘
-                   │ HTTP / SSE
-┌──────────────────▼──────────────────────────┐
-│         FastAPI (port 8000)                  │
-│  /api/v1/*  REST API                         │
-│  /api/v1/queue/events  SSE ストリーム        │
-│  /stream/{id}  音声ストリーミング            │
-│  /  静的ファイル (frontend/)                 │
-└────┬──────────────────────┬─────────────────┘
-     │ タスク投入            │ 状態参照
-┌────▼──────────┐   ┌───────▼──────────────────┐
-│ Celery Worker │   │ SQLite (music.db)         │
-│  downloads    │   │  url_sources              │
-│  scheduler    │   │  download_jobs            │
-└────┬──────────┘   │  tracks                   │
-     │              │  youtube_oauth_tokens      │
-┌────▼──────────┐   │  youtube_playlist_syncs   │
-│ Redis         │   │  playlist_sync_tracks     │
-│  broker       │   │  app_settings             │
-│  result back. │   └───────────────────────────┘
-│  progress     │
-└───────────────┘
-     │
-┌────▼──────────────────────────────────────────┐
-│ Filesystem                                     │
-│  downloads/{artist}/{title}.{ext}              │
-│  playlists/{playlist_id}/{artist}/{title}.{ext}│
-└────────────────────┬──────────────────────────┘
-                     │ Syncthing フォルダ同期
-                  モバイル端末
-```
+
+---
 
 ## 主要コンポーネント
 
-### FastAPI アプリケーション (`backend/app/main.py`)
+### FastAPI (`backend/app/main.py`)
 
 - **Uvicorn** ASGI サーバー上で動作
-- 起動時に `downloads/`・`data/`・`playlists/` ディレクトリを作成し、DB スキーマを初期化
-- CORS ミドルウェアで許可オリジンを設定
-- フロントエンド静的ファイルを `/` にマウント（API ルートより後に登録）
-- Swagger UI: `/api/docs`、ReDoc: `/api/redoc`
+- 起動時に `downloads/`・`data/`・`playlists/` を作成し、DB スキーマを初期化
+- フロントエンド静的ファイルを `/` にマウント
+- API ドキュメント: `/api/docs`（Swagger UI）、`/api/redoc`（ReDoc）
 
 ### Celery ワーカー (`backend/app/tasks/`)
 
@@ -58,7 +56,7 @@
 
 - ブローカー: Redis DB 0
 - リザルトバックエンド: Redis DB 1
-- Beat スケジューラが `periodic_playlist_refresh` と `periodic_youtube_playlist_sync` を 5 分ごとに起動
+- Beat スケジューラが `periodic_playlist_refresh` と `periodic_youtube_playlist_sync` を定期実行
 
 ### Redis
 
@@ -66,7 +64,7 @@
 |------|--------|
 | Celery ブローカー | — |
 | Celery リザルト | — |
-| ダウンロード進捗キャッシュ | `job:{id}:progress`（TTL 300 秒） |
+| ダウンロード進捗 | `job:{id}:progress`（TTL 300 秒） |
 | プレイリスト同期進捗 | `pstrack:{id}:progress`（TTL 300 秒） |
 
 ### SQLite データベース
@@ -75,7 +73,10 @@
 
 ### Syncthing
 
-外部サービスとして動作。`downloads/` フォルダを監視し、登録されたデバイスへ自動同期する。API 経由で同期状態を取得する。
+外部サービスとして動作。`downloads/` フォルダを監視し、登録デバイスへ自動同期する。  
+Syncthing REST API 経由で同期状態を取得する。
+
+---
 
 ## テクノロジースタック
 
