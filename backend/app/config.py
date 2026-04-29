@@ -11,6 +11,7 @@ class Settings(BaseSettings):
 
     downloads_path: Path = Path("/home/user/local-music-player/downloads")
     data_path: Path = Path("/home/user/local-music-player/data")
+    playlists_path: Path = Path("/home/user/local-music-player/playlists")
 
     syncthing_url: str = "http://localhost:8384"
     syncthing_api_key: str = ""
@@ -18,6 +19,11 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = ["*"]
 
     secret_token: str = ""  # Optional: set to require Bearer token auth
+
+    # YouTube OAuth2 (Google Cloud Console credentials)
+    youtube_client_id: str = ""
+    youtube_client_secret: str = ""
+    youtube_redirect_uri: str = "http://localhost:8000/api/v1/youtube/auth/callback"
 
 
 settings = Settings()

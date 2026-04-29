@@ -1,5 +1,5 @@
 from app.database import SessionLocal
-from app.models import UrlSource
+from app.models import UrlSource, YoutubePlaylistSync
 from app.tasks.celery_app import celery_app
 
 
@@ -16,5 +16,21 @@ def periodic_playlist_refresh() -> None:
         for source in sources:
             from app.tasks.download import resolve_url
             resolve_url.apply_async(args=[source.id])
+    finally:
+        db.close()
+
+
+@celery_app.task(name="app.tasks.scheduler.periodic_youtube_playlist_sync")
+def periodic_youtube_playlist_sync() -> None:
+    """Hourly task: sync all enabled YouTube playlist sync configs."""
+    db = SessionLocal()
+    try:
+        syncs = db.query(YoutubePlaylistSync).filter(
+            YoutubePlaylistSync.enabled == True,  # noqa: E712
+        ).all()
+
+        for sync in syncs:
+            from app.tasks.sync_playlist import sync_youtube_playlist
+            sync_youtube_playlist.apply_async(args=[sync.id])
     finally:
         db.close()

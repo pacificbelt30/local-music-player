@@ -81,3 +81,63 @@ class HealthResponse(BaseModel):
     redis_connected: bool
     db_ok: bool
     worker_active: bool
+
+
+# ── YouTube Playlist Sync ──────────────────────────────────────────────────────
+
+class YouTubeAuthStatus(BaseModel):
+    authenticated: bool
+    scope: str | None = None
+
+
+class YouTubePlaylistInfo(BaseModel):
+    playlist_id: str
+    title: str
+    item_count: int
+    thumbnail_url: str | None = None
+
+
+class YoutubePlaylistSyncCreate(BaseModel):
+    playlist_id: str
+    playlist_name: str
+    audio_format: AudioFormat = "mp3"
+    audio_quality: AudioQuality = "192"
+    enabled: bool = True
+
+
+class YoutubePlaylistSyncUpdate(BaseModel):
+    audio_format: AudioFormat | None = None
+    audio_quality: AudioQuality | None = None
+    enabled: bool | None = None
+
+
+class YoutubePlaylistSyncResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    playlist_id: str
+    playlist_name: str
+    audio_format: str
+    audio_quality: str
+    enabled: bool
+    last_synced: datetime | None
+    created_at: datetime
+    track_count: int = 0
+    downloaded_count: int = 0
+
+
+class PlaylistSyncTrackResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    youtube_id: str
+    title: str
+    artist: str | None
+    duration_secs: int | None
+    position: int | None
+    status: str
+    thumbnail_url: str | None = None
+    stream_url: str | None = None
+    error_message: str | None
+    added_at: datetime
+    downloaded_at: datetime | None

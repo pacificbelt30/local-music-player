@@ -18,6 +18,7 @@ FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend"
 async def lifespan(app: FastAPI):
     settings.downloads_path.mkdir(parents=True, exist_ok=True)
     settings.data_path.mkdir(parents=True, exist_ok=True)
+    settings.playlists_path.mkdir(parents=True, exist_ok=True)
     init_db()
     yield
 

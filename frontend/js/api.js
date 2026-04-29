@@ -39,6 +39,24 @@ export const api = {
 
   // Health
   health: () => request("GET", "/health"),
+
+  // YouTube Auth
+  youtubeAuthUrl: () => request("GET", "/youtube/auth/url"),
+  youtubeAuthStatus: () => request("GET", "/youtube/auth/status"),
+  youtubeRevokeAuth: () => request("DELETE", "/youtube/auth"),
+
+  // YouTube Playlists (account)
+  youtubeListAccountPlaylists: () => request("GET", "/youtube/playlists"),
+
+  // YouTube Sync configs
+  youtubeListSyncs: () => request("GET", "/youtube/syncs"),
+  youtubeCreateSync: (payload) => request("POST", "/youtube/syncs", payload),
+  youtubeUpdateSync: (id, payload) => request("PATCH", `/youtube/syncs/${id}`, payload),
+  youtubeDeleteSync: (id, deleteFiles = false) => request("DELETE", `/youtube/syncs/${id}?delete_files=${deleteFiles}`),
+  youtubeSyncNow: (id) => request("POST", `/youtube/syncs/${id}/run`),
+
+  // YouTube Sync tracks
+  youtubeListSyncTracks: (syncId) => request("GET", `/youtube/syncs/${syncId}/tracks`),
 };
 
 // SSE for queue progress

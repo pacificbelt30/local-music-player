@@ -64,9 +64,14 @@ header h1 { font-size: 1.1rem; font-weight: 700; color: var(--accent); flex: 1; 
 /* ── Layout ── */
 .layout {
   display: grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: 320px 320px 1fr;
   gap: 0;
   height: calc(100vh - 49px - var(--player-height));
+}
+
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: 300px 1fr; }
+  .playlists-panel { display: none; }
 }
 
 @media (max-width: 768px) {
@@ -80,10 +85,12 @@ header h1 { font-size: 1.1rem; font-weight: 700; color: var(--accent); flex: 1; 
 }
 
 .left-panel { border-right: 1px solid var(--border); }
+.playlists-panel { border-right: 1px solid var(--border); }
 
 @media (max-width: 768px) {
   .panel { height: auto; overflow-y: visible; }
   .left-panel { border-right: none; border-bottom: 1px solid var(--border); }
+  .playlists-panel { border-right: none; border-bottom: 1px solid var(--border); }
 }
 
 /* ── Section titles ── */
@@ -346,6 +353,18 @@ header h1 { font-size: 1.1rem; font-weight: 700; color: var(--accent); flex: 1; 
   border-bottom: 1px solid var(--border);
 }
 
+@media (max-width: 1100px) {
+  .tab-bar { display: flex; }
+}
+
+@media (max-width: 1100px) {
+  .layout { display: block; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .playlists-panel { display: none; }
+  .playlists-panel.active { display: block; }
+}
+
 @media (max-width: 768px) {
   .tab-bar { display: flex; }
   .layout { display: block; }
@@ -378,4 +397,118 @@ header h1 { font-size: 1.1rem; font-weight: 700; color: var(--accent); flex: 1; 
   color: var(--error);
   font-size: 0.8rem;
   margin-top: 4px;
+}
+
+/* ── YouTube Playlist Sync ── */
+.yt-auth-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 8px;
+}
+
+.yt-auth-connected {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.yt-auth-disconnected { display: flex; flex-direction: column; gap: 10px; }
+.yt-auth-hint { font-size: 0.8rem; color: var(--text-dim); }
+
+.yt-account-playlists {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.yt-pl-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.yt-pl-thumb {
+  width: 40px;
+  height: 30px;
+  object-fit: cover;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.yt-pl-info { flex: 1; min-width: 0; }
+.yt-pl-title { font-size: 0.83rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yt-pl-meta { font-size: 0.72rem; color: var(--text-dim); margin-top: 1px; }
+
+.yt-sync-list { display: flex; flex-direction: column; gap: 10px; }
+
+.yt-sync-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.yt-sync-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.yt-sync-info { flex: 1; min-width: 0; }
+.yt-sync-title { font-size: 0.88rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yt-sync-meta { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
+
+.yt-sync-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.yt-tracks-toggle {
+  width: 100%;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.yt-sync-tracks {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.yt-track-item {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: calc(var(--radius) - 2px);
+  transition: background 0.1s;
+}
+
+.yt-track-item:hover { background: var(--surface2); }
+
+.yt-track-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
 }
