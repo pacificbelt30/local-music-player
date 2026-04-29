@@ -14,6 +14,7 @@ from app.models import PlaylistSyncTrack, YoutubePlaylistSync, YouTubeOAuthToken
 from app.schemas import (
     YouTubeAuthStatus,
     YouTubePlaylistInfo,
+    YouTubeTokenInput,
     YoutubePlaylistSyncCreate,
     YoutubePlaylistSyncResponse,
     YoutubePlaylistSyncUpdate,
@@ -32,6 +33,32 @@ def get_auth_url():
     if not settings.youtube_client_id:
         raise HTTPException(status_code=400, detail="YOUTUBE_CLIENT_ID not configured")
     return {"url": youtube_api_service.get_auth_url()}
+
+
+@router.post("/auth/token", status_code=200)
+def set_token_directly(payload: YouTubeTokenInput, db: Session = Depends(get_db)):
+    """Store an OAuth access token (and optional refresh token) pasted directly by the user."""
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    expiry = now + timedelta(seconds=payload.expires_in)
+
+    record = db.query(YouTubeOAuthToken).first()
+    if record:
+        record.access_token = payload.access_token
+        if payload.refresh_token:
+            record.refresh_token = payload.refresh_token
+        record.token_expiry = expiry
+        record.scope = None
+    else:
+        record = YouTubeOAuthToken(
+            access_token=payload.access_token,
+            refresh_token=payload.refresh_token,
+            token_expiry=expiry,
+            scope=None,
+        )
+        db.add(record)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/auth/callback")

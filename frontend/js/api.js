@@ -44,6 +44,7 @@ export const api = {
   youtubeAuthUrl: () => request("GET", "/youtube/auth/url"),
   youtubeAuthStatus: () => request("GET", "/youtube/auth/status"),
   youtubeRevokeAuth: () => request("DELETE", "/youtube/auth"),
+  youtubeSetToken: (payload) => request("POST", "/youtube/auth/token", payload),
 
   // YouTube Playlists (account)
   youtubeListAccountPlaylists: () => request("GET", "/youtube/playlists"),
