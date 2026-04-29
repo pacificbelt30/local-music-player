@@ -47,6 +47,8 @@ markdown_extensions:
 
 nav:
   - ホーム: index.md
+  - 使い方: usage.md
+  - 今後の課題: future-work.md
   - アーキテクチャ:
       - システム概要: architecture/overview.md
       - データフロー: architecture/data-flow.md
