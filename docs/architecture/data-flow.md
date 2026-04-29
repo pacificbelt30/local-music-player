@@ -2,136 +2,138 @@
 
 ## 1. URL 登録からダウンロードまで
 
+```mermaid
+sequenceDiagram
+    actor User as ユーザー
+    participant API as FastAPI
+    participant DB as SQLite
+    participant Q as Redis
+    participant W as Celery Worker
+    participant YT as yt-dlp
+
+    User->>API: POST /api/v1/urls<br>{url, audio_format, audio_quality}
+    API->>DB: UrlSource レコード作成
+    API->>Q: resolve_url.apply_async([source.id])
+
+    Q->>W: resolve_url タスク
+    W->>YT: --extract-flat（動画IDリスト取得）
+    YT-->>W: 動画IDリスト
+    W->>DB: UrlSource.url_type・title を更新
+    W->>DB: DownloadJob を各動画に作成
+    W->>Q: download_track.apply_async（各ジョブ）
+
+    loop 各動画
+        Q->>W: download_track タスク
+        W->>YT: bestaudio ダウンロード → FFmpeg 変換
+        YT-->>W: 音声ファイル + メタデータ
+        W->>DB: Track レコード upsert
+        W->>Q: job:{id}:progress を更新
+    end
+
+    User->>API: GET /api/v1/queue/events（SSE）
+    API-->>User: 進捗イベント（1秒ごと）
 ```
-ユーザー
-  │ POST /api/v1/urls  { url, audio_format, audio_quality }
-  ▼
-FastAPI: urls.py
-  │ UrlSource レコード作成 (url_type="video" 仮置き)
-  │ resolve_url.apply_async([source.id])
-  ▼
-Celery Worker: tasks/download.py::resolve_url
-  │ ytdlp_service.resolve_url(url)
-  │   └─ yt-dlp --extract-flat で動画 ID リストを取得
-  │ UrlSource.url_type・title を更新
-  │ 各 youtube_id に DownloadJob 作成
-  │ download_track.apply_async([job.id]) を各 job に投入
-  ▼
-Celery Worker: tasks/download.py::download_track
-  │ DownloadJob.status = "downloading"
-  │ ytdlp_service.download_track(youtube_id, format, quality)
-  │   ├─ yt-dlp で bestaudio をダウンロード
-  │   ├─ FFmpeg で指定フォーマットに変換
-  │   ├─ サムネイル・info.json を保存
-  │   └─ metadata dict を返す
-  │ Track レコードを upsert
-  │ PlaylistTrack リンクを作成
-  │ DownloadJob.status = "complete"
-  │ Redis: job:{id}:progress キーを削除
-  ▼
-ブラウザ (SSE)
-  GET /api/v1/queue/events
-  └─ 1 秒ごとに pending/downloading ジョブをポーリング
-     Redis から最新進捗を読み取り → JSON イベント送信
-```
+
+---
 
 ## 2. YouTube プレイリスト同期フロー
 
-```
-ユーザー
-  │ Google OAuth 認証 → GET /api/v1/youtube/auth/url
-  │ リダイレクト → Google OAuth 同意画面
-  │ コールバック → GET /api/v1/youtube/auth/callback?code=...
-  │ YouTubeOAuthToken をDBに保存
-  ▼
-ユーザー
-  │ GET /api/v1/youtube/playlists  (アカウントのプレイリスト一覧)
-  │ POST /api/v1/youtube/syncs  { playlist_id, audio_format, ... }
-  │ YoutubePlaylistSync 作成
-  │ sync_youtube_playlist.apply_async([sync.id])
-  ▼
-Celery Worker: tasks/sync_playlist.py::sync_youtube_playlist
-  │ youtube_api_service.get_fresh_access_token(db)
-  │   └─ トークンが期限切れなら refresh_token で再取得
-  │ youtube_api_service.get_playlist_items(playlist_id, token)
-  │ DB の PlaylistSyncTrack と差分比較
-  │   ├─ 新規: PlaylistSyncTrack 作成 → download_playlist_sync_track.apply_async
-  │   ├─ 復活: status="pending" に戻す → download_playlist_sync_track.apply_async
-  │   └─ 削除: ファイル削除 → status="removed"
-  ▼
-Celery Worker: tasks/sync_playlist.py::download_playlist_sync_track
-  │ ytdlp_service.download_track(..., base_path=playlists/{playlist_id}/)
-  │ PlaylistSyncTrack を complete に更新
+```mermaid
+sequenceDiagram
+    actor User as ユーザー
+    participant API as FastAPI
+    participant DB as SQLite
+    participant Q as Redis
+    participant W as Celery Worker
+    participant YT as YouTube API
 
-─ 定期実行 ─────────────────────────────────────
-Celery Beat (5 分ごと)
-  ├─ periodic_playlist_refresh
-  │   └─ playlist/channel 型 UrlSource を再 resolve
-  └─ periodic_youtube_playlist_sync
-      └─ 有効な YoutubePlaylistSync を再同期
+    User->>API: GET /api/v1/youtube/auth/url
+    API-->>User: Google OAuth 同意画面 URL
+    User->>API: GET /api/v1/youtube/auth/callback?code=...
+    API->>DB: YouTubeOAuthToken を保存
+
+    User->>API: GET /api/v1/youtube/playlists
+    API-->>User: プレイリスト一覧
+    User->>API: POST /api/v1/youtube/syncs<br>{playlist_id, audio_format}
+    API->>DB: YoutubePlaylistSync 作成
+    API->>Q: sync_youtube_playlist.apply_async([sync.id])
+
+    Q->>W: sync_youtube_playlist タスク
+    W->>YT: get_playlist_items（アクセストークンで取得）
+    YT-->>W: 動画リスト
+    W->>DB: PlaylistSyncTrack と差分比較
+    W->>Q: download_playlist_sync_track（新規・復活トラック）
+
+    Note over W,Q: Celery Beat が 5 分ごとに<br>periodic_youtube_playlist_sync を実行
 ```
+
+---
 
 ## 3. 音楽再生フロー
 
+```mermaid
+sequenceDiagram
+    actor User as ブラウザ
+    participant API as FastAPI
+    participant DB as SQLite
+    participant FS as Filesystem
+
+    User->>API: GET /api/v1/tracks?search=...
+    API->>DB: Track テーブルを検索
+    DB-->>API: トラック一覧
+    API-->>User: stream_url / thumbnail_url を含むレスポンス
+
+    User->>API: GET /api/v1/stream/{track_id}<br>Range: bytes=...（シーク）
+    API->>FS: Track.file_path からファイル読み込み
+    FS-->>API: バイトデータ
+    API-->>User: 206 Partial Content（範囲レスポンス）
+    API->>DB: play_count++ / last_played_at を更新
 ```
-ブラウザ
-  │ GET /api/v1/tracks?search=...  (ライブラリ検索)
-  ▼
-FastAPI: api/tracks.py
-  │ Track テーブルを検索
-  │ stream_url / thumbnail_url / download_url を生成して返す
-  ▼
-ブラウザ (Audio 要素)
-  │ GET /api/v1/stream/{track_id}
-  │   Range: bytes=... ヘッダー付きでシーク
-  ▼
-FastAPI: api/stream.py
-  │ Track.file_path からファイルを読み込み
-  │ Range リクエスト: 206 Partial Content で部分レスポンス
-  │ 通常リクエスト: 200 で全体をストリーミング
-  │ Track.play_count++ / last_played_at を更新
-  └─ audio/mpeg 等の Content-Type で返却
-```
+
+---
 
 ## 4. Syncthing 同期フロー
 
-```
-Celery Worker
-  └─ downloads/{artist}/{title}.{ext} に保存
-       │
-       ▼（Syncthing が監視）
-  Syncthing デーモン
-       │ フォルダ差分を検出
-       ▼
-  モバイル端末の Syncthing
-       └─ ファイルを受信・保存
+```mermaid
+graph LR
+    W["Celery Worker"] -->|"downloads/{artist}/{title}.mp3"| FS["Filesystem"]
+    FS -->|"ファイル変更を検知"| ST["Syncthing デーモン"]
+    ST -->|"差分を転送"| Mobile["モバイル端末の Syncthing"]
+    Mobile -->|"保存"| MusicApp["音楽プレイヤーアプリ"]
 ```
 
-## 状態遷移: DownloadJob
+---
 
-```
-pending ──→ downloading ──→ complete
-              │
-              └──→ failed ──→ (retry) ──→ pending
-                   │
-                   └──→ skipped
+## 状態遷移
+
+### DownloadJob
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending : ジョブ作成
+    pending --> downloading : ワーカーが取得
+    downloading --> complete : ダウンロード成功
+    downloading --> failed : エラー発生
+    failed --> pending : リトライ
+    downloading --> skipped : 重複検出
 ```
 
 | 状態 | 説明 |
 |------|------|
 | `pending` | キュー待ち |
 | `downloading` | yt-dlp ダウンロード中 |
-| `complete` | ダウンロード完了、Track レコードあり |
-| `failed` | エラー発生（`error_message` に詳細） |
+| `complete` | 完了（Track レコードあり） |
+| `failed` | エラー（`error_message` に詳細） |
 | `skipped` | 重複等でスキップ |
 
-## 状態遷移: PlaylistSyncTrack
+### PlaylistSyncTrack
 
-```
-pending ──→ downloading ──→ complete
-              │
-              └──→ failed
-                
-(プレイリストから削除された場合)
-any ──→ removed
+```mermaid
+stateDiagram-v2
+    [*] --> pending : トラック追加
+    pending --> downloading : ワーカーが取得
+    downloading --> complete : ダウンロード成功
+    downloading --> failed : エラー発生
+    complete --> removed : プレイリストから削除
+    pending --> removed : プレイリストから削除
 ```

@@ -9,7 +9,7 @@
 | `/api/v1/urls` | `api/urls.py` | YouTube URL の登録・一覧・削除 |
 | `/api/v1/queue` | `api/queue.py` | ダウンロードキュー管理・SSE イベント |
 | `/api/v1/tracks` | `api/tracks.py` | トラックライブラリの検索・編集・削除 |
-| `/api/v1/stream/{id}` | `api/stream.py` | 音声ストリーミング（範囲リクエスト対応） |
+| `/api/v1/stream/{id}` | `api/stream.py` | 音声ストリーミング（Range リクエスト対応） |
 | `/api/v1/thumbnails/{id}` | `api/stream.py` | サムネイル画像取得 |
 | `/api/v1/files/{id}/download` | `api/stream.py` | 音声ファイルダウンロード |
 | `/api/v1/syncthing/status` | `api/syncthing.py` | Syncthing 同期状態 |
@@ -18,20 +18,17 @@
 | `/api/v1/health` | `main.py` | ヘルスチェック |
 | `/api/v1/admin/rescan` | `main.py` | DB とファイルシステムの同期 |
 
-## 対話型ドキュメント
+!!! tip "対話型ドキュメント"
+    サーバー起動後に以下の URL で API を試せます。
+    
+    - **Swagger UI**: `http://localhost:8000/api/docs`
+    - **ReDoc**: `http://localhost:8000/api/redoc`
 
-- **Swagger UI**: `http://localhost:8000/api/docs`
-- **ReDoc**: `http://localhost:8000/api/redoc`
+---
 
 ## 共通仕様
 
-### レスポンス形式
-
-すべての API は JSON を返します。
-
 ### エラーレスポンス
-
-FastAPI の標準形式に従います。
 
 ```json
 {
@@ -49,5 +46,5 @@ FastAPI の標準形式に従います。
 
 ### ページネーション
 
-`/api/v1/tracks` は `limit`・`offset` クエリパラメータをサポートします。  
-`/api/v1/queue` は最大 200 件を返します。
+- `/api/v1/tracks`: `limit`・`offset` クエリパラメータをサポート
+- `/api/v1/queue`: 最大 200 件を返す
