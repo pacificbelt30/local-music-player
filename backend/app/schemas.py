@@ -91,6 +91,12 @@ class YouTubeAuthStatus(BaseModel):
     scope: str | None = None
 
 
+class YouTubeTokenInput(BaseModel):
+    access_token: str
+    refresh_token: str = ""
+    expires_in: int = 3600
+
+
 class YouTubePlaylistInfo(BaseModel):
     playlist_id: str
     title: str

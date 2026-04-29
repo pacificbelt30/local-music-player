@@ -2,7 +2,11 @@
 
 `/api/v1/youtube` — YouTube OAuth2 認証とプレイリスト同期を管理します。
 
-## OAuth2 認証フロー
+## 認証方法
+
+認証方法は 2 種類あります。
+
+### 方法 A: ブラウザ OAuth2 フロー（推奨）
 
 ```
 1. GET /api/v1/youtube/auth/url       → 認証 URL を取得
@@ -10,6 +14,14 @@
 3. GET /api/v1/youtube/auth/callback  → コールバック処理（トークン保存）
 4. リダイレクト → /?youtube_auth=success
 ```
+
+`YOUTUBE_CLIENT_ID` と `YOUTUBE_CLIENT_SECRET` の設定が必要です。
+
+### 方法 B: トークン直接貼り付け
+
+`POST /api/v1/youtube/auth/token` にアクセストークンを直接送信します。  
+[Google OAuth 2.0 Playground](https://developers.google.com/oauthplayground/) などで取得したトークンを使用できます。  
+Refresh Token を合わせて送信し、`YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` が設定済みの場合は有効期限切れ時に自動更新されます。
 
 ## エンドポイント一覧
 
@@ -32,6 +44,41 @@ Google OAuth2 認証 URL を返します。
 | コード | 条件 |
 |--------|------|
 | `400` | `YOUTUBE_CLIENT_ID` が未設定 |
+
+---
+
+#### POST `/api/v1/youtube/auth/token`
+
+アクセストークン（および任意のリフレッシュトークン）を直接保存します。  
+`YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` が不要なため、OAuth2 リダイレクトフローを使えない環境でも認証できます。
+
+**リクエストボディ**
+
+```json
+{
+  "access_token": "ya29.xxxxxx",
+  "refresh_token": "1//xxxxxx",
+  "expires_in": 3600
+}
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `access_token` | string | ✓ | Google OAuth2 アクセストークン |
+| `refresh_token` | string | — | リフレッシュトークン（省略時は空文字列） |
+| `expires_in` | integer | — | 有効期限（秒）。デフォルト: `3600` |
+
+**動作**
+
+- 既存のトークンレコードがあれば上書き更新（接続解除なしでトークンを差し替え可能）
+- `refresh_token` が空の場合、期限切れ後の自動更新は行われない
+- `scope` は `null` に設定される（ブラウザフローで取得した場合のみ scope が記録される）
+
+**レスポンス** `200 OK`
+
+```json
+{ "ok": true }
+```
 
 ---
 
