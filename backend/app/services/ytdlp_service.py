@@ -60,9 +60,11 @@ def download_track(
     audio_format: str,
     audio_quality: str,
     progress_hook: Callable[[dict], None] | None = None,
+    base_path: Path | None = None,
 ) -> dict[str, Any]:
     """Download a single track. Returns metadata dict on success."""
-    output_template = str(settings.downloads_path / "%(uploader)s" / "%(title)s.%(ext)s")
+    dest = base_path or settings.downloads_path
+    output_template = str(dest / "%(uploader)s" / "%(title)s.%(ext)s")
 
     ydl_opts: dict[str, Any] = {
         "format": "bestaudio/best",
@@ -89,12 +91,12 @@ def download_track(
     # Sanitize filename the same way yt-dlp does
     safe_title = yt_dlp.utils.sanitize_filename(title)
     safe_uploader = yt_dlp.utils.sanitize_filename(uploader)
-    file_path = settings.downloads_path / safe_uploader / f"{safe_title}.{ext}"
+    file_path = dest / safe_uploader / f"{safe_title}.{ext}"
 
     # Find thumbnail (yt-dlp may save as .jpg, .png, or .webp)
     thumbnail_path = None
     for thumb_ext in ("jpg", "png", "webp"):
-        candidate = settings.downloads_path / safe_uploader / f"{safe_title}.{thumb_ext}"
+        candidate = dest / safe_uploader / f"{safe_title}.{thumb_ext}"
         if candidate.exists():
             thumbnail_path = str(candidate)
             break

@@ -1,0 +1,319 @@
+import { api } from "./api.js";
+
+let syncPollers = {};
+
+export function initPlaylists() {
+  renderAuthSection();
+  renderSyncList();
+  renderYoutubeSyncInterval();
+
+  // Handle youtube_auth=success redirect from OAuth callback
+  if (new URLSearchParams(location.search).get("youtube_auth") === "success") {
+    history.replaceState({}, "", "/");
+    renderAuthSection();
+    renderSyncList();
+  }
+}
+
+// ── Auth Section ──────────────────────────────────────────────────────────────
+
+async function renderAuthSection() {
+  const container = document.getElementById("yt-auth-section");
+  if (!container) return;
+
+  try {
+    const status = await api.youtubeAuthStatus();
+    if (status.authenticated) {
+      container.innerHTML = `
+        <div class="yt-auth-connected">
+          <span class="status-badge status-complete">YouTube接続済み</span>
+          <button class="btn btn-ghost" id="yt-disconnect-btn">接続解除</button>
+        </div>
+      `;
+      document.getElementById("yt-disconnect-btn").addEventListener("click", disconnectYouTube);
+      document.getElementById("yt-playlist-picker").style.display = "";
+      renderAccountPlaylists();
+    } else {
+      container.innerHTML = `
+        <div class="yt-auth-disconnected">
+          <p class="yt-auth-hint">YouTubeアカウントに接続してプレイリストを同期できます。</p>
+          <button class="btn btn-primary" id="yt-connect-btn">YouTubeアカウントに接続</button>
+        </div>
+      `;
+      document.getElementById("yt-connect-btn").addEventListener("click", connectYouTube);
+      document.getElementById("yt-playlist-picker").style.display = "none";
+    }
+  } catch (e) {
+    container.innerHTML = `<div class="error-msg">${escHtml(e.message)}</div>`;
+  }
+}
+
+async function connectYouTube() {
+  try {
+    const { url } = await api.youtubeAuthUrl();
+    window.location.href = url;
+  } catch (e) {
+    alert("接続URLの取得に失敗しました: " + e.message);
+  }
+}
+
+async function disconnectYouTube() {
+  if (!confirm("YouTubeアカウントの接続を解除しますか？")) return;
+  try {
+    await api.youtubeRevokeAuth();
+    renderAuthSection();
+    document.getElementById("yt-account-playlists").innerHTML = "";
+  } catch (e) {
+    alert("解除に失敗しました: " + e.message);
+  }
+}
+
+// ── Account Playlists Picker ──────────────────────────────────────────────────
+
+async function renderAccountPlaylists() {
+  const container = document.getElementById("yt-account-playlists");
+  if (!container) return;
+  container.innerHTML = '<div class="empty-state">プレイリスト読込中…</div>';
+
+  try {
+    const playlists = await api.youtubeListAccountPlaylists();
+    const syncs = await api.youtubeListSyncs();
+    const syncedIds = new Set(syncs.map((s) => s.playlist_id));
+
+    if (!playlists.length) {
+      container.innerHTML = '<div class="empty-state">プレイリストが見つかりません</div>';
+      return;
+    }
+
+    container.innerHTML = "";
+    for (const pl of playlists) {
+      const already = syncedIds.has(pl.playlist_id);
+      const item = document.createElement("div");
+      item.className = "yt-pl-item";
+      item.innerHTML = `
+        ${pl.thumbnail_url ? `<img class="yt-pl-thumb" src="${escHtml(pl.thumbnail_url)}" alt="" loading="lazy">` : '<div class="track-thumb-placeholder">▶</div>'}
+        <div class="yt-pl-info">
+          <div class="yt-pl-title">${escHtml(pl.title)}</div>
+          <div class="yt-pl-meta">${pl.item_count} 曲</div>
+        </div>
+        <button class="btn ${already ? "btn-ghost" : "btn-primary"} yt-add-sync-btn"
+          data-id="${escHtml(pl.playlist_id)}" data-name="${escHtml(pl.title)}"
+          ${already ? "disabled" : ""}>
+          ${already ? "同期中" : "+ 同期追加"}
+        </button>
+      `;
+      container.appendChild(item);
+    }
+
+    container.querySelectorAll(".yt-add-sync-btn:not([disabled])").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        btn.textContent = "追加中…";
+        try {
+          await api.youtubeCreateSync({
+            playlist_id: btn.dataset.id,
+            playlist_name: btn.dataset.name,
+          });
+          btn.textContent = "同期中";
+          btn.className = "btn btn-ghost yt-add-sync-btn";
+          renderSyncList();
+        } catch (e) {
+          btn.disabled = false;
+          btn.textContent = "+ 同期追加";
+          alert("追加に失敗しました: " + e.message);
+        }
+      });
+    });
+  } catch (e) {
+    container.innerHTML = `<div class="error-msg">${escHtml(e.message)}</div>`;
+  }
+}
+
+// ── Sync List ─────────────────────────────────────────────────────────────────
+
+async function renderSyncList() {
+  const container = document.getElementById("yt-sync-list");
+  if (!container) return;
+
+  try {
+    const syncs = await api.youtubeListSyncs();
+    container.innerHTML = syncs.length ? "" : '<div class="empty-state">同期中のプレイリストはありません</div>';
+
+    for (const sync of syncs) {
+      const card = document.createElement("div");
+      card.className = "yt-sync-card";
+      card.dataset.syncId = sync.id;
+      card.innerHTML = syncCardHTML(sync);
+      container.appendChild(card);
+      bindSyncCardEvents(card, sync);
+    }
+  } catch (e) {
+    container.innerHTML = `<div class="error-msg">${escHtml(e.message)}</div>`;
+  }
+}
+
+function syncCardHTML(sync) {
+  const lastSynced = sync.last_synced
+    ? new Date(sync.last_synced).toLocaleString("ja-JP")
+    : "未同期";
+  const progress = sync.track_count
+    ? `${sync.downloaded_count}/${sync.track_count} 曲ダウンロード済み`
+    : "トラックなし";
+
+  return `
+    <div class="yt-sync-header">
+      <div class="yt-sync-info">
+        <div class="yt-sync-title">${escHtml(sync.playlist_name)}</div>
+        <div class="yt-sync-meta">${progress} · 最終同期: ${lastSynced}</div>
+        <div class="yt-sync-meta">${sync.audio_format.toUpperCase()} / ${sync.audio_quality === "best" ? "Best" : sync.audio_quality + "kbps"}</div>
+      </div>
+      <div class="yt-sync-actions">
+        <button class="btn btn-primary yt-sync-now-btn" data-id="${sync.id}" title="今すぐ同期">同期</button>
+        <button class="btn btn-ghost yt-sync-toggle-btn" data-id="${sync.id}" data-enabled="${sync.enabled}">
+          ${sync.enabled ? "一時停止" : "再開"}
+        </button>
+        <button class="btn btn-danger yt-sync-delete-btn" data-id="${sync.id}">削除</button>
+      </div>
+    </div>
+    <div class="yt-sync-tracks" id="yt-tracks-${sync.id}" style="display:none"></div>
+    <button class="yt-tracks-toggle btn btn-ghost" data-id="${sync.id}">トラック一覧を表示 ▾</button>
+  `;
+}
+
+function bindSyncCardEvents(card, sync) {
+  card.querySelector(".yt-sync-now-btn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = "同期中…";
+    try {
+      await api.youtubeSyncNow(sync.id);
+      btn.textContent = "キュー登録済み";
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = "同期";
+        renderSyncList();
+      }, 3000);
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = "同期";
+      alert("同期に失敗しました: " + err.message);
+    }
+  });
+
+  card.querySelector(".yt-sync-toggle-btn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const enabled = btn.dataset.enabled === "true";
+    try {
+      await api.youtubeUpdateSync(sync.id, { enabled: !enabled });
+      renderSyncList();
+    } catch (err) {
+      alert("更新に失敗しました: " + err.message);
+    }
+  });
+
+  card.querySelector(".yt-sync-delete-btn").addEventListener("click", async (e) => {
+    const deleteFiles = confirm(`「${sync.playlist_name}」の同期を削除しますか？\n\n[OK] ダウンロード済みファイルも削除\n[キャンセル] 設定のみ削除`);
+    const cancelAll = !deleteFiles && !confirm("設定のみ削除しますか？");
+    if (cancelAll) return;
+    try {
+      await api.youtubeDeleteSync(sync.id, deleteFiles);
+      card.remove();
+      if (!document.querySelectorAll(".yt-sync-card").length) {
+        document.getElementById("yt-sync-list").innerHTML = '<div class="empty-state">同期中のプレイリストはありません</div>';
+      }
+    } catch (err) {
+      alert("削除に失敗しました: " + err.message);
+    }
+  });
+
+  card.querySelector(".yt-tracks-toggle").addEventListener("click", (e) => {
+    const btn = e.currentTarget;
+    const tracksDiv = document.getElementById(`yt-tracks-${sync.id}`);
+    if (tracksDiv.style.display === "none") {
+      tracksDiv.style.display = "";
+      btn.textContent = "トラック一覧を非表示 ▴";
+      renderSyncTracks(sync.id, tracksDiv);
+    } else {
+      tracksDiv.style.display = "none";
+      btn.textContent = "トラック一覧を表示 ▾";
+    }
+  });
+}
+
+async function renderSyncTracks(syncId, container) {
+  container.innerHTML = '<div class="empty-state">読込中…</div>';
+  try {
+    const tracks = await api.youtubeListSyncTracks(syncId);
+    if (!tracks.length) {
+      container.innerHTML = '<div class="empty-state">トラックなし</div>';
+      return;
+    }
+    container.innerHTML = "";
+    for (const t of tracks) {
+      const item = document.createElement("div");
+      item.className = "yt-track-item";
+      item.innerHTML = `
+        ${t.thumbnail_url
+          ? `<img class="track-thumb" src="${escHtml(t.thumbnail_url)}" alt="" loading="lazy">`
+          : '<div class="track-thumb-placeholder">♪</div>'}
+        <div class="track-info">
+          <div class="track-title">${escHtml(t.title)}</div>
+          <div class="track-artist">${escHtml(t.artist || "")}</div>
+        </div>
+        <div class="yt-track-right">
+          <span class="status-badge status-${t.status}">${statusLabel(t.status)}</span>
+          ${t.duration_secs ? `<span class="track-duration">${fmtDuration(t.duration_secs)}</span>` : ""}
+        </div>
+      `;
+      if (t.stream_url) {
+        item.style.cursor = "pointer";
+        item.addEventListener("click", () => playTrack(t));
+      }
+      container.appendChild(item);
+    }
+  } catch (e) {
+    container.innerHTML = `<div class="error-msg">${escHtml(e.message)}</div>`;
+  }
+}
+
+// ── Sync interval setting ─────────────────────────────────────────────────────
+
+async function renderYoutubeSyncInterval() {
+  const select = document.getElementById("youtube-sync-interval");
+  if (!select) return;
+  try {
+    const s = await api.getSettings();
+    select.value = String(s.youtube_sync_interval_minutes);
+  } catch {}
+  select.addEventListener("change", async () => {
+    try {
+      await api.updateSettings({ youtube_sync_interval_minutes: Number(select.value) });
+    } catch (e) {
+      alert("設定の保存に失敗しました: " + e.message);
+    }
+  });
+}
+
+// ── Player integration ────────────────────────────────────────────────────────
+
+function playTrack(track) {
+  // Dispatch a custom event that player.js can listen to
+  window.dispatchEvent(new CustomEvent("play-playlist-track", { detail: track }));
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function statusLabel(status) {
+  const map = { pending: "待機中", downloading: "DL中", complete: "完了", failed: "失敗", removed: "削除済" };
+  return map[status] || status;
+}
+
+function fmtDuration(secs) {
+  const m = Math.floor(secs / 60);
+  const s = String(secs % 60).padStart(2, "0");
+  return `${m}:${s}`;
+}
+
+function escHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
