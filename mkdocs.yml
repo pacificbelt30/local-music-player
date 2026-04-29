@@ -1,0 +1,84 @@
+site_name: Local Music Player
+site_description: YouTubeから音楽をダウンロードしてローカルで再生するシステムの仕様書
+site_author: Local Music Player Team
+docs_dir: docs
+repo_url: https://github.com/pacificbelt30/local-music-player
+
+theme:
+  name: material
+  language: ja
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: ダークモードに切り替え
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: ライトモードに切り替え
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search:
+      lang: ja
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+
+nav:
+  - ホーム: index.md
+  - アーキテクチャ:
+      - システム概要: architecture/overview.md
+      - データフロー: architecture/data-flow.md
+  - バックエンド:
+      - 概要: backend/index.md
+      - 設定: backend/configuration.md
+      - データベース: backend/database.md
+      - API:
+          - 概要: backend/api/index.md
+          - URL管理: backend/api/urls.md
+          - ダウンロードキュー: backend/api/queue.md
+          - トラックライブラリ: backend/api/tracks.md
+          - ストリーミング: backend/api/stream.md
+          - YouTube連携: backend/api/youtube.md
+      - サービス層:
+          - 概要: backend/services/index.md
+          - yt-dlpサービス: backend/services/ytdlp.md
+          - YouTube APIサービス: backend/services/youtube-api.md
+          - Syncthingサービス: backend/services/syncthing.md
+          - ファイルサービス: backend/services/file.md
+      - タスク:
+          - 概要: backend/tasks/index.md
+          - ダウンロードタスク: backend/tasks/download.md
+          - プレイリスト同期タスク: backend/tasks/sync-playlist.md
+  - フロントエンド:
+      - 概要: frontend/index.md
+      - キューパネル: frontend/queue.md
+      - ライブラリパネル: frontend/library.md
+      - プレイリストパネル: frontend/playlists.md
+      - プレイヤー: frontend/player.md
+      - PWAサポート: frontend/pwa.md
+  - デプロイ:
+      - Docker: deployment/docker.md
+      - ローカル開発: deployment/local-dev.md
+      - 環境設定: deployment/configuration.md
