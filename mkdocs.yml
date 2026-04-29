@@ -82,6 +82,7 @@ nav:
       - プレイヤー: frontend/player.md
       - PWAサポート: frontend/pwa.md
   - デプロイ:
+      - Linuxセットアップ: deployment/linux-setup.md
       - Docker: deployment/docker.md
       - ローカル開発: deployment/local-dev.md
       - 環境設定: deployment/configuration.md
