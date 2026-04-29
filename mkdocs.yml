@@ -48,6 +48,7 @@ markdown_extensions:
 nav:
   - ホーム: index.md
   - 使い方: usage.md
+  - Androidクライアント設定: android-client.md
   - 今後の課題: future-work.md
   - アーキテクチャ:
       - システム概要: architecture/overview.md
