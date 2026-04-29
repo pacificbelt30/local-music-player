@@ -57,6 +57,10 @@ export const api = {
 
   // YouTube Sync tracks
   youtubeListSyncTracks: (syncId) => request("GET", `/youtube/syncs/${syncId}/tracks`),
+
+  // Settings
+  getSettings: () => request("GET", "/settings"),
+  updateSettings: (payload) => request("PATCH", "/settings", payload),
 };
 
 // SSE for queue progress

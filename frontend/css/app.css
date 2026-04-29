@@ -399,6 +399,37 @@ header h1 { font-size: 1.1rem; font-weight: 700; color: var(--accent); flex: 1; 
   margin-top: 4px;
 }
 
+/* ── Sync interval setting ── */
+.sync-interval-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+.sync-interval-label {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  flex: 1;
+}
+
+.sync-interval-select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 5px 8px;
+  font-size: 0.82rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.sync-interval-select:focus { border-color: var(--accent); }
+
 /* ── YouTube Playlist Sync ── */
 .yt-auth-section {
   background: var(--surface);

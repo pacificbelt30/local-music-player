@@ -22,13 +22,13 @@ celery_app.conf.update(
         "app.tasks.sync_playlist.*": {"queue": "downloads"},
     },
     beat_schedule={
-        "refresh-playlists-hourly": {
+        "check-playlist-refresh": {
             "task": "app.tasks.scheduler.periodic_playlist_refresh",
-            "schedule": crontab(minute=0),
+            "schedule": crontab(minute="*/5"),
         },
-        "sync-youtube-playlists-hourly": {
+        "check-youtube-playlist-sync": {
             "task": "app.tasks.scheduler.periodic_youtube_playlist_sync",
-            "schedule": crontab(minute=30),
+            "schedule": crontab(minute="*/5"),
         },
     },
 )

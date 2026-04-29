@@ -56,6 +56,14 @@ class PlaylistSyncTrack(Base):
     playlist_sync: Mapped["YoutubePlaylistSync"] = relationship(back_populates="tracks")
 
 
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
 class UrlSource(Base):
     __tablename__ = "url_sources"
 
