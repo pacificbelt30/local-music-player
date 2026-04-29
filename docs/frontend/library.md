@@ -42,8 +42,11 @@
 `download_url`（`/api/v1/files/{id}/download`）を `<a>` タグの `href` に設定してクリックイベントを発火します。  
 `Content-Disposition: attachment` により `{title}.{format}` ファイル名でダウンロードされます。
 
-## ページロード
+## ページロード・ページネーション
 
-1. `api.listTracks({ limit: 50 })` でトラック一覧を取得
+1. 初回読み込みで `api.listTracks({ limit: 50, offset: 0 })` を実行
 2. 取得結果をグリッドにレンダリング
-3. ページネーション: スクロール末端で `offset` を増やして追加取得
+3. 取得件数が `PAGE_SIZE`（50）件の場合、「もっと読み込む」ボタンを表示
+4. ボタンクリックで `offset` をずらして追加取得・グリッドに追記
+
+検索時は `offset` を 0 にリセットしてページネーションをやり直します。

@@ -343,6 +343,29 @@ header h1 { font-size: 1.1rem; font-weight: 700; color: var(--accent); flex: 1; 
 
 .player-time { font-size: 0.7rem; color: var(--text-dim); white-space: nowrap; }
 
+.ctrl-btn.active { color: var(--accent); }
+
+.volume-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.volume-icon { font-size: 1rem; line-height: 1; }
+
+.volume-range {
+  width: 70px;
+  accent-color: var(--accent);
+  height: 4px;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .volume-control { display: none; }
+  .ctrl-btn.shuffle, .ctrl-btn.repeat { display: none; }
+}
+
 /* ── Tabs (mobile) ── */
 .tab-bar {
   display: none;
@@ -542,4 +565,50 @@ header h1 { font-size: 1.1rem; font-weight: 700; color: var(--accent); flex: 1; 
   align-items: flex-end;
   gap: 3px;
   flex-shrink: 0;
+}
+
+.load-more-btn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  font-size: 0.82rem;
+}
+
+/* ── Add sync dialog ── */
+.yt-add-sync-dialog {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+}
+
+.yt-add-sync-dialog-inner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  width: min(320px, 90vw);
+}
+
+.yt-add-sync-dialog-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin-bottom: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.yt-add-sync-dialog-inner select {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  outline: none;
 }

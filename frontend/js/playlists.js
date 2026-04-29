@@ -106,27 +106,71 @@ async function renderAccountPlaylists() {
     }
 
     container.querySelectorAll(".yt-add-sync-btn:not([disabled])").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        btn.disabled = true;
-        btn.textContent = "追加中…";
-        try {
-          await api.youtubeCreateSync({
-            playlist_id: btn.dataset.id,
-            playlist_name: btn.dataset.name,
-          });
-          btn.textContent = "同期中";
-          btn.className = "btn btn-ghost yt-add-sync-btn";
-          renderSyncList();
-        } catch (e) {
-          btn.disabled = false;
-          btn.textContent = "+ 同期追加";
-          alert("追加に失敗しました: " + e.message);
-        }
-      });
+      btn.addEventListener("click", () => showAddSyncDialog(btn));
     });
   } catch (e) {
     container.innerHTML = `<div class="error-msg">${escHtml(e.message)}</div>`;
   }
+}
+
+// ── Add Sync Dialog ───────────────────────────────────────────────────────────
+
+function showAddSyncDialog(btn) {
+  const existing = document.getElementById("yt-add-sync-dialog");
+  if (existing) existing.remove();
+
+  const dialog = document.createElement("div");
+  dialog.id = "yt-add-sync-dialog";
+  dialog.className = "yt-add-sync-dialog";
+  dialog.innerHTML = `
+    <div class="yt-add-sync-dialog-inner">
+      <div class="yt-add-sync-dialog-title">同期設定: ${escHtml(btn.dataset.name)}</div>
+      <div class="format-row" style="margin-bottom:8px">
+        <select id="yt-sync-format">
+          <option value="mp3">MP3</option>
+          <option value="flac">FLAC</option>
+          <option value="aac">AAC</option>
+          <option value="ogg">OGG</option>
+        </select>
+        <select id="yt-sync-quality">
+          <option value="192">192 kbps</option>
+          <option value="320">320 kbps</option>
+          <option value="best">Best</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="yt-sync-confirm-btn" style="flex:1">同期追加</button>
+        <button class="btn btn-ghost" id="yt-sync-cancel-btn">キャンセル</button>
+      </div>
+    </div>
+  `;
+
+  // Position near button
+  document.body.appendChild(dialog);
+
+  document.getElementById("yt-sync-cancel-btn").addEventListener("click", () => dialog.remove());
+  document.getElementById("yt-sync-confirm-btn").addEventListener("click", async () => {
+    const audio_format = document.getElementById("yt-sync-format").value;
+    const audio_quality = document.getElementById("yt-sync-quality").value;
+    dialog.remove();
+    btn.disabled = true;
+    btn.textContent = "追加中…";
+    try {
+      await api.youtubeCreateSync({
+        playlist_id: btn.dataset.id,
+        playlist_name: btn.dataset.name,
+        audio_format,
+        audio_quality,
+      });
+      btn.textContent = "同期中";
+      btn.className = "btn btn-ghost yt-add-sync-btn";
+      renderSyncList();
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = "+ 同期追加";
+      alert("追加に失敗しました: " + e.message);
+    }
+  });
 }
 
 // ── Sync List ─────────────────────────────────────────────────────────────────
