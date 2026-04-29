@@ -27,10 +27,13 @@ async function renderAuthSection() {
       container.innerHTML = `
         <div class="yt-auth-connected">
           <span class="status-badge status-complete">YouTube接続済み</span>
+          <button class="btn btn-ghost" id="yt-token-toggle-btn">トークンを更新</button>
           <button class="btn btn-ghost" id="yt-disconnect-btn">接続解除</button>
         </div>
+        ${tokenFormHTML()}
       `;
       document.getElementById("yt-disconnect-btn").addEventListener("click", disconnectYouTube);
+      bindTokenForm();
       document.getElementById("yt-playlist-picker").style.display = "";
       renderAccountPlaylists();
     } else {
@@ -41,40 +44,56 @@ async function renderAuthSection() {
             <button class="btn btn-primary" id="yt-connect-btn">YouTubeアカウントに接続</button>
             <button class="btn btn-ghost" id="yt-token-toggle-btn">トークンを直接入力</button>
           </div>
-          <div id="yt-token-form" style="display:none;margin-top:12px">
-            <div style="margin-bottom:6px">
-              <label style="display:block;font-size:0.85em;margin-bottom:4px">Access Token <span style="opacity:.6">（必須）</span></label>
-              <textarea id="yt-access-token-input" rows="3" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:0.8em" placeholder="ya29.xxxxxx..."></textarea>
-            </div>
-            <div style="margin-bottom:6px">
-              <label style="display:block;font-size:0.85em;margin-bottom:4px">Refresh Token <span style="opacity:.6">（任意 — 設定済みの場合は自動更新）</span></label>
-              <textarea id="yt-refresh-token-input" rows="2" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:0.8em" placeholder="1//xxxxxx..."></textarea>
-            </div>
-            <div style="margin-bottom:10px">
-              <label style="display:block;font-size:0.85em;margin-bottom:4px">有効期限（秒） <span style="opacity:.6">（デフォルト: 3600）</span></label>
-              <input id="yt-expires-in-input" type="number" value="3600" min="60" style="width:120px">
-            </div>
-            <div style="display:flex;gap:8px">
-              <button class="btn btn-primary" id="yt-token-submit-btn">保存</button>
-              <button class="btn btn-ghost" id="yt-token-cancel-btn">キャンセル</button>
-            </div>
-          </div>
+          ${tokenFormHTML()}
         </div>
       `;
       document.getElementById("yt-connect-btn").addEventListener("click", connectYouTube);
-      document.getElementById("yt-token-toggle-btn").addEventListener("click", () => {
-        const form = document.getElementById("yt-token-form");
-        form.style.display = form.style.display === "none" ? "" : "none";
-      });
-      document.getElementById("yt-token-cancel-btn").addEventListener("click", () => {
-        document.getElementById("yt-token-form").style.display = "none";
-      });
-      document.getElementById("yt-token-submit-btn").addEventListener("click", submitTokenDirectly);
+      bindTokenForm();
       document.getElementById("yt-playlist-picker").style.display = "none";
     }
   } catch (e) {
     container.innerHTML = `<div class="error-msg">${escHtml(e.message)}</div>`;
   }
+}
+
+function tokenFormHTML() {
+  return `
+    <div id="yt-token-form" style="display:none;margin-top:12px">
+      <p class="yt-auth-hint" style="margin-bottom:8px">
+        トークンは
+        <a href="https://developers.google.com/oauthplayground/" target="_blank" rel="noopener">Google OAuth 2.0 Playground</a>
+        で取得できます。Scope に
+        <code>https://www.googleapis.com/auth/youtube.readonly</code> を指定してください。
+      </p>
+      <div style="margin-bottom:6px">
+        <label style="display:block;font-size:0.85em;margin-bottom:4px">Access Token <span style="opacity:.6">（必須）</span></label>
+        <textarea id="yt-access-token-input" rows="3" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:0.8em" placeholder="ya29.xxxxxx..."></textarea>
+      </div>
+      <div style="margin-bottom:6px">
+        <label style="display:block;font-size:0.85em;margin-bottom:4px">Refresh Token <span style="opacity:.6">（任意 — client_id/secret 設定済みの場合に自動更新）</span></label>
+        <textarea id="yt-refresh-token-input" rows="2" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:0.8em" placeholder="1//xxxxxx..."></textarea>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="display:block;font-size:0.85em;margin-bottom:4px">有効期限（秒） <span style="opacity:.6">（デフォルト: 3600）</span></label>
+        <input id="yt-expires-in-input" type="number" value="3600" min="60" style="width:120px">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="yt-token-submit-btn">保存</button>
+        <button class="btn btn-ghost" id="yt-token-cancel-btn">キャンセル</button>
+      </div>
+    </div>
+  `;
+}
+
+function bindTokenForm() {
+  document.getElementById("yt-token-toggle-btn").addEventListener("click", () => {
+    const form = document.getElementById("yt-token-form");
+    form.style.display = form.style.display === "none" ? "" : "none";
+  });
+  document.getElementById("yt-token-cancel-btn").addEventListener("click", () => {
+    document.getElementById("yt-token-form").style.display = "none";
+  });
+  document.getElementById("yt-token-submit-btn").addEventListener("click", submitTokenDirectly);
 }
 
 async function connectYouTube() {
