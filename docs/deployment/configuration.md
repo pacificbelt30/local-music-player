@@ -69,7 +69,12 @@ ALLOWED_ORIGINS=http://localhost:3000,https://myserver.local
 | `YOUTUBE_CLIENT_SECRET` | `""` | OAuth2 クライアントシークレット |
 | `YOUTUBE_REDIRECT_URI` | `http://localhost:8000/api/v1/youtube/auth/callback` | OAuth2 コールバック URI |
 
-`YOUTUBE_CLIENT_ID` が空の場合、`/api/v1/youtube/auth/url` は `400` エラーを返します。
+!!! info "設定が不要な場合"
+    UI の **「トークンを直接入力」** フォームを使う場合、これらの変数は **不要** です。  
+    `YOUTUBE_CLIENT_ID` が空のままでも YouTube プレイリスト同期は利用できます。  
+    ただし、Refresh Token による自動更新は `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` が設定されている場合のみ動作します。
+
+`YOUTUBE_CLIENT_ID` が空の場合、`/api/v1/youtube/auth/url`（ブラウザ OAuth2 フロー）は `400` エラーを返します。
 
 ## アプリケーション設定（DB 管理）
 

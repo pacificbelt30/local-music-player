@@ -89,15 +89,34 @@
 
 YouTube アカウントのプレイリストを定期的に自動同期します。
 
-### 初回設定（OAuth 認証）
+### 初回設定（認証方法を選択）
+
+認証方法は 2 種類あります。
+
+#### 方法 A: YouTubeアカウントに接続（ブラウザ OAuth2）
 
 1. 中央パネル（Playlists）の **「YouTubeアカウントに接続」** をクリック
 2. Google のログイン画面でアカウントを選択し、アクセスを許可
 3. アプリに戻り「YouTube接続済み」と表示されたら完了
 
 !!! note "事前準備"
-    OAuth 認証を使うには `.env` に `YOUTUBE_CLIENT_ID` と `YOUTUBE_CLIENT_SECRET` を設定する必要があります。  
-    設定方法は [YouTube OAuth2 のセットアップ](deployment/configuration.md#youtube-oauth2-のセットアップ) を参照してください。
+    この方法を使うには `.env` に `YOUTUBE_CLIENT_ID` と `YOUTUBE_CLIENT_SECRET` を設定する必要があります。  
+    設定方法は [環境設定 > YouTube OAuth2 設定](deployment/configuration.md#youtube-oauth2-設定) を参照してください。
+
+#### 方法 B: トークンを直接入力
+
+`YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` を設定せずに認証できます。
+
+1. **「トークンを直接入力」** をクリックしてフォームを開く
+2. [Google OAuth 2.0 Playground](https://developers.google.com/oauthplayground/) でトークンを取得する
+    - Step 1 で `https://www.googleapis.com/auth/youtube.readonly` を入力
+    - **「Authorize APIs」** → **「Exchange authorization code for tokens」** を実行
+    - 発行された **Access token** をコピー（必要なら **Refresh token** も）
+3. フォームに貼り付けて **「保存」** をクリック
+
+!!! tip "トークンの更新"
+    認証済みの状態でも **「トークンを更新」** ボタンから同フォームを開いて差し替えできます。  
+    Access Token の有効期限は通常 1 時間です。Refresh Token も入力しておくと、`YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` が設定済みの場合に自動更新されます。
 
 ### プレイリストの同期追加
 
