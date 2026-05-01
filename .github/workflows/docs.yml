@@ -1,12 +1,12 @@
 name: Docs
 
 on:
-  pull_request:
-    paths:
-      - "docs/**"
-      - "mkdocs.yml"
-      - "requirements-docs.txt"
-      - ".github/workflows/docs.yml"
+  # pull_request:
+  #   paths:
+  #     - "docs/**"
+  #     - "mkdocs.yml"
+  #     - "requirements-docs.txt"
+  #     - ".github/workflows/docs.yml"
   push:
     branches:
       - main
