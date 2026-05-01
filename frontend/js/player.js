@@ -51,7 +51,6 @@ function updateUI() {
   if (!track) return;
 
   bar.classList.remove("hidden");
-  document.body.classList.remove("player-hidden");
   titleEl.textContent = track.title;
   artistEl.textContent = track.artist || "";
   thumbEl.src = track.thumbnail_url || "";
@@ -126,7 +125,6 @@ volumeRange.addEventListener("input", () => {
 closeBtn.addEventListener("click", () => {
   audio.pause();
   bar.classList.add("hidden");
-  document.body.classList.add("player-hidden");
   document.querySelectorAll(".track-item").forEach((el) => el.classList.remove("active"));
   playlist = [];
   currentIndex = -1;
