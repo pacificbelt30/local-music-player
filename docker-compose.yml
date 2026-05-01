@@ -16,6 +16,8 @@ services:
       - PGID=1000
       - STGUIADDRESS=0.0.0.0:8384
       - STGUIAPIKEY=${SYNCTHING_API_KEY:-please-change-this-syncthing-api-key}
+      - STGUIUSER=${SYNCTHING_GUI_USER:-admin}
+      - STGUIPASSWORD=${SYNCTHING_GUI_PASSWORD:-please-change-this-syncthing-gui-password}
     ports:
       - "8384:8384"        # Web GUI / REST API
       - "22000:22000/tcp"  # TCP file transfers

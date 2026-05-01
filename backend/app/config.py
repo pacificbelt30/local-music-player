@@ -34,6 +34,8 @@ class Settings(BaseSettings):
 
     syncthing_url: str = "http://localhost:8384"
     syncthing_api_key: str = ""
+    syncthing_gui_user: str = ""
+    syncthing_gui_password: str = ""
 
     allowed_origins: list[str] = ["*"]
 
