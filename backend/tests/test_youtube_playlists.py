@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.models import PlaylistSyncTrack, YouTubeOAuthToken, YoutubePlaylistSync
+from app.models import AppSetting, PlaylistSyncTrack, YouTubeOAuthToken, YoutubePlaylistSync
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -628,3 +628,69 @@ def test_list_sync_tracks_marks_stale_pending_as_failed(client, db):
     db.refresh(track)
     assert track.status == "failed"
     assert "pending too long" in (track.error_message or "")
+
+
+def test_requeued_failed_track_refreshes_added_at_and_stays_pending(client, db):
+    from app.tasks.sync_playlist import sync_youtube_playlist
+
+    sync = _make_sync(db)
+    stale_added_at = datetime.now(timezone.utc) - timedelta(hours=3)
+    track = PlaylistSyncTrack(
+        playlist_sync_id=sync.id,
+        youtube_id="retry123",
+        title="Retry Song",
+        status="failed",
+        added_at=stale_added_at,
+        position=1,
+    )
+    db.add(track)
+    db.commit()
+
+    remote_items = [{"youtube_id": "retry123", "title": "Retry Song", "position": 1, "thumbnail_url": None}]
+    with patch("app.database.SessionLocal", return_value=db):
+        with patch("app.services.youtube_api_service.get_fresh_access_token", return_value="tok"):
+            with patch("app.services.youtube_api_service.get_playlist_items", return_value=remote_items):
+                with patch("app.tasks.sync_playlist.download_playlist_sync_track.apply_async"):
+                    sync_youtube_playlist.apply(args=[sync.id])
+
+    db.refresh(track)
+    assert track.status == "pending"
+    stale_naive = stale_added_at.replace(tzinfo=None)
+    assert track.added_at > stale_naive
+
+    resp = client.get(f"/api/v1/youtube/syncs/{sync.id}/tracks")
+    assert resp.status_code == 200
+    db.refresh(track)
+    assert track.status == "pending"
+
+
+class TestDownloadPlaylistSyncTrackTask:
+    def test_passes_gain_percent_to_ytdlp_service(self, db):
+        from app.tasks.sync_playlist import download_playlist_sync_track
+
+        sync = _make_sync(db)
+        track = _make_track(db, sync, youtube_id="vid_gain", status="pending")
+        db.add(AppSetting(key="download_gain_percent", value="7.5"))
+        db.commit()
+
+        fake_metadata = {
+            "youtube_id": "vid_gain",
+            "title": "Gain Song",
+            "artist": "Artist",
+            "duration_secs": 123,
+            "file_path": "/tmp/gain.mp3",
+            "file_format": "mp3",
+            "file_size_bytes": 10,
+            "thumbnail_path": None,
+        }
+
+        with patch("app.database.SessionLocal", return_value=db):
+            with patch("app.tasks.sync_playlist.ytdlp_service.download_track", return_value=fake_metadata) as mock_dl:
+                with patch("app.tasks.sync_playlist._redis.delete"):
+                    download_playlist_sync_track.apply(args=[track.id])
+
+        _, kwargs = mock_dl.call_args
+        assert kwargs["gain_percent"] == 7.5
+
+        db.refresh(track)
+        assert track.status == "complete"

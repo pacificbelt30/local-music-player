@@ -8,11 +8,12 @@ import yt_dlp
 
 from app.config import settings
 from app.database import SessionLocal
-from app.models import PlaylistSyncTrack, YoutubePlaylistSync
+from app.models import AppSetting, PlaylistSyncTrack, YoutubePlaylistSync
 from app.services import youtube_api_service, ytdlp_service
 from app.tasks.celery_app import celery_app
 
 _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
+_DEFAULT_GAIN_PERCENT = "0"
 
 
 def _playlist_sync_dir_name(playlist_name: str | None) -> str:
@@ -52,12 +53,14 @@ def sync_youtube_playlist(self, playlist_sync_id: int) -> None:
                     t.status = "pending"
                     t.file_path = None
                     t.error_message = None
+                    t.added_at = datetime.now(timezone.utc)
                     db.flush()
                     tracks_to_download.append(t.id)
                 elif t.status == "failed":
                     # Retry failed tracks on next sync
                     t.status = "pending"
                     t.error_message = None
+                    t.added_at = datetime.now(timezone.utc)
                     tracks_to_download.append(t.id)
                 else:
                     t.position = item["position"]
@@ -106,6 +109,8 @@ def download_playlist_sync_track(self, track_id: int) -> None:
         sync = db.get(YoutubePlaylistSync, track.playlist_sync_id)
         audio_format = sync.audio_format if sync else "mp3"
         audio_quality = sync.audio_quality if sync else "192"
+        gain_row = db.get(AppSetting, "download_gain_percent")
+        gain_percent = float(gain_row.value if gain_row else _DEFAULT_GAIN_PERCENT)
 
         # Store in downloads/{playlist_name}/
         playlist_name = sync.playlist_name if sync else "unknown"
@@ -127,6 +132,7 @@ def download_playlist_sync_track(self, track_id: int) -> None:
             youtube_id=track.youtube_id,
             audio_format=audio_format,
             audio_quality=audio_quality,
+            gain_percent=gain_percent,
             progress_hook=progress_hook,
             base_path=base_path,
         )
