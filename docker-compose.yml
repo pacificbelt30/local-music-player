@@ -7,6 +7,13 @@ services:
     volumes:
       - redis-data:/data
 
+  syncthing-init:
+    image: busybox
+    command: sh -c "chown -R 1000:1000 /var/syncthing/config /var/syncthing/downloads"
+    volumes:
+      - ./syncthing-config:/var/syncthing/config
+      - ./downloads:/var/syncthing/downloads
+
   syncthing:
     image: syncthing/syncthing:latest
     hostname: music-syncthing
@@ -22,8 +29,11 @@ services:
       - "22000:22000/udp"  # QUIC file transfers
       - "21027:21027/udp"  # Local discovery broadcasts
     volumes:
-      - syncthing-config:/var/syncthing/config
+      - ./syncthing-config:/var/syncthing/config
       - ./downloads:/var/syncthing/downloads
+    depends_on:
+      syncthing-init:
+        condition: service_completed_successfully
 
   api:
     build: .
@@ -84,4 +94,3 @@ services:
 
 volumes:
   redis-data:
-  syncthing-config:

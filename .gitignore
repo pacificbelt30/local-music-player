@@ -64,6 +64,7 @@ db.sqlite3-journal
 # Local Music Player data
 data/
 downloads/
+syncthing-config/
 
 # Flask stuff:
 instance/
