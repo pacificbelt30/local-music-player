@@ -76,6 +76,53 @@ ALLOWED_ORIGINS=http://localhost:3000,https://myserver.local
 
 `YOUTUBE_CLIENT_ID` が空の場合、`/api/v1/youtube/auth/url`（ブラウザ OAuth2 フロー）は `400` エラーを返します。
 
+#### Google Cloud Console での取得手順
+
+OAuth2 クライアント ID・シークレットはすべて**無料**で取得できます。
+
+**1. プロジェクトの作成**
+
+1. [Google Cloud Console](https://console.cloud.google.com/) にアクセスしてログイン
+2. 画面上部のプロジェクト選択 → **「新しいプロジェクト」** を作成（既存プロジェクトでも可）
+
+**2. YouTube Data API v3 の有効化**
+
+1. 左メニュー → **APIs & Services → ライブラリ**
+2. 「YouTube Data API v3」を検索して **有効にする**
+
+**3. OAuth 同意画面の設定**
+
+1. 左メニュー → **APIs & Services → OAuth 同意画面**
+2. User Type: **「外部」** を選択 → **作成**
+3. 以下を入力して **保存して次へ**:
+    - アプリ名: 任意（例: `local-music-player`）
+    - ユーザーサポートメール: 自分のメールアドレス
+    - デベロッパーの連絡先: 自分のメールアドレス
+4. スコープ画面: そのまま **保存して次へ**
+5. テストユーザー: **「+ ADD USERS」** から自分の Google アカウントを追加 → **保存して次へ**
+
+!!! note "公開申請は不要"
+    同意画面のステータスが「テスト」のままでも、テストユーザーに追加した Google アカウントであれば利用できます。個人用途では公開申請は不要です。
+
+**4. OAuth2 クライアント ID の作成**
+
+1. 左メニュー → **APIs & Services → 認証情報**
+2. **「+ 認証情報を作成」→「OAuth クライアント ID」**
+3. アプリケーションの種類: **「ウェブ アプリケーション」**
+4. 「承認済みのリダイレクト URI」に以下を追加:
+    ```
+    http://localhost:8000/api/v1/youtube/auth/callback
+    ```
+5. **作成** → 表示されたクライアント ID とシークレットを `.env` に設定
+
+```dotenv
+YOUTUBE_CLIENT_ID=xxxx.apps.googleusercontent.com
+YOUTUBE_CLIENT_SECRET=GOCSPX-xxxx
+YOUTUBE_REDIRECT_URI=http://localhost:8000/api/v1/youtube/auth/callback
+```
+
+設定後は `docker compose up` を再起動してください（`--build` は不要）。
+
 ## アプリケーション設定（DB 管理）
 
 以下の設定は Web UI または `PATCH /api/v1/settings` API で変更します（`.env` ではなく DB に保存）。

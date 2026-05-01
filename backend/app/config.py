@@ -1,5 +1,24 @@
 from pathlib import Path
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Any
+from pydantic.fields import FieldInfo
+from pydantic_settings import BaseSettings, SettingsConfigDict, EnvSettingsSource, DotEnvSettingsSource
+
+
+class _CommaListMixin:
+    """Parse comma-separated env strings (e.g. ALLOWED_ORIGINS=*) into list[str]."""
+
+    def decode_complex_value(self, field_name: str, field: FieldInfo, value: Any) -> Any:
+        if isinstance(value, str) and not value.startswith(("[", "{")):
+            return [v.strip() for v in value.split(",") if v.strip()]
+        return super().decode_complex_value(field_name, field, value)
+
+
+class _CommaEnvSource(_CommaListMixin, EnvSettingsSource):
+    pass
+
+
+class _CommaDotEnvSource(_CommaListMixin, DotEnvSettingsSource):
+    pass
 
 
 class Settings(BaseSettings):
@@ -24,6 +43,22 @@ class Settings(BaseSettings):
     youtube_client_id: str = ""
     youtube_client_secret: str = ""
     youtube_redirect_uri: str = "http://localhost:8000/api/v1/youtube/auth/callback"
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        return (
+            init_settings,
+            _CommaEnvSource(settings_cls),
+            _CommaDotEnvSource(settings_cls),
+            file_secret_settings,
+        )
 
 
 settings = Settings()
