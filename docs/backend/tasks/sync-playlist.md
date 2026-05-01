@@ -39,7 +39,7 @@ def download_playlist_sync_track(self, track_id: int) -> None
 **保存先**
 
 ```
-{PLAYLISTS_PATH}/{playlist_id}/{uploader}/{title}.{ext}
+{DOWNLOADS_PATH}/{playlist_name}/{title}.{ext}
 ```
 
 ディレクトリが存在しない場合は自動作成します。
@@ -50,7 +50,7 @@ def download_playlist_sync_track(self, track_id: int) -> None
 2. 親 `YoutubePlaylistSync` から `audio_format`・`audio_quality` を取得
 3. `track.status = "downloading"`
 4. 進捗フック: `pstrack:{track_id}:progress`（TTL 300 秒）を Redis に書き込み
-5. `ytdlp_service.download_track(..., base_path=playlists/{playlist_id}/)` でダウンロード
+5. `ytdlp_service.download_track(..., base_path=downloads/{playlist_name}/)` でダウンロード（サムネイル・`.info.json` は生成しない）
 6. `PlaylistSyncTrack` のメタデータ（title・artist・duration_secs・file_path 等）を更新
 7. `track.status = "complete"`、`downloaded_at` を設定
 
