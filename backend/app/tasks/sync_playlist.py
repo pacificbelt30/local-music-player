@@ -15,6 +15,12 @@ from app.tasks.celery_app import celery_app
 _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
 
 
+def _playlist_sync_dir_name(playlist_name: str | None) -> str:
+    """Build a safe directory name while preserving non-ASCII playlist names."""
+    name = (playlist_name or "").strip()
+    return yt_dlp.utils.sanitize_filename(name, restricted=False) or "unknown"
+
+
 @celery_app.task(name="app.tasks.sync_playlist.sync_youtube_playlist", bind=True, max_retries=2)
 def sync_youtube_playlist(self, playlist_sync_id: int) -> None:
     """Sync a YouTube playlist: download new tracks, mark removed tracks."""
@@ -91,7 +97,7 @@ def download_playlist_sync_track(self, track_id: int) -> None:
 
         # Store in downloads/{playlist_name}/
         playlist_name = sync.playlist_name if sync else "unknown"
-        safe_playlist_name = yt_dlp.utils.sanitize_filename(playlist_name, restricted=True) or "unknown"
+        safe_playlist_name = _playlist_sync_dir_name(playlist_name)
         base_path = settings.downloads_path / safe_playlist_name
         base_path.mkdir(parents=True, exist_ok=True)
 
