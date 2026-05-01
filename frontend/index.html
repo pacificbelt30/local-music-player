@@ -14,7 +14,7 @@
 
 <header>
   <h1>🎵 Local Music Player</h1>
-  <span id="syncthing-badge" class="syncthing-badge">Syncthing</span>
+  <button id="syncthing-badge" class="syncthing-badge" title="Syncthing 設定を開く">Syncthing</button>
 </header>
 
 <!-- Mobile tab bar -->
@@ -122,6 +122,50 @@
   </div>
 </div>
 
+<!-- Syncthing settings modal -->
+<div id="syncthing-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="syncthing-modal-title">
+  <div class="modal-backdrop" data-close-modal></div>
+  <div class="modal-content" id="syncthing-panel">
+    <div class="modal-header">
+      <h2 id="syncthing-modal-title">Syncthing 設定</h2>
+      <button class="modal-close" data-close-modal aria-label="閉じる">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="syncthing-config-state" class="syncthing-config-state">読込中…</div>
+
+      <form class="syncthing-config-form" id="syncthing-config-form">
+        <label class="syncthing-field">
+          <span>URL</span>
+          <input type="url" name="url" placeholder="http://localhost:8384" required autocomplete="off">
+        </label>
+        <label class="syncthing-field">
+          <span>API キー</span>
+          <input type="password" name="api_key" placeholder="API キー" autocomplete="off">
+        </label>
+        <div class="syncthing-config-actions">
+          <button type="button" class="btn btn-ghost" id="syncthing-test-btn">接続テスト</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+        <div class="error-msg" id="syncthing-config-error"></div>
+        <div class="success-msg" id="syncthing-config-ok"></div>
+      </form>
+
+      <div class="section-title syncthing-section-title">
+        <span>共有フォルダ</span>
+        <button class="btn btn-ghost" id="syncthing-refresh-btn" title="再読込">↻</button>
+      </div>
+      <div id="syncthing-folder-list" class="syncthing-list">
+        <div class="empty-state">読込中…</div>
+      </div>
+
+      <div class="section-title syncthing-section-title"><span>デバイス</span></div>
+      <div id="syncthing-device-list" class="syncthing-list">
+        <div class="empty-state">読込中…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Player bar (fixed bottom) -->
 <div id="player-bar" class="hidden">
   <img class="player-thumb" src="" alt="">
@@ -151,10 +195,12 @@
   import { initQueue } from "/js/queue.js";
   import { initLibrary } from "/js/library.js";
   import { initPlaylists } from "/js/playlists.js";
+  import { initSyncthing } from "/js/syncthing.js";
 
   initQueue();
   initLibrary();
   initPlaylists();
+  initSyncthing();
 
   // Mobile tabs
   document.querySelectorAll(".tab-btn").forEach((btn) => {
