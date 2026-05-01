@@ -20,7 +20,7 @@ settings = Settings()
 
 | 変数名 | デフォルト値 | 説明 |
 |--------|-------------|------|
-| `DATABASE_URL` | `sqlite:////home/user/local-music-player/data/music.db` | SQLAlchemy 接続 URL |
+| `DATABASE_URL` | `sqlite:////home/user/SyncTuneHub/data/music.db` | SQLAlchemy 接続 URL |
 
 ### Redis
 
@@ -33,9 +33,9 @@ settings = Settings()
 
 | 変数名 | デフォルト値 | 説明 |
 |--------|-------------|------|
-| `DOWNLOADS_PATH` | `/home/user/local-music-player/downloads` | URL 経由でダウンロードした音声ファイルの保存先 |
-| `DATA_PATH` | `/home/user/local-music-player/data` | データベースファイルの保存先 |
-| `PLAYLISTS_PATH` | `/home/user/local-music-player/playlists` | YouTube 同期プレイリストの保存先 |
+| `DOWNLOADS_PATH` | `/home/user/SyncTuneHub/downloads` | URL 経由でダウンロードした音声ファイルの保存先 |
+| `DATA_PATH` | `/home/user/SyncTuneHub/data` | データベースファイルの保存先 |
+| `PLAYLISTS_PATH` | `/home/user/SyncTuneHub/playlists` | YouTube 同期プレイリストの保存先 |
 
 ### Syncthing
 
@@ -67,12 +67,12 @@ REDIS_URL=redis://localhost:6379/0
 REDIS_RESULT_BACKEND=redis://localhost:6379/1
 
 # Database (SQLite)
-DATABASE_URL=sqlite:////home/user/local-music-player/data/music.db
+DATABASE_URL=sqlite:////home/user/SyncTuneHub/data/music.db
 
 # File paths
-DOWNLOADS_PATH=/home/user/local-music-player/downloads
-DATA_PATH=/home/user/local-music-player/data
-PLAYLISTS_PATH=/home/user/local-music-player/playlists
+DOWNLOADS_PATH=/home/user/SyncTuneHub/downloads
+DATA_PATH=/home/user/SyncTuneHub/data
+PLAYLISTS_PATH=/home/user/SyncTuneHub/playlists
 
 # Syncthing (optional — leave blank to disable)
 SYNCTHING_URL=http://localhost:8384

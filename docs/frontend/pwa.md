@@ -1,6 +1,6 @@
 # PWA サポート
 
-Local Music Player は **Progressive Web App（PWA）** として動作します。ホーム画面への追加とオフライン再生に対応しています。
+SyncTune Hub は **Progressive Web App（PWA）** として動作します。ホーム画面への追加とオフライン再生に対応しています。
 
 ## Web App Manifest (`manifest.json`)
 
@@ -8,7 +8,7 @@ Local Music Player は **Progressive Web App（PWA）** として動作します
 
 ```json
 {
-  "name": "Local Music Player",
+  "name": "SyncTune Hub",
   "short_name": "Music Player",
   "display": "standalone",
   "start_url": "/",

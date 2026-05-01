@@ -1,5 +1,5 @@
 {
-  "name": "Local Music Player",
+  "name": "SyncTune Hub",
   "short_name": "MusicPlayer",
   "description": "YouTube downloader and music player",
   "start_url": "/",

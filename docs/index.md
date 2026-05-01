@@ -1,4 +1,4 @@
-# Local Music Player
+# SyncTune Hub
 
 **YouTube から音楽をダウンロードし、ローカルネットワークでストリーミング再生するシステムです。**  
 Syncthing によるモバイル端末への自動同期にも対応しています。
