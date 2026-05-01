@@ -22,8 +22,8 @@ redis-cli ping  # PONG が返れば OK
 
 ```bash
 # 1. リポジトリをクローン
-git clone https://github.com/pacificbelt30/local-music-player.git
-cd local-music-player
+git clone https://github.com/pacificbelt30/SyncTuneHub.git
+cd SyncTuneHub
 
 # 2. 設定ファイルをコピー
 cp .env.example .env
@@ -75,7 +75,7 @@ pytest
 ## ファイル構成（開発時）
 
 ```
-local-music-player/
+SyncTuneHub/
 ├── downloads/     ← URL 経由ダウンロード先（自動作成）
 ├── data/          ← SQLite DB（自動作成）
 ├── playlists/     ← YouTube 同期先（自動作成）

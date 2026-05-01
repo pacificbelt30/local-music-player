@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# install.sh — Local Music Player セットアップスクリプト (Debian/Ubuntu)
+# install.sh — SyncTune Hub セットアップスクリプト (Debian/Ubuntu)
 set -euo pipefail
 
 ###############################################################################
 # 定数
 ###############################################################################
-REPO_URL="https://github.com/pacificbelt30/local-music-player.git"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/local-music-player}"
+REPO_URL="https://github.com/pacificbelt30/SyncTuneHub.git"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/SyncTuneHub}"
 MIN_PYTHON_MINOR=11
 
 ###############################################################################
@@ -206,8 +206,8 @@ configure_firewall() {
     fi
 
     info "ufw でポート 8000 を LAN に開放します。"
-    ufw allow from 192.168.0.0/16 to any port 8000 comment "local-music-player"
-    ufw allow from 10.0.0.0/8 to any port 8000 comment "local-music-player"
+    ufw allow from 192.168.0.0/16 to any port 8000 comment "SyncTuneHub"
+    ufw allow from 10.0.0.0/8 to any port 8000 comment "SyncTuneHub"
     ufw reload
     info "ファイアウォール設定完了。"
 }
@@ -218,7 +218,7 @@ configure_firewall() {
 main() {
     echo ""
     echo "============================================"
-    echo "  Local Music Player — Linux セットアップ"
+    echo "  SyncTune Hub — Linux セットアップ"
     echo "============================================"
     echo ""
 

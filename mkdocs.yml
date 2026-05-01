@@ -1,8 +1,8 @@
-site_name: Local Music Player
+site_name: SyncTune Hub
 site_description: YouTubeから音楽をダウンロードしてローカルで再生するシステムの仕様書
-site_author: Local Music Player Team
+site_author: SyncTune Hub Team
 docs_dir: docs
-repo_url: https://github.com/pacificbelt30/local-music-player
+repo_url: https://github.com/pacificbelt30/SyncTuneHub
 
 theme:
   name: material

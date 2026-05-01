@@ -1,4 +1,4 @@
-# local-music-player
+# SyncTuneHub
 
 YouTube から yt-dlp でダウンロードし、Syncthing でスマホに同期するローカル音楽プレイヤーです。
 
