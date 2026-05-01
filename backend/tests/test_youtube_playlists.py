@@ -665,7 +665,7 @@ def test_requeued_failed_track_refreshes_added_at_and_stays_pending(client, db):
 
 
 class TestDownloadPlaylistSyncTrackTask:
-    def test_passes_gain_percent_to_ytdlp_service(self, db):
+    def test_passes_gain_percent_to_ytdlp_service(self, db, tmp_path):
         from app.tasks.sync_playlist import download_playlist_sync_track
 
         sync = _make_sync(db)
@@ -685,9 +685,10 @@ class TestDownloadPlaylistSyncTrackTask:
         }
 
         with patch("app.database.SessionLocal", return_value=db):
-            with patch("app.tasks.sync_playlist.ytdlp_service.download_track", return_value=fake_metadata) as mock_dl:
-                with patch("app.tasks.sync_playlist._redis.delete"):
-                    download_playlist_sync_track.apply(args=[track.id])
+            with patch("app.tasks.sync_playlist.settings.downloads_path", tmp_path):
+                with patch("app.tasks.sync_playlist.ytdlp_service.download_track", return_value=fake_metadata) as mock_dl:
+                    with patch("app.tasks.sync_playlist._redis.delete"):
+                        download_playlist_sync_track.apply(args=[track.id])
 
         _, kwargs = mock_dl.call_args
         assert kwargs["gain_percent"] == 7.5
