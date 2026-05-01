@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
+from pathlib import Path
 
 import redis as redis_lib
+import yt_dlp
 
 from app.config import settings
 from app.database import SessionLocal
@@ -9,6 +11,20 @@ from app.services import ytdlp_service
 from app.tasks.celery_app import celery_app
 
 _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
+
+
+def _download_base_path(source: UrlSource | None) -> Path:
+    manual_dir_name = "manual"
+    if not source:
+        return settings.downloads_path / manual_dir_name
+
+    if source.url_type in ("playlist", "channel"):
+        name = source.title or f"source-{source.id}"
+    else:
+        name = manual_dir_name
+
+    safe_name = yt_dlp.utils.sanitize_filename(name, restricted=True) or manual_dir_name
+    return settings.downloads_path / safe_name
 
 
 @celery_app.task(name="app.tasks.download.resolve_url", bind=True, max_retries=2)
@@ -89,6 +105,7 @@ def download_track(self, job_id: int) -> None:
             audio_format=audio_format,
             audio_quality=audio_quality,
             progress_hook=progress_hook,
+            base_path=_download_base_path(source),
         )
 
         # Upsert track record

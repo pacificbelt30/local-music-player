@@ -44,6 +44,9 @@ def download_track(self, job_id: int) -> None
 3. `DownloadJob.status = "downloading"`、`started_at` を設定
 4. 進捗フック定義: ダウンロード中に `job:{job_id}:progress`（TTL 300 秒）を Redis に書き込み
 5. `ytdlp_service.download_track()` でダウンロード実行
+   - 手動追加（単体 URL）は `DOWNLOADS_PATH/manual/` に保存
+   - URL がプレイリスト/チャンネルの場合は `DOWNLOADS_PATH/{source.title}/` に保存（ファイル名安全化）
+   - 保存ファイルは音声のみ（サムネイル・`.info.json` は生成しない）
 6. `Track` レコードを upsert（`youtube_id` で検索、なければ新規作成）
 7. `PlaylistTrack` リンクを作成（`url_source_id` がある場合）
 8. `DownloadJob.status = "complete"`、`progress_pct = 100.0`、`finished_at` を設定

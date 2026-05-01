@@ -64,14 +64,15 @@ def download_track(
 ) -> dict[str, Any]:
     """Download a single track. Returns metadata dict on success."""
     dest = base_path or settings.downloads_path
-    output_template = str(dest / "%(uploader)s" / "%(title)s.%(ext)s")
+    dest.mkdir(parents=True, exist_ok=True)
+    output_template = str(dest / "%(title)s.%(ext)s")
 
     ydl_opts: dict[str, Any] = {
         "format": "bestaudio/best",
         "outtmpl": output_template,
         "postprocessors": _postprocessors_for(audio_format, audio_quality),
-        "writeinfojson": True,
-        "writethumbnail": True,
+        "writeinfojson": False,
+        "writethumbnail": False,
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
@@ -90,16 +91,7 @@ def download_track(
 
     # Sanitize filename the same way yt-dlp does
     safe_title = yt_dlp.utils.sanitize_filename(title)
-    safe_uploader = yt_dlp.utils.sanitize_filename(uploader)
-    file_path = dest / safe_uploader / f"{safe_title}.{ext}"
-
-    # Find thumbnail (yt-dlp may save as .jpg, .png, or .webp)
-    thumbnail_path = None
-    for thumb_ext in ("jpg", "png", "webp"):
-        candidate = dest / safe_uploader / f"{safe_title}.{thumb_ext}"
-        if candidate.exists():
-            thumbnail_path = str(candidate)
-            break
+    file_path = dest / f"{safe_title}.{ext}"
 
     return {
         "youtube_id": youtube_id,
@@ -110,5 +102,5 @@ def download_track(
         "file_path": str(file_path),
         "file_format": ext,
         "file_size_bytes": file_path.stat().st_size if file_path.exists() else None,
-        "thumbnail_path": thumbnail_path,
+        "thumbnail_path": None,
     }
