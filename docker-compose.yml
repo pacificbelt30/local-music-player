@@ -7,6 +7,24 @@ services:
     volumes:
       - redis-data:/data
 
+  syncthing:
+    image: syncthing/syncthing:latest
+    hostname: music-syncthing
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - STGUIADDRESS=0.0.0.0:8384
+      - STGUIAPIKEY=${SYNCTHING_API_KEY:-please-change-this-syncthing-api-key}
+    ports:
+      - "8384:8384"        # Web GUI / REST API
+      - "22000:22000/tcp"  # TCP file transfers
+      - "22000:22000/udp"  # QUIC file transfers
+      - "21027:21027/udp"  # Local discovery broadcasts
+    volumes:
+      - syncthing-config:/var/syncthing/config
+      - ./downloads:/var/syncthing/downloads
+
   api:
     build: .
     restart: unless-stopped
@@ -19,12 +37,14 @@ services:
       - DATABASE_URL=sqlite:////data/music.db
       - DOWNLOADS_PATH=/downloads
       - DATA_PATH=/data
+      - SYNCTHING_URL=http://syncthing:8384
     volumes:
       - ./downloads:/downloads
       - ./data:/data
       - ./frontend:/app/frontend:ro
     depends_on:
       - redis
+      - syncthing
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
   worker:
@@ -37,11 +57,13 @@ services:
       - DATABASE_URL=sqlite:////data/music.db
       - DOWNLOADS_PATH=/downloads
       - DATA_PATH=/data
+      - SYNCTHING_URL=http://syncthing:8384
     volumes:
       - ./downloads:/downloads
       - ./data:/data
     depends_on:
       - redis
+      - syncthing
     command: celery -A app.tasks.celery_app.celery_app worker --loglevel=info -Q downloads,scheduler
 
   beat:
@@ -62,3 +84,4 @@ services:
 
 volumes:
   redis-data:
+  syncthing-config:

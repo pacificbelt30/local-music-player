@@ -47,10 +47,31 @@ cp .env.example .env
 
 ## Syncthing 連携
 
-1. [Syncthing](https://syncthing.net/) をサーバーとスマホにインストール
-2. サーバー側で `downloads/` フォルダを Syncthing の共有フォルダに追加
-3. Syncthing の API キーを `.env` の `SYNCTHING_API_KEY` に設定
-4. スマホの Syncthing でサーバーとペアリング
+### Docker で起動する場合
+
+`docker compose up -d` で `syncthing` サービスも一緒に起動します。
+
+- Web GUI: http://localhost:8384
+- REST API キーは `.env` の `SYNCTHING_API_KEY` がそのままコンテナの
+  `STGUIAPIKEY` として注入されるため、別途 GUI でコピーする必要はありません
+  （`.env.example` の値は必ず長いランダム文字列に変更してください）。
+- 同期対象の `downloads/` フォルダはコンテナ内の `/var/syncthing/downloads`
+  にマウント済みです。Web GUI から「フォルダーの追加」で
+  `/var/syncthing/downloads` を共有フォルダとして登録してください。
+- 公開ポート: `8384`（Web GUI / REST API）、`22000/tcp`・`22000/udp`（同期）、
+  `21027/udp`（ローカル探索）。
+
+### スマホとペアリング
+
+1. スマホに公式 Syncthing アプリをインストール
+2. サーバーの Syncthing Web GUI（`http://<server>:8384`）でスマホをデバイス追加
+3. `downloads` フォルダをスマホと共有
+
+### ローカル実行（非Docker）の場合
+
+1. [Syncthing](https://syncthing.net/) をサーバーにインストール
+2. Web GUI（`http://localhost:8384`）→ 設定 → 一般 → API キーを
+   `.env` の `SYNCTHING_API_KEY` に設定
 
 ## API ドキュメント
 
