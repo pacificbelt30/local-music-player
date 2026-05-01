@@ -22,7 +22,7 @@ services:
       - "22000:22000/udp"  # QUIC file transfers
       - "21027:21027/udp"  # Local discovery broadcasts
     volumes:
-      - syncthing-config:/var/syncthing/config
+      - ./syncthing-config:/var/syncthing/config
       - ./downloads:/var/syncthing/downloads
 
   api:
@@ -84,4 +84,3 @@ services:
 
 volumes:
   redis-data:
-  syncthing-config:
