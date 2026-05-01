@@ -52,12 +52,17 @@ header h1 { font-size: 1.1rem; font-weight: 700; color: var(--accent); flex: 1; 
 
 .syncthing-badge {
   font-size: 0.7rem;
-  padding: 2px 8px;
+  padding: 2px 10px;
   border-radius: 99px;
   background: var(--surface2);
   color: var(--text-dim);
   border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  transition: color 0.15s, border-color 0.15s;
 }
+.syncthing-badge:hover { color: var(--text); border-color: var(--text-dim); }
 .syncthing-badge.ok { color: var(--success); border-color: var(--success); }
 .syncthing-badge.syncing { color: var(--warning); border-color: var(--warning); }
 
@@ -612,3 +617,137 @@ header h1 { font-size: 1.1rem; font-weight: 700; color: var(--accent); flex: 1; 
   font-size: 0.85rem;
   outline: none;
 }
+
+/* ── Modal ── */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal.hidden { display: none; }
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+.modal-content {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-header h2 { font-size: 1rem; font-weight: 700; color: var(--text); }
+
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.modal-close:hover { color: var(--text); }
+
+.modal-body {
+  padding: 16px;
+  overflow-y: auto;
+}
+
+/* ── Syncthing config ── */
+.syncthing-config-state {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.syncthing-config-state.ok { color: var(--success); }
+.syncthing-config-state.warn { color: var(--warning); }
+
+.syncthing-config-form {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.syncthing-field {
+  display: block;
+  margin-bottom: 10px;
+}
+.syncthing-field span {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.syncthing-field input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  outline: none;
+}
+.syncthing-field input:focus { border-color: var(--accent); }
+
+.syncthing-config-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.syncthing-config-actions .btn-primary { flex: 1; margin-top: 0; width: auto; }
+
+.success-msg {
+  color: var(--success);
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
+.syncthing-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.syncthing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.syncthing-row {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.syncthing-row-info { flex: 1; min-width: 0; }
+.syncthing-row-title { font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.syncthing-row-meta { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
