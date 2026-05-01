@@ -26,23 +26,34 @@ from app.api.stream import _range_response
 router = APIRouter(prefix="/youtube", tags=["youtube"])
 
 
-_STUCK_PLAYLIST_PENDING_TIMEOUT = timedelta(hours=2)
+_STUCK_TRACK_TIMEOUT = timedelta(hours=2)
 
 
 def _mark_stuck_playlist_tracks_failed(db: Session, sync_id: int) -> None:
-    now = datetime.utcnow()
-    cutoff = now - _STUCK_PLAYLIST_PENDING_TIMEOUT
+    now = datetime.now(timezone.utc)
+    cutoff = now - _STUCK_TRACK_TIMEOUT
+
     tracks = db.query(PlaylistSyncTrack).filter(
         PlaylistSyncTrack.playlist_sync_id == sync_id,
-        PlaylistSyncTrack.status == "pending",
+        PlaylistSyncTrack.status.in_(["pending", "downloading"]),
     ).all()
 
     changed = False
     for track in tracks:
-        if track.added_at and track.added_at <= cutoff:
+        ref_time = track.added_at
+        if not ref_time:
+            continue
+        ref = ref_time if ref_time.tzinfo else ref_time.replace(tzinfo=timezone.utc)
+        if ref > cutoff:
+            continue
+
+        if track.status == "pending":
             track.status = "failed"
             track.error_message = "Track stayed pending too long without starting download."
-            changed = True
+        else:
+            track.status = "failed"
+            track.error_message = "Download appeared to stall or worker crashed."
+        changed = True
 
     if changed:
         db.commit()
