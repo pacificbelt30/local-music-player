@@ -220,3 +220,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# AI assistant working files
+.codex/
+.codex
+.claude/
+.claude
+CLAUDE.local.md
