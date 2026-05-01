@@ -58,6 +58,8 @@ markdown_extensions:
 
 nav:
   - ホーム: index.md
+  - はじめに（クイックスタート）: getting-started.md
+  - 初期設定（外部サービス連携）: setup/external-services.md
   - 使い方: usage.md
   - Androidクライアント設定: android-client.md
   - 今後の課題: future-work.md
