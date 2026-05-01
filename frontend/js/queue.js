@@ -7,7 +7,6 @@ export function initQueue() {
   renderUrlList();
   renderJobList();
   startSSE();
-  renderUrlSyncInterval();
   document.getElementById("add-url-form").addEventListener("submit", handleAddUrl);
 }
 
@@ -121,22 +120,6 @@ function startSSE() {
     // Refresh list if any job completed/failed
     if (events.some((e) => e.status === "complete" || e.status === "failed")) {
       setTimeout(() => renderJobList(), 500);
-    }
-  });
-}
-
-async function renderUrlSyncInterval() {
-  const select = document.getElementById("url-sync-interval");
-  if (!select) return;
-  try {
-    const s = await api.getSettings();
-    select.value = String(s.url_sync_interval_minutes);
-  } catch {}
-  select.addEventListener("change", async () => {
-    try {
-      await api.updateSettings({ url_sync_interval_minutes: Number(select.value) });
-    } catch (e) {
-      alert("設定の保存に失敗しました: " + e.message);
     }
   });
 }

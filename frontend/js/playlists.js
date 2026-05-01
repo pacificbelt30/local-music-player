@@ -5,7 +5,6 @@ let syncPollers = {};
 export function initPlaylists() {
   renderAuthSection();
   renderSyncList();
-  renderYoutubeSyncInterval();
 
   // Handle youtube_auth=success redirect from OAuth callback
   if (new URLSearchParams(location.search).get("youtube_auth") === "success") {
@@ -388,24 +387,6 @@ async function renderSyncTracks(syncId, container) {
   } catch (e) {
     container.innerHTML = `<div class="error-msg">${escHtml(e.message)}</div>`;
   }
-}
-
-// ── Sync interval setting ─────────────────────────────────────────────────────
-
-async function renderYoutubeSyncInterval() {
-  const select = document.getElementById("youtube-sync-interval");
-  if (!select) return;
-  try {
-    const s = await api.getSettings();
-    select.value = String(s.youtube_sync_interval_minutes);
-  } catch {}
-  select.addEventListener("change", async () => {
-    try {
-      await api.updateSettings({ youtube_sync_interval_minutes: Number(select.value) });
-    } catch (e) {
-      alert("設定の保存に失敗しました: " + e.message);
-    }
-  });
 }
 
 // ── Player integration ────────────────────────────────────────────────────────
