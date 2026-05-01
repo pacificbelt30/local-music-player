@@ -9,13 +9,12 @@ from app.tasks.scheduler import DEFAULTS
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 VALID_INTERVALS = {0, 15, 30, 60, 180, 360, 720, 1440}
-EDITABLE_KEYS = {"url_sync_interval_minutes", "youtube_sync_interval_minutes"}
-
 
 class SyncSettings(BaseModel):
     url_sync_interval_minutes: int
     youtube_sync_interval_minutes: int
     download_gain_percent: float
+    ffmpeg_threads: int
 
     @field_validator("url_sync_interval_minutes", "youtube_sync_interval_minutes")
     @classmethod
@@ -29,6 +28,7 @@ class SyncSettingsUpdate(BaseModel):
     url_sync_interval_minutes: int | None = None
     youtube_sync_interval_minutes: int | None = None
     download_gain_percent: float | None = None
+    ffmpeg_threads: int | None = None
 
     @field_validator("url_sync_interval_minutes", "youtube_sync_interval_minutes", mode="before")
     @classmethod
@@ -44,6 +44,13 @@ class SyncSettingsUpdate(BaseModel):
             raise ValueError("Must be >= 0")
         return v
 
+    @field_validator("ffmpeg_threads")
+    @classmethod
+    def ffmpeg_threads_must_be_non_negative(cls, v: int | None) -> int | None:
+        if v is not None and v < 0:
+            raise ValueError("Must be >= 0")
+        return v
+
 
 def _read(db: Session) -> SyncSettings:
     def get(key: str) -> str:
@@ -54,6 +61,7 @@ def _read(db: Session) -> SyncSettings:
         url_sync_interval_minutes=int(get("url_sync_interval_minutes")),
         youtube_sync_interval_minutes=int(get("youtube_sync_interval_minutes")),
         download_gain_percent=float(get("download_gain_percent")),
+        ffmpeg_threads=int(get("ffmpeg_threads")),
     )
 
 

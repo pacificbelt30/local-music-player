@@ -23,6 +23,7 @@ export function initSettings() {
       url_sync_interval_minutes: Number(form.url_sync_interval_minutes.value),
       youtube_sync_interval_minutes: Number(form.youtube_sync_interval_minutes.value),
       download_gain_percent: Number(form.download_gain_percent.value || 0),
+      ffmpeg_threads: Number(form.ffmpeg_threads.value || 1),
     };
 
     try {
@@ -40,5 +41,6 @@ async function loadSettings() {
   form.url_sync_interval_minutes.value = String(s.url_sync_interval_minutes);
   form.youtube_sync_interval_minutes.value = String(s.youtube_sync_interval_minutes);
   form.download_gain_percent.value = String(s.download_gain_percent ?? 0);
+  form.ffmpeg_threads.value = String(s.ffmpeg_threads ?? 1);
 }
 

@@ -14,18 +14,21 @@ def test_get_settings_returns_defaults(client):
     assert data["url_sync_interval_minutes"] == 60
     assert data["youtube_sync_interval_minutes"] == 60
     assert data["download_gain_percent"] == 0.0
+    assert data["ffmpeg_threads"] == 1
 
 
 def test_get_settings_reflects_db_values(client, db):
     db.add(AppSetting(key="url_sync_interval_minutes", value="30"))
     db.add(AppSetting(key="youtube_sync_interval_minutes", value="180"))
     db.add(AppSetting(key="download_gain_percent", value="25"))
+    db.add(AppSetting(key="ffmpeg_threads", value="2"))
     db.commit()
 
     data = client.get("/api/v1/settings").json()
     assert data["url_sync_interval_minutes"] == 30
     assert data["youtube_sync_interval_minutes"] == 180
     assert data["download_gain_percent"] == 25.0
+    assert data["ffmpeg_threads"] == 2
 
 
 # ── PATCH /settings ───────────────────────────────────────────────────────────
@@ -232,4 +235,15 @@ def test_update_download_gain_percent(client):
 
 def test_negative_gain_rejected(client):
     resp = client.patch("/api/v1/settings", json={"download_gain_percent": -1})
+    assert resp.status_code == 422
+
+
+def test_update_ffmpeg_threads(client):
+    resp = client.patch("/api/v1/settings", json={"ffmpeg_threads": 3})
+    assert resp.status_code == 200
+    assert resp.json()["ffmpeg_threads"] == 3
+
+
+def test_negative_ffmpeg_threads_rejected(client):
+    resp = client.patch("/api/v1/settings", json={"ffmpeg_threads": -1})
     assert resp.status_code == 422

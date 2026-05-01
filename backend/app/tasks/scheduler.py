@@ -8,6 +8,7 @@ DEFAULTS = {
     "url_sync_interval_minutes": "60",
     "youtube_sync_interval_minutes": "60",
     "download_gain_percent": "0",
+    "ffmpeg_threads": "1",
 }
 
 
