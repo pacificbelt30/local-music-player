@@ -33,6 +33,17 @@
 - `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET`: Google Cloud の OAuth クライアント情報
 - `YOUTUBE_REDIRECT_URI`: アプリ側コールバック URL（既定: `http://localhost:8000/api/v1/youtube/auth/callback`）
 
+
+### リダイレクト URI の注意（サーバーIP運用）
+
+リモートサーバー（例: `192.168.1.50`）で運用する場合は、`YOUTUBE_REDIRECT_URI` をサーバーのIP/FQDNに合わせて設定します。
+
+```dotenv
+YOUTUBE_REDIRECT_URI=http://192.168.1.50:8000/api/v1/youtube/auth/callback
+```
+
+Google Cloud 側の OAuth クライアント設定（承認済みリダイレクト URI）にも、**同じ URI を完全一致で登録**してください。
+
 ### 参照リンク
 
 - Google Cloud Console: <https://console.cloud.google.com/>
