@@ -1,6 +1,6 @@
 """YouTube playlist sync API: OAuth2 flow + sync management."""
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import aiofiles
@@ -24,6 +24,29 @@ from app.services import youtube_api_service
 from app.api.stream import _range_response
 
 router = APIRouter(prefix="/youtube", tags=["youtube"])
+
+
+_STUCK_PLAYLIST_PENDING_TIMEOUT = timedelta(hours=2)
+
+
+def _mark_stuck_playlist_tracks_failed(db: Session, sync_id: int) -> None:
+    now = datetime.utcnow()
+    cutoff = now - _STUCK_PLAYLIST_PENDING_TIMEOUT
+    tracks = db.query(PlaylistSyncTrack).filter(
+        PlaylistSyncTrack.playlist_sync_id == sync_id,
+        PlaylistSyncTrack.status == "pending",
+    ).all()
+
+    changed = False
+    for track in tracks:
+        if track.added_at and track.added_at <= cutoff:
+            track.status = "failed"
+            track.error_message = "Track stayed pending too long without starting download."
+            changed = True
+
+    if changed:
+        db.commit()
+
 
 
 # ── OAuth2 ────────────────────────────────────────────────────────────────────
@@ -228,6 +251,8 @@ def list_sync_tracks(sync_id: int, db: Session = Depends(get_db)):
     sync = db.get(YoutubePlaylistSync, sync_id)
     if not sync:
         raise HTTPException(status_code=404, detail="Sync not found")
+
+    _mark_stuck_playlist_tracks_failed(db, sync_id)
 
     tracks = (
         db.query(PlaylistSyncTrack)

@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import datetime, timedelta
 from typing import AsyncGenerator
 
 import redis as redis_lib
@@ -15,9 +16,50 @@ from app.schemas import DownloadJobResponse
 router = APIRouter(prefix="/queue", tags=["queue"])
 _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
 
+_STUCK_PENDING_TIMEOUT = timedelta(minutes=10)
+_HARD_PENDING_TIMEOUT = timedelta(hours=2)
+_TERMINAL_TASK_STATES = {"FAILURE", "REVOKED"}
+
+
+def _mark_stuck_jobs_failed(db: Session) -> None:
+    now = datetime.utcnow()
+    cutoff = now - _STUCK_PENDING_TIMEOUT
+    pending_jobs = db.query(DownloadJob).filter(DownloadJob.status == "pending").all()
+
+    changed = False
+    for job in pending_jobs:
+        if not job.celery_task_id:
+            continue
+
+        if job.created_at and job.created_at > cutoff:
+            continue
+
+        from app.tasks.celery_app import celery_app
+
+        state = celery_app.AsyncResult(job.celery_task_id).state
+        if state in _TERMINAL_TASK_STATES:
+            job.status = "failed"
+            job.error_message = "Task left pending after Celery task ended before download started."
+            job.finished_at = now
+            changed = True
+            continue
+
+        hard_cutoff = now - _HARD_PENDING_TIMEOUT
+        has_progress = _redis.get(f"job:{job.id}:progress") is not None
+        if job.created_at and job.created_at <= hard_cutoff and not has_progress:
+            job.status = "failed"
+            job.error_message = "Task stayed pending too long without progress updates."
+            job.finished_at = now
+            changed = True
+
+    if changed:
+        db.commit()
+
+
 
 @router.get("", response_model=list[DownloadJobResponse])
 def list_queue(status: str | None = None, db: Session = Depends(get_db)):
+    _mark_stuck_jobs_failed(db)
     q = db.query(DownloadJob)
     if status:
         statuses = [s.strip() for s in status.split(",")]
@@ -31,6 +73,7 @@ async def queue_events(db: Session = Depends(get_db)):
         while True:
             session = next(get_db())
             try:
+                _mark_stuck_jobs_failed(session)
                 active_jobs = session.query(DownloadJob).filter(
                     DownloadJob.status.in_(["pending", "downloading"])
                 ).all()

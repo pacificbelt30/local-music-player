@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from app.models import DownloadJob
@@ -123,3 +124,55 @@ def test_retry_job_skipped(client, db):
         resp = client.post(f"/api/v1/queue/{job.id}/retry")
     assert resp.status_code == 200
     assert resp.json()["status"] == "pending"
+
+
+def test_list_queue_marks_old_pending_job_failed_when_celery_task_failed(client, db):
+    old = datetime.now(timezone.utc) - timedelta(minutes=20)
+    job = _make_job(
+        status="pending",
+        celery_task_id="celery-task-xyz",
+        created_at=old,
+    )
+    db.add(job)
+    db.commit()
+
+    with patch("app.tasks.celery_app.celery_app.AsyncResult") as mock_async_result:
+        mock_async_result.return_value.state = "FAILURE"
+        resp = client.get("/api/v1/queue")
+
+    assert resp.status_code == 200
+    db.refresh(job)
+    assert job.status == "failed"
+    assert "left pending" in (job.error_message or "")
+
+
+def test_list_queue_keeps_recent_pending_job(client, db):
+    recent = datetime.now(timezone.utc) - timedelta(minutes=1)
+    job = _make_job(status="pending", celery_task_id="celery-task-recent", created_at=recent)
+    db.add(job)
+    db.commit()
+
+    with patch("app.tasks.celery_app.celery_app.AsyncResult") as mock_async_result:
+        mock_async_result.return_value.state = "FAILURE"
+        resp = client.get("/api/v1/queue")
+
+    assert resp.status_code == 200
+    db.refresh(job)
+    assert job.status == "pending"
+
+
+def test_list_queue_marks_very_old_pending_job_failed_without_progress(client, db):
+    very_old = datetime.now(timezone.utc) - timedelta(hours=3)
+    job = _make_job(status="pending", celery_task_id="celery-task-old", created_at=very_old)
+    db.add(job)
+    db.commit()
+
+    with patch("app.tasks.celery_app.celery_app.AsyncResult") as mock_async_result, \
+         patch("app.api.queue._redis.get", return_value=None):
+        mock_async_result.return_value.state = "PENDING"
+        resp = client.get("/api/v1/queue")
+
+    assert resp.status_code == 200
+    db.refresh(job)
+    assert job.status == "failed"
+    assert "without progress" in (job.error_message or "")
