@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import redis as redis_lib
+import yt_dlp
 
 from app.config import settings
 from app.database import SessionLocal
@@ -88,8 +89,10 @@ def download_playlist_sync_track(self, track_id: int) -> None:
         audio_format = sync.audio_format if sync else "mp3"
         audio_quality = sync.audio_quality if sync else "192"
 
-        # Store in playlists/{playlist_id}/
-        base_path = settings.playlists_path / (sync.playlist_id if sync else "unknown")
+        # Store in downloads/{playlist_name}/
+        playlist_name = sync.playlist_name if sync else "unknown"
+        safe_playlist_name = yt_dlp.utils.sanitize_filename(playlist_name, restricted=True) or "unknown"
+        base_path = settings.downloads_path / safe_playlist_name
         base_path.mkdir(parents=True, exist_ok=True)
 
         track.status = "downloading"
