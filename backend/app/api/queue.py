@@ -17,6 +17,7 @@ router = APIRouter(prefix="/queue", tags=["queue"])
 _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
 
 _STUCK_PENDING_TIMEOUT = timedelta(minutes=10)
+_HARD_PENDING_TIMEOUT = timedelta(hours=2)
 _TERMINAL_TASK_STATES = {"FAILURE", "REVOKED"}
 
 
@@ -39,6 +40,15 @@ def _mark_stuck_jobs_failed(db: Session) -> None:
         if state in _TERMINAL_TASK_STATES:
             job.status = "failed"
             job.error_message = "Task left pending after Celery task ended before download started."
+            job.finished_at = now
+            changed = True
+            continue
+
+        hard_cutoff = now - _HARD_PENDING_TIMEOUT
+        has_progress = _redis.get(f"job:{job.id}:progress") is not None
+        if job.created_at and job.created_at <= hard_cutoff and not has_progress:
+            job.status = "failed"
+            job.error_message = "Task stayed pending too long without progress updates."
             job.finished_at = now
             changed = True
 

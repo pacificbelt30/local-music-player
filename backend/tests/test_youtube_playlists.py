@@ -596,3 +596,35 @@ class TestDeleteSyncTrackFile:
         from app.tasks.sync_playlist import _delete_sync_track_file
         track = MagicMock(file_path="/nonexistent/file.mp3", thumbnail_path=None)
         _delete_sync_track_file(track)  # should not raise
+
+
+def test_list_sync_tracks_marks_stale_pending_as_failed(client, db):
+    sync = YoutubePlaylistSync(
+        playlist_id="PLstale",
+        playlist_name="Stale Pending",
+        audio_format="mp3",
+        audio_quality="192",
+        enabled=True,
+    )
+    db.add(sync)
+    db.commit()
+    db.refresh(sync)
+
+    stale_added_at = datetime.now(timezone.utc) - timedelta(hours=3)
+    track = PlaylistSyncTrack(
+        playlist_sync_id=sync.id,
+        youtube_id="stale123",
+        title="Stale Song",
+        status="pending",
+        added_at=stale_added_at,
+        position=1,
+    )
+    db.add(track)
+    db.commit()
+
+    resp = client.get(f"/api/v1/youtube/syncs/{sync.id}/tracks")
+    assert resp.status_code == 200
+
+    db.refresh(track)
+    assert track.status == "failed"
+    assert "pending too long" in (track.error_message or "")
