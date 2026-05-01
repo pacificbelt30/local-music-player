@@ -1,23 +1,16 @@
 from pathlib import Path
 from typing import Any
-import json
 from pydantic.fields import FieldInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict, EnvSettingsSource, DotEnvSettingsSource
 
 
 class _CommaListMixin:
-    """Allow comma-separated strings for list[str] fields (e.g. ALLOWED_ORIGINS=* or a,b,c)."""
+    """Parse comma-separated env strings (e.g. ALLOWED_ORIGINS=*) into list[str]."""
 
-    def prepare_field_value(
-        self, field_name: str, field: FieldInfo, value: Any, value_is_complex: bool
-    ) -> Any:
-        if (
-            value_is_complex
-            and isinstance(value, str)
-            and not value.startswith(("[", "{"))
-        ):
-            value = json.dumps([v.strip() for v in value.split(",") if v.strip()])
-        return super().prepare_field_value(field_name, field, value, value_is_complex)
+    def decode_complex_value(self, field_name: str, field: FieldInfo, value: Any) -> Any:
+        if isinstance(value, str) and not value.startswith(("[", "{")):
+            return [v.strip() for v in value.split(",") if v.strip()]
+        return super().decode_complex_value(field_name, field, value)
 
 
 class _CommaEnvSource(_CommaListMixin, EnvSettingsSource):
