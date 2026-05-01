@@ -26,9 +26,8 @@ export function initSettings() {
     };
 
     try {
-      const saved = await api.updateSettings(payload);
+      await api.updateSettings(payload);
       ok.textContent = "保存しました";
-      syncInlineSelectors(saved);
     } catch (e2) {
       err.textContent = e2.message;
     }
@@ -43,9 +42,3 @@ async function loadSettings() {
   form.download_gain_percent.value = String(s.download_gain_percent ?? 0);
 }
 
-function syncInlineSelectors(s) {
-  const urlSelect = document.getElementById("url-sync-interval");
-  const ytSelect = document.getElementById("youtube-sync-interval");
-  if (urlSelect) urlSelect.value = String(s.url_sync_interval_minutes);
-  if (ytSelect) ytSelect.value = String(s.youtube_sync_interval_minutes);
-}
