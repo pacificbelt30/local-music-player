@@ -24,6 +24,32 @@ FastAPI (port 8000)  ←→  Celery Worker (yt-dlp)
                           downloads/ ←→ Syncthing ←→ スマホ
 ```
 
+
+## 推奨スペック（使用ソフトウェアに基づく）
+
+本アプリは `FastAPI + Celery Worker + Celery Beat + Redis + yt-dlp + FFmpeg + Syncthing` を常時または定期的に動かします。以下は、**実運用で待ち時間と安定性のバランスが良い推奨値**です。
+
+### サーバー推奨スペック
+
+| 項目 | 推奨 | 根拠（使用ソフトウェア） |
+|---|---:|---|
+| CPU | 4 vCPU 以上 | `yt-dlp` の取得処理と `FFmpeg` 変換がCPUを使い、並行して `FastAPI/Celery/Redis` が動作するため |
+| メモリ | 8 GB 以上 | `FFmpeg` 変換 + `Celery` ワーカー常駐 + `Redis` キャッシュ/キューを同時利用するため |
+| ストレージ | 100 GB 以上（SSD推奨） | 音楽ファイルを `downloads/` に蓄積し、`SQLite` DB とログも保持するため |
+| ネットワーク | 上り/下り 50 Mbps 以上（安定回線） | `yt-dlp` の継続DLと `Syncthing` 同期を並行するため |
+| OS | Linux x86_64（Ubuntu 22.04 LTS 以降推奨） | Docker運用、またはローカル実行要件（Python/Redis/FFmpeg）を満たしやすいため |
+
+### 最低動作目安（小規模・個人利用）
+
+- 2 vCPU / 4 GB RAM / 30 GB ストレージ
+- ただし複数プレイリストの同時更新・同期では、変換待ちが増えやすくなります。
+
+### ソフトウェア前提（再掲）
+
+- Docker運用: Docker Engine + Docker Compose
+- ローカル運用: Python 3.11+, Redis 7+, FFmpeg
+- 機能連携: yt-dlp, Syncthing
+
 ## セットアップ
 
 ### Docker（推奨）
