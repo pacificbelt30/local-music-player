@@ -365,19 +365,22 @@ header h1 {
   left: 0;
   right: 0;
   height: var(--player-height);
-  background: rgba(22,22,22,0.92);
+  background: rgba(22,22,22,0.95);
   backdrop-filter: blur(20px) saturate(1.5);
   -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid rgba(255,255,255,0.08);
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 0 20px;
   z-index: 200;
   box-shadow: 0 -4px 24px rgba(0,0,0,0.5);
+  color: #ebebeb;
 }
 
 #player-bar.hidden { display: none; }
+
+body.player-hidden { padding-bottom: 0; }
 
 .player-thumb {
   width: 52px;
@@ -391,15 +394,15 @@ header h1 {
 }
 
 .player-info { flex: 1; min-width: 0; }
-.player-title { font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.player-artist { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
+.player-title { font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #ebebeb; }
+.player-artist { font-size: 0.7rem; color: rgba(235,235,235,0.55); margin-top: 2px; }
 
 .player-controls { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 
 .ctrl-btn {
   background: none;
   border: none;
-  color: var(--text-dim);
+  color: rgba(235,235,235,0.55);
   font-size: 1.1rem;
   cursor: pointer;
   padding: 6px;
@@ -412,7 +415,7 @@ header h1 {
   align-items: center;
   justify-content: center;
 }
-.ctrl-btn:hover { color: var(--text); background: var(--surface2); }
+.ctrl-btn:hover { color: #ebebeb; background: rgba(255,255,255,0.08); }
 .ctrl-btn:active { transform: scale(0.9); }
 .ctrl-btn.play-pause {
   font-size: 1.3rem;
@@ -440,7 +443,7 @@ header h1 {
   cursor: pointer;
 }
 
-.player-time { font-size: 0.68rem; color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.player-time { font-size: 0.68rem; color: rgba(235,235,235,0.55); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 .ctrl-btn.active { color: var(--accent) !important; }
 
@@ -451,7 +454,7 @@ header h1 {
   flex-shrink: 0;
 }
 
-.volume-icon { font-size: 0.9rem; line-height: 1; color: var(--text-dim); }
+.volume-icon { font-size: 0.9rem; line-height: 1; color: rgba(235,235,235,0.55); }
 
 .volume-range {
   width: 72px;

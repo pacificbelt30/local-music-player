@@ -19,6 +19,7 @@ const durationEl = bar.querySelector(".duration");
 const shuffleBtn = bar.querySelector(".shuffle");
 const repeatBtn = bar.querySelector(".repeat");
 const volumeRange = bar.querySelector(".volume-range");
+const closeBtn = bar.querySelector(".close-player");
 
 function fmt(secs) {
   if (!secs || isNaN(secs)) return "0:00";
@@ -50,6 +51,7 @@ function updateUI() {
   if (!track) return;
 
   bar.classList.remove("hidden");
+  document.body.classList.remove("player-hidden");
   titleEl.textContent = track.title;
   artistEl.textContent = track.artist || "";
   thumbEl.src = track.thumbnail_url || "";
@@ -119,6 +121,18 @@ repeatBtn.addEventListener("click", () => {
 volumeRange.addEventListener("input", () => {
   audio.volume = volumeRange.value / 100;
   localStorage.setItem("player_volume", volumeRange.value);
+});
+
+closeBtn.addEventListener("click", () => {
+  audio.pause();
+  bar.classList.add("hidden");
+  document.body.classList.add("player-hidden");
+  document.querySelectorAll(".track-item").forEach((el) => el.classList.remove("active"));
+  playlist = [];
+  currentIndex = -1;
+  localStorage.removeItem("player_playlist");
+  localStorage.removeItem("player_index");
+  localStorage.removeItem("player_position");
 });
 
 function play(tracks, index) {

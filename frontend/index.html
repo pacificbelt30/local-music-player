@@ -211,6 +211,7 @@
     <span class="volume-icon">🔊</span>
     <input type="range" class="volume-range" min="0" max="100" value="100" title="音量">
   </div>
+  <button class="ctrl-btn close-player" title="プレイヤーを閉じる" style="font-size:0.75rem;flex-shrink:0">✕</button>
 </div>
 
 <script type="module">
@@ -244,12 +245,16 @@
       const badge = document.getElementById("syncthing-badge");
       if (!status.available) {
         badge.textContent = "Syncthing: off";
+        badge.title = status.reason || "";
         badge.className = "syncthing-badge";
       } else if (status.syncing) {
-        badge.textContent = "Syncing…";
+        const pct = Math.round(status.completion_pct || 0);
+        badge.textContent = `Syncing ${pct}%`;
+        badge.title = `残り ${status.need_bytes_fmt || "?"}、${status.need_items || 0} ファイル | デバイス ${status.connected_devices}/${status.total_devices} 接続中`;
         badge.className = "syncthing-badge syncing";
       } else {
-        badge.textContent = `Synced ${Math.round(status.completion_pct || 100)}%`;
+        badge.textContent = "Synced";
+        badge.title = `合計 ${status.global_bytes_fmt || "?"}、デバイス ${status.connected_devices}/${status.total_devices} 接続中`;
         badge.className = "syncthing-badge ok";
       }
     } catch {}
