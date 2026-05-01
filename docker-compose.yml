@@ -11,6 +11,7 @@ services:
     image: syncthing/syncthing:latest
     hostname: music-syncthing
     restart: unless-stopped
+    user: root
     environment:
       - PUID=1000
       - PGID=1000
