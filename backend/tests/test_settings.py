@@ -13,16 +13,19 @@ def test_get_settings_returns_defaults(client):
     data = resp.json()
     assert data["url_sync_interval_minutes"] == 60
     assert data["youtube_sync_interval_minutes"] == 60
+    assert data["download_gain_percent"] == 0.0
 
 
 def test_get_settings_reflects_db_values(client, db):
     db.add(AppSetting(key="url_sync_interval_minutes", value="30"))
     db.add(AppSetting(key="youtube_sync_interval_minutes", value="180"))
+    db.add(AppSetting(key="download_gain_percent", value="25"))
     db.commit()
 
     data = client.get("/api/v1/settings").json()
     assert data["url_sync_interval_minutes"] == 30
     assert data["youtube_sync_interval_minutes"] == 180
+    assert data["download_gain_percent"] == 25.0
 
 
 # ── PATCH /settings ───────────────────────────────────────────────────────────
@@ -219,3 +222,14 @@ class TestPeriodicYoutubePlaylists:
 
         row = db.get(AppSetting, "youtube_sync_last_run")
         assert row is not None
+
+
+def test_update_download_gain_percent(client):
+    resp = client.patch("/api/v1/settings", json={"download_gain_percent": 35.5})
+    assert resp.status_code == 200
+    assert resp.json()["download_gain_percent"] == 35.5
+
+
+def test_negative_gain_rejected(client):
+    resp = client.patch("/api/v1/settings", json={"download_gain_percent": -1})
+    assert resp.status_code == 422

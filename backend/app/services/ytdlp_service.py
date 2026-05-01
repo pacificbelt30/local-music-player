@@ -59,6 +59,7 @@ def download_track(
     youtube_id: str,
     audio_format: str,
     audio_quality: str,
+    gain_percent: float,
     progress_hook: Callable[[dict], None] | None = None,
     base_path: Path | None = None,
 ) -> dict[str, Any]:
@@ -77,6 +78,9 @@ def download_track(
         "no_warnings": True,
         "noplaylist": True,
     }
+
+    if gain_percent > 0:
+        ydl_opts["postprocessor_args"] = ["-af", f"volume={1 + (gain_percent / 100):.4f}"]
 
     if progress_hook:
         ydl_opts["progress_hooks"] = [progress_hook]
