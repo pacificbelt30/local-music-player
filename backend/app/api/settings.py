@@ -15,6 +15,7 @@ EDITABLE_KEYS = {"url_sync_interval_minutes", "youtube_sync_interval_minutes"}
 class SyncSettings(BaseModel):
     url_sync_interval_minutes: int
     youtube_sync_interval_minutes: int
+    download_gain_percent: float
 
     @field_validator("url_sync_interval_minutes", "youtube_sync_interval_minutes")
     @classmethod
@@ -27,6 +28,7 @@ class SyncSettings(BaseModel):
 class SyncSettingsUpdate(BaseModel):
     url_sync_interval_minutes: int | None = None
     youtube_sync_interval_minutes: int | None = None
+    download_gain_percent: float | None = None
 
     @field_validator("url_sync_interval_minutes", "youtube_sync_interval_minutes", mode="before")
     @classmethod
@@ -35,15 +37,23 @@ class SyncSettingsUpdate(BaseModel):
             raise ValueError(f"Must be one of {sorted(VALID_INTERVALS)}")
         return v
 
+    @field_validator("download_gain_percent")
+    @classmethod
+    def gain_must_be_non_negative(cls, v: float | None) -> float | None:
+        if v is not None and v < 0:
+            raise ValueError("Must be >= 0")
+        return v
+
 
 def _read(db: Session) -> SyncSettings:
-    def get(key: str) -> int:
+    def get(key: str) -> str:
         row = db.get(AppSetting, key)
-        return int(row.value if row else DEFAULTS[key])
+        return row.value if row else DEFAULTS[key]
 
     return SyncSettings(
-        url_sync_interval_minutes=get("url_sync_interval_minutes"),
-        youtube_sync_interval_minutes=get("youtube_sync_interval_minutes"),
+        url_sync_interval_minutes=int(get("url_sync_interval_minutes")),
+        youtube_sync_interval_minutes=int(get("youtube_sync_interval_minutes")),
+        download_gain_percent=float(get("download_gain_percent")),
     )
 
 

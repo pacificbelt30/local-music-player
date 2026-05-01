@@ -6,9 +6,10 @@ import yt_dlp
 
 from app.config import settings
 from app.database import SessionLocal
-from app.models import DownloadJob, Track, UrlSource, PlaylistTrack
+from app.models import AppSetting, DownloadJob, Track, UrlSource, PlaylistTrack
 from app.services import ytdlp_service
 from app.tasks.celery_app import celery_app
+from app.tasks.scheduler import DEFAULTS
 
 _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
 
@@ -92,6 +93,8 @@ def download_track(self, job_id: int) -> None:
         source = db.get(UrlSource, job.url_source_id) if job.url_source_id else None
         audio_format = source.audio_format if source else "mp3"
         audio_quality = source.audio_quality if source else "192"
+        gain_row = db.get(AppSetting, "download_gain_percent")
+        gain_percent = float(gain_row.value if gain_row else DEFAULTS["download_gain_percent"])
 
         job.status = "downloading"
         job.started_at = datetime.now(timezone.utc)
@@ -108,6 +111,7 @@ def download_track(self, job_id: int) -> None:
             youtube_id=job.youtube_id,
             audio_format=audio_format,
             audio_quality=audio_quality,
+            gain_percent=gain_percent,
             progress_hook=progress_hook,
             base_path=_download_base_path(source),
         )

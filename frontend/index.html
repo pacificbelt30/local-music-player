@@ -14,7 +14,10 @@
 
 <header>
   <h1>🎵 Local Music Player</h1>
-  <button id="syncthing-badge" class="syncthing-badge" title="Syncthing 設定を開く">Syncthing</button>
+  <div style="display:flex;gap:8px">
+    <button id="settings-badge" class="syncthing-badge" title="設定を開く">設定</button>
+    <button id="syncthing-badge" class="syncthing-badge" title="Syncthing 設定を開く">Syncthing</button>
+  </div>
 </header>
 
 <!-- Mobile tab bar -->
@@ -122,6 +125,26 @@
   </div>
 </div>
 
+<div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+  <div class="modal-backdrop" data-close-settings-modal></div>
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="settings-modal-title">アプリ設定</h2>
+      <button class="modal-close" data-close-settings-modal aria-label="閉じる">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="settings-form" class="syncthing-config-form">
+        <label class="syncthing-field"><span>URLキュー自動同期間隔</span><select name="url_sync_interval_minutes" id="settings-url-sync-interval"><option value="0">手動のみ</option><option value="15">15分</option><option value="30">30分</option><option value="60">1時間</option><option value="180">3時間</option><option value="360">6時間</option><option value="720">12時間</option><option value="1440">24時間</option></select></label>
+        <label class="syncthing-field"><span>YouTubeプレイリスト自動同期間隔</span><select name="youtube_sync_interval_minutes" id="settings-youtube-sync-interval"><option value="0">手動のみ</option><option value="15">15分</option><option value="30">30分</option><option value="60">1時間</option><option value="180">3時間</option><option value="360">6時間</option><option value="720">12時間</option><option value="1440">24時間</option></select></label>
+        <label class="syncthing-field"><span>ダウンロード音量ゲイン（%）</span><input type="number" min="0" step="0.1" name="download_gain_percent" placeholder="例: 20"></label>
+        <div class="syncthing-config-actions"><button type="submit" class="btn btn-primary">保存</button></div>
+        <div class="error-msg" id="settings-error"></div>
+        <div class="success-msg" id="settings-ok"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- Syncthing settings modal -->
 <div id="syncthing-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="syncthing-modal-title">
   <div class="modal-backdrop" data-close-modal></div>
@@ -196,11 +219,13 @@
   import { initLibrary } from "/js/library.js";
   import { initPlaylists } from "/js/playlists.js";
   import { initSyncthing } from "/js/syncthing.js";
+  import { initSettings } from "/js/settings.js";
 
   initQueue();
   initLibrary();
   initPlaylists();
   initSyncthing();
+  initSettings();
 
   // Mobile tabs
   document.querySelectorAll(".tab-btn").forEach((btn) => {
