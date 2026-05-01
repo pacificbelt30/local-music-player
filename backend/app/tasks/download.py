@@ -14,15 +14,16 @@ _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
 
 
 def _download_base_path(source: UrlSource | None) -> Path:
+    manual_dir_name = "manual"
     if not source:
-        return settings.downloads_path / "手動"
+        return settings.downloads_path / manual_dir_name
 
     if source.url_type in ("playlist", "channel"):
         name = source.title or f"source-{source.id}"
     else:
-        name = "手動"
+        name = manual_dir_name
 
-    safe_name = yt_dlp.utils.sanitize_filename(name, restricted=True) or "手動"
+    safe_name = yt_dlp.utils.sanitize_filename(name, restricted=True) or manual_dir_name
     return settings.downloads_path / safe_name
 
 
