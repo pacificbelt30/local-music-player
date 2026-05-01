@@ -134,6 +134,10 @@
           <span>ダウンロード音量ゲイン（%）</span>
           <input type="number" min="0" step="0.1" name="download_gain_percent" placeholder="例: 20">
         </label>
+        <label class="syncthing-field">
+          <span>ffmpeg スレッド数（0で自動）</span>
+          <input type="number" min="0" step="1" name="ffmpeg_threads" placeholder="例: 1">
+        </label>
         <div class="syncthing-config-actions">
           <button type="submit" class="btn btn-primary">保存</button>
         </div>

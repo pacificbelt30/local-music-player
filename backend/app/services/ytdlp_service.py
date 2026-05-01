@@ -79,8 +79,16 @@ def download_track(
         "noplaylist": True,
     }
 
+    ffmpeg_args: list[str] = []
+    if settings.ffmpeg_threads >= 0:
+        ffmpeg_args.extend(["-threads", str(settings.ffmpeg_threads)])
+
     if gain_percent > 0:
-        ydl_opts["postprocessor_args"] = ["-af", f"volume={1 + (gain_percent / 100):.4f}"]
+        ffmpeg_args.extend(["-af", f"volume={1 + (gain_percent / 100):.4f}"])
+
+    if ffmpeg_args:
+        ydl_opts["postprocessor_args"] = ffmpeg_args
+
 
     if progress_hook:
         ydl_opts["progress_hooks"] = [progress_hook]
