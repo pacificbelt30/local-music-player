@@ -46,6 +46,7 @@ def resolve_url(self, url_source_id: int) -> None:
         source.last_synced = datetime.now(timezone.utc)
         db.commit()
 
+        new_jobs: list[DownloadJob] = []
         for entry in entries:
             youtube_id = entry["id"]
             # INSERT OR IGNORE semantics: skip if already exists
@@ -61,13 +62,16 @@ def resolve_url(self, url_source_id: int) -> None:
             )
             db.add(job)
             db.flush()
+            new_jobs.append(job)
 
-            # Enqueue download task
-            task = download_track.apply_async(
-                args=[job.id],
-                countdown=0,
-            )
+        db.commit()
+
+        # Dispatch download tasks after commit so workers can find the records
+        for job in new_jobs:
+            task = download_track.apply_async(args=[job.id], countdown=0)
             job.celery_task_id = task.id
+
+        if new_jobs:
             db.commit()
 
     except Exception as exc:

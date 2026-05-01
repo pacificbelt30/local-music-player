@@ -39,6 +39,9 @@ def sync_youtube_playlist(self, playlist_sync_id: int) -> None:
 
         existing = {t.youtube_id: t for t in db.query(PlaylistSyncTrack).filter_by(playlist_sync_id=sync.id).all()}
 
+        # Collect track IDs that need download tasks dispatched after commit
+        tracks_to_download: list[int] = []
+
         # Add new tracks
         for item in remote_items:
             vid = item["youtube_id"]
@@ -50,7 +53,12 @@ def sync_youtube_playlist(self, playlist_sync_id: int) -> None:
                     t.file_path = None
                     t.error_message = None
                     db.flush()
-                    download_playlist_sync_track.apply_async(args=[t.id])
+                    tracks_to_download.append(t.id)
+                elif t.status == "failed":
+                    # Retry failed tracks on next sync
+                    t.status = "pending"
+                    t.error_message = None
+                    tracks_to_download.append(t.id)
                 else:
                     t.position = item["position"]
                 continue
@@ -64,7 +72,7 @@ def sync_youtube_playlist(self, playlist_sync_id: int) -> None:
             )
             db.add(track)
             db.flush()
-            download_playlist_sync_track.apply_async(args=[track.id])
+            tracks_to_download.append(track.id)
 
         # Remove tracks no longer in the playlist
         for youtube_id, track in existing.items():
@@ -74,6 +82,10 @@ def sync_youtube_playlist(self, playlist_sync_id: int) -> None:
 
         sync.last_synced = datetime.now(timezone.utc)
         db.commit()
+
+        # Dispatch download tasks after commit so workers can find the records
+        for track_id in tracks_to_download:
+            download_playlist_sync_track.apply_async(args=[track_id])
 
     except Exception as exc:
         db.rollback()
