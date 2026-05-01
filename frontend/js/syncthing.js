@@ -127,12 +127,23 @@ async function refreshFolders() {
     }
     container.innerHTML = "";
     for (const f of folders) {
+      const pct = Math.round(f.completion_pct ?? 100);
+      const syncing = (f.need_bytes ?? 0) > 0;
+      const statusColor = f.paused ? "var(--text-muted)" : syncing ? "var(--warning)" : "var(--success)";
+      const statusLabel = f.paused ? "paused" : syncing ? `同期中 ${pct}%` : `完了 ${pct}%`;
+      const needInfo = syncing ? ` · 残り ${esc(f.need_bytes_fmt || "")}、${f.need_items || 0} ファイル` : "";
       const row = document.createElement("div");
       row.className = "syncthing-row";
       row.innerHTML = `
         <div class="syncthing-row-info">
           <div class="syncthing-row-title">${esc(f.label || f.id)}</div>
-          <div class="syncthing-row-meta">${esc(f.id)} · ${esc(f.path || "")} · ${esc(f.type || "")}${f.paused ? " · paused" : ""}</div>
+          <div class="syncthing-row-meta">${esc(f.path || "")} · ${esc(f.type || "")}</div>
+          <div class="syncthing-row-meta" style="margin-top:4px">
+            <span style="color:${statusColor};font-weight:600">${statusLabel}</span>
+            ${needInfo}
+            · 合計 ${esc(f.global_bytes_fmt || "?")}
+          </div>
+          ${syncing ? `<div style="margin-top:6px;height:3px;background:var(--surface3);border-radius:99px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--warning);transition:width 0.3s"></div></div>` : ""}
         </div>
         <button class="btn btn-ghost rescan-folder" data-id="${esc(f.id)}" title="再スキャン">↻</button>
       `;
@@ -168,12 +179,20 @@ async function refreshDevices() {
     }
     container.innerHTML = "";
     for (const d of devices) {
+      const connColor = d.paused ? "var(--text-muted)" : d.connected ? "var(--success)" : "var(--text-muted)";
+      const connLabel = d.paused ? "paused" : d.connected ? "接続中" : "未接続";
+      const addressLine = d.connected && d.address ? ` · ${esc(d.address)}` : "";
+      const versionLine = d.connected && d.client_version ? ` · ${esc(d.client_version)}` : "";
+      const lastSeenLine = !d.connected && d.last_seen ? ` · 最終接続: ${esc(d.last_seen.slice(0, 10))}` : "";
       const row = document.createElement("div");
       row.className = "syncthing-row";
       row.innerHTML = `
         <div class="syncthing-row-info">
           <div class="syncthing-row-title">${esc(d.name || d.device_id?.slice(0, 7) || "?")}</div>
-          <div class="syncthing-row-meta">${esc((d.device_id || "").slice(0, 23))}…${d.paused ? " · paused" : ""}</div>
+          <div class="syncthing-row-meta">${esc((d.device_id || "").slice(0, 23))}…</div>
+          <div class="syncthing-row-meta" style="margin-top:3px">
+            <span style="color:${connColor};font-weight:600">${connLabel}</span>${addressLine}${versionLine}${lastSeenLine}
+          </div>
         </div>
       `;
       container.appendChild(row);
