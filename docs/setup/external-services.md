@@ -112,99 +112,73 @@ Google Cloud Console の「承認済みリダイレクト URI」に同じ URI �
 
 #### パターン 2: LAN の VM にセルフホストする場合（同一 LAN からアクセス）
 
-!!! danger "LAN の IP アドレスはリダイレクト URI に登録できない"
-    Google Cloud Console は、`localhost` および `127.0.0.1` 以外の **IP アドレスをリダイレクト URI として登録できません**。  
-    `http://192.168.1.50:8000/...` を入力してもエラーになります。
+!!! danger "IP アドレス・プライベート TLD はリダイレクト URI に登録できない"
+    Google Cloud Console は以下を承認済みリダイレクト URI として**登録できません**。
 
-以下の 3 つの方法で回避できます。
+    - IP アドレス（`192.168.1.50` など）→「末尾はパブリック TLD (.com, .org 等) にする必要があります」
+    - `.home` / `.lan` / `.local` / `.internal` などの非公開 TLD → 同エラー
+
+    末尾が**パブリック TLD**（.com / .io / .net 等）または **Mozilla PSL** に登録されたドメインである必要があります。
+
+以下の 2 つの方法で回避できます。
 
 ---
 
-##### 方法 A: カスタムホスト名 + /etc/hosts（推奨）
+##### 方法 A: nip.io ワイルドカード DNS（推奨）
 
-**概要**: 任意のホスト名を決めて `/etc/hosts` でサーバーの IP に向け、そのホスト名をリダイレクト URI として登録する。
-
-!!! tip "OAuth 認証フローは初回セットアップ時の一度だけ"
-    トークンは DB に保存されるため、OAuth フローを踏むのはセットアップ時の 1 回だけです。  
-    **認証を行う PC 1 台にだけ `/etc/hosts` を設定すれば十分**です。  
-    その後は他のデバイスから IP アドレスで普通にアクセスできます。
+`nip.io` は IP アドレスをドメイン名にマッピングする無料の DNS サービスです。  
+`<IP>.nip.io` が自動的にその IP に解決されます。TLD が `.io`（パブリック）のため Google Cloud Console に登録できます。
 
 **手順:**
 
-1. **ホスト名を決める**（例: `synctunehub.home`。TLD は何でも可）
-
-2. **`.env` を設定する**
+1. **`.env` を設定する**（`192.168.1.50` を実際のサーバー IP に置き換える）
 
     ```dotenv
-    YOUTUBE_REDIRECT_URI=http://synctunehub.home:8000/api/v1/youtube/auth/callback
+    YOUTUBE_REDIRECT_URI=http://192.168.1.50.nip.io:8000/api/v1/youtube/auth/callback
     ```
 
-3. **Google Cloud Console に登録する**  
-    「承認済みリダイレクト URI」に上記と同じ URI を追加する。  
-    ホスト名形式であれば HTTP でも登録できます（「テスト」モードのアプリの場合）。
+2. **Google Cloud Console に登録する**  
+    「承認済みリダイレクト URI」に上記と同じ URI を完全一致で追加する。
 
-4. **認証を行う PC の `/etc/hosts` にエントリを追加する**
+3. **OAuth フローを実行する**  
+    ブラウザで `http://192.168.1.50.nip.io:8000` にアクセスし、「YouTubeアカウントに接続」をクリックする。
 
-    === "Linux / macOS"
+4. **認証後は IP でアクセス可能**  
+    トークンは DB に保存されます。以降は他デバイスから `http://192.168.1.50:8000` で通常どおりアクセスできます。
 
-        ```bash
-        # /etc/hosts に追記（sudo が必要）
-        192.168.1.50  synctunehub.home
-        ```
-
-    === "Windows"
-
-        `C:\Windows\System32\drivers\etc\hosts` をメモ帳（管理者権限）で開き、以下を追記します。
-
-        ```
-        192.168.1.50  synctunehub.home
-        ```
-
-5. **OAuth フローを実行する**  
-    ブラウザで `http://synctunehub.home:8000` にアクセスし、「YouTubeアカウントに接続」をクリックします。  
-    認証完了後は、他のデバイスから `http://192.168.1.50:8000` で通常どおりアクセスできます。
+!!! note "nip.io の前提条件"
+    - 認証フローを踏む端末が**インターネットに接続できる**こと（DNS 解決に必要）
+    - OAuth フロー実行時のブラウザも `192.168.1.50.nip.io` に名前解決できること  
+      （エアギャップ環境では方法 B を使用してください）
+    - `/etc/hosts` の変更は不要
 
 ---
 
-##### 方法 B: nip.io（ワイルドカード DNS サービス）
+##### 方法 B: SSH ローカルポートフォワーディング
 
-**概要**: `nip.io` という公開 DNS サービスを使う。`<IP>.nip.io` 形式のドメイン名が自動的にその IP に解決されるため、`/etc/hosts` の設定が不要。
+SSH でサーバーのポートを手元の `localhost` に転送し、Google Cloud Console への登録が常に有効な `localhost` のリダイレクト URI をそのまま使う。**Google Cloud の設定変更は不要**。
 
-```dotenv
-# 192.168.1.50 の場合
-YOUTUBE_REDIRECT_URI=http://192.168.1.50.nip.io:8000/api/v1/youtube/auth/callback
-```
+**手順:**
 
-Google Cloud Console の「承認済みリダイレクト URI」に上記 URI を追加します。
+1. **認証フロー前に SSH トンネルを張る**
 
-!!! note "nip.io の要件"
-    - DNS 解決にインターネット接続が必要です（LAN 内のみのエアギャップ環境では使用不可）
-    - 認証フロー時に `http://192.168.1.50.nip.io:8000` にブラウザでアクセスする必要があります  
-      （Google がブラウザをリダイレクトするため、名前解決できないと認証が完了しません）
+    ```bash
+    ssh -N -L 8000:localhost:8000 user@192.168.1.50
+    ```
 
----
+2. **`.env` はデフォルトのまま**
 
-##### 方法 C: SSH ローカルポートフォワーディング
+    ```dotenv
+    YOUTUBE_REDIRECT_URI=http://localhost:8000/api/v1/youtube/auth/callback
+    ```
 
-**概要**: SSH でサーバーのポートを手元の `localhost` に転送し、`localhost` 宛てのリダイレクト URI（デフォルト設定）をそのまま使う。**Google Cloud の設定変更は不要**。
+3. **ブラウザで `http://localhost:8000` を開き**、「YouTubeアカウントに接続」をクリックする。
 
-```bash
-# 認証フローを踏む前に実行し、セッションを維持する
-ssh -N -L 8000:localhost:8000 user@192.168.1.50
-```
+4. **認証完了後は SSH セッションを切断**し、以後は IP アドレスで通常どおりアクセスできます。
 
-`.env` はデフォルトのまま使えます。
-
-```dotenv
-YOUTUBE_REDIRECT_URI=http://localhost:8000/api/v1/youtube/auth/callback
-```
-
-ブラウザで `http://localhost:8000` を開いて OAuth フローを実行します。  
-認証完了後は SSH セッションを切断し、以後は IP アドレスで通常どおりアクセスできます。
-
-!!! note "SSH が必要な場面"
-    ポートフォワーディングは **OAuth フロー実行中だけ** 維持すれば十分です。  
-    認証後のトークンは DB に保存されているため、SSH は不要になります。
+!!! note "SSH セッションは認証フロー中だけ必要"
+    ポートフォワーディングは OAuth フロー実行中のみ維持すれば十分です。  
+    認証後のトークンは DB に保存されるため、SSH は不要になります。
 
 ---
 
@@ -243,7 +217,7 @@ Google Cloud Console の「承認済みリダイレクト URI」に同じ URI �
 | `502 YouTube API error: … 401 …` | トークンはあるが Google API に拒否された |
 | `502 YouTube API error: … invalid_grant …` | リフレッシュトークンが失効している |
 | プレイリスト一覧が空（エラーなし） | 認証アカウントに YouTube チャンネルがない |
-| 認証フロー自体が開始できない / `redirect_uri_mismatch` | リダイレクト URI の設定ミス（LAN IP を登録しようとしている場合は[パターン 2](#パターン-2-lan-の-vm-にセルフホストする場合同一-lan-からアクセス) を参照） |
+| 認証フロー自体が開始できない / `redirect_uri_mismatch` | リダイレクト URI の設定ミス。LAN IP や `.home` 等の非公開 TLD は登録不可 → [パターン 2](#パターン-2-lan-の-vm-にセルフホストする場合同一-lan-からアクセス) を参照 |
 
 ---
 
