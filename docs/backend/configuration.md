@@ -106,6 +106,11 @@ environment:
 ## YouTube OAuth2 のセットアップ
 
 1. [Google Cloud Console](https://console.cloud.google.com/) でプロジェクトを作成
-2. 「OAuth 2.0 クライアント ID」を作成（アプリケーションの種類: Web アプリケーション）
-3. 承認済みリダイレクト URI に `http://localhost:8000/api/v1/youtube/auth/callback` を追加
-4. クライアント ID とシークレットを `.env` に設定
+2. YouTube Data API v3 を有効化
+3. OAuth 同意画面を設定し、**テストユーザーに自分の Google アカウントを追加**
+4. 「OAuth 2.0 クライアント ID」を作成（アプリケーションの種類: Web アプリケーション）
+5. 承認済みリダイレクト URI に `YOUTUBE_REDIRECT_URI` と同じ値を完全一致で追加
+6. クライアント ID とシークレットを `.env` に設定
+
+詳細な手順・リダイレクト URI の環境別設定（LAN IP / ホスト名 / 本番ドメイン）・hosts ファイルの設定については
+[初期設定（外部サービス連携）> YouTube 連携](../setup/external-services.md#youtubegoogle-cloud-oauth2連携) を参照してください。
