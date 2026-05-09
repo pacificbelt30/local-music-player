@@ -214,8 +214,35 @@ curl http://localhost:8000/api/v1/health
     ```
 
 ??? question "YouTube 認証が失敗する"
+    以下を順番に確認してください。
+
+    **「このアプリは Google で確認されていません」と表示される**  
+    Google Cloud Console の OAuth 同意画面で「テストユーザー」に自分の Google アカウントを追加してください。
+    テストユーザー未登録の場合、認証がブロックされます。
+
+    **「redirect_uri_mismatch」エラーが出る**  
+    `.env` の `YOUTUBE_REDIRECT_URI` と Google Cloud Console の「承認済みリダイレクト URI」が完全一致していることを確認してください。
+    末尾スラッシュ・http/https の違いも含めて一字一句同じである必要があります。
+
+    **localhost 以外のホストでリダイレクト URI が解決できない**  
+    ブラウザを動かしているマシンの `/etc/hosts`（Windows: `C:\Windows\System32\drivers\etc\hosts`）に
+    サーバーのホスト名と IP の対応を追加してください。
+    → 詳細: [リダイレクト URI の設定（環境別）](setup/external-services.md#リダイレクト-uri-の設定環境別)
+
+    **プレイリストの取得が「チャンネルが見つかりません」などのエラーになる**  
+    認証に使った Google アカウントに YouTube チャンネルが開設されていることを確認してください。
+    Google アカウントがあっても YouTube チャンネル未作成のアカウントでは API 呼び出しが失敗します。
+    → [YouTube チャンネルを作成する](https://support.google.com/youtube/answer/1646861)
+
+    **上記以外**  
     - `.env` の `YOUTUBE_CLIENT_ID`・`YOUTUBE_CLIENT_SECRET` が正しいか確認
-    - Google Cloud Console でリダイレクト URI が登録されているか確認
+    - YouTube Data API v3 が Google Cloud Console で有効化されているか確認
+
+??? question "認証済みなのに 401 / 502 エラーでプレイリストが取得できない"
+    認証後しばらくして突然エラーになる場合は、トークンが失効している可能性があります。
+    最も多い原因は **OAuth 同意画面「テスト」モードによるリフレッシュトークン 7 日失効** です。
+
+    → 詳細な原因別チェックリスト: [YouTube API 401 エラー チェックシート](setup/external-services.md#youtube-api-401-エラー-チェックシート)
 
 ??? question "Syncthing バッジが「off」のまま"
     - `SYNCTHING_API_KEY` が設定されているか確認
