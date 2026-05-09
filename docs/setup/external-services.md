@@ -173,6 +173,120 @@ Google Cloud Console の「承認済みリダイレクト URI」に同じ URI �
 
 ---
 
+---
+
+## YouTube API 401 エラー チェックシート
+
+### エラーの種類を特定する
+
+まず画面またはブラウザの開発者ツール（Network タブ）でレスポンスを確認し、エラー種別を特定します。
+
+| 表示 | 意味 |
+|------|------|
+| `401 Not authenticated with YouTube` | アプリの DB にトークンが存在しない |
+| `502 YouTube API error: … 401 …` | トークンはあるが Google API に拒否された |
+| `502 YouTube API error: … invalid_grant …` | リフレッシュトークンが失効している |
+| プレイリスト一覧が空（エラーなし） | 認証アカウントに YouTube チャンネルがない |
+
+---
+
+### チェックリスト
+
+以下を上から順に確認してください。
+
+#### □ 1. トークンが DB に保存されているか
+
+```bash
+curl http://localhost:8000/api/v1/youtube/auth/status
+# → {"authenticated": true, ...} であれば保存済み
+# → {"authenticated": false} であれば未認証
+```
+
+`false` の場合は **UI から「YouTubeアカウントに接続」または「トークンを直接入力」** で認証を行ってください。
+
+---
+
+#### □ 2.【最多】リフレッシュトークンが 7 日で失効していないか
+
+!!! warning "OAuth 同意画面が「テスト」モードの場合、リフレッシュトークンは 7 日で失効します"
+    Google Cloud Console の OAuth 同意画面のステータスが **「テスト」** のままの場合、
+    発行されたリフレッシュトークンは **発行から 7 日後に自動的に無効化** されます。
+
+    これによりアプリは毎週 `502 YouTube API error: … invalid_grant …` を返すようになります。
+
+    **対処**: UI から一度「YouTubeとの接続を解除」し、再度「YouTubeアカウントに接続」で
+    OAuth フローをやり直してください（7 日ごとに繰り返す必要があります）。
+
+    個人利用で繰り返しが煩わしい場合は、Google アカウントに Google Cloud の「オーナー」権限を付与した状態で OAuth 同意画面を **「本番」** に公開することで制限を解除できますが、Google の審査プロセスが必要です。
+
+---
+
+#### □ 3. Google アカウントのセキュリティ設定でアクセスを手動削除していないか
+
+Google アカウントのセキュリティページ（`myaccount.google.com/security`）→
+「サードパーティ アプリとサービス」でアプリのアクセス権が残っているか確認します。
+
+「アクセスを削除」した場合はリフレッシュトークンが即座に無効化されます。
+→ UI から再認証してください。
+
+---
+
+#### □ 4. `YOUTUBE_CLIENT_SECRET` が最新か
+
+Google Cloud Console で OAuth クライアントのシークレットを**ローテーション（再生成）**すると、
+旧シークレットで取得したリフレッシュトークンはすべて無効になります。
+
+- `.env` の `YOUTUBE_CLIENT_SECRET` が Google Cloud Console の現在の値と一致しているか確認
+- Docker の場合は `.env` 変更後に `docker compose restart` が必要
+
+---
+
+#### □ 5. YouTube Data API v3 が有効か
+
+[Google Cloud Console](https://console.cloud.google.com/) →
+「APIとサービス」→「有効にしたAPI」で **YouTube Data API v3** が一覧にあるか確認します。
+
+無効になっていた場合は「ライブラリ」から再度有効化してください。
+
+---
+
+#### □ 6. OAuth クライアントが削除・無効化されていないか
+
+「APIとサービス」→「認証情報」で該当の OAuth クライアント ID が存在するか確認します。
+削除されていた場合は再作成し、`.env` を更新して再認証が必要です。
+
+---
+
+#### □ 7. 認証アカウントに YouTube チャンネルがあるか
+
+API 呼び出しは成功（200）するが**プレイリスト一覧が空**の場合、
+認証に使った Google アカウントに YouTube チャンネルが存在しない可能性があります。
+
+→ [YouTube チャンネルを作成する](https://support.google.com/youtube/answer/1646861) 後、
+プレイリスト一覧を再取得してください。
+
+---
+
+#### □ 8.【直接入力方式のみ】アクセストークンの有効期限が切れていないか
+
+「トークンを直接入力」でリフレッシュトークンを入力しなかった場合、
+アクセストークンの有効期限（通常 **1 時間**）が過ぎると自動更新されません。
+
+- 期限切れ後はアプリが `502` または `401` を返します
+- UI の **「トークンを更新」** から [OAuth 2.0 Playground](https://developers.google.com/oauthplayground/) で新しいアクセストークンを取得して再入力してください
+
+---
+
+### 再認証の手順
+
+上記チェックで「再認証が必要」と判断した場合:
+
+1. Playlists パネルの **「YouTubeとの接続を解除」** をクリック（DBのトークンを削除）
+2. **「YouTubeアカウントに接続」** をクリックして OAuth フローをやり直す
+3. `GET /api/v1/youtube/auth/status` で `authenticated: true` を確認
+
+---
+
 ## 補足: トークン直接入力方式
 
 UI の「トークンを直接入力」を使う場合は `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` は必須ではありません。  

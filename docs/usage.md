@@ -238,6 +238,12 @@ curl http://localhost:8000/api/v1/health
     - `.env` の `YOUTUBE_CLIENT_ID`・`YOUTUBE_CLIENT_SECRET` が正しいか確認
     - YouTube Data API v3 が Google Cloud Console で有効化されているか確認
 
+??? question "認証済みなのに 401 / 502 エラーでプレイリストが取得できない"
+    認証後しばらくして突然エラーになる場合は、トークンが失効している可能性があります。
+    最も多い原因は **OAuth 同意画面「テスト」モードによるリフレッシュトークン 7 日失効** です。
+
+    → 詳細な原因別チェックリスト: [YouTube API 401 エラー チェックシート](setup/external-services.md#youtube-api-401-エラー-チェックシート)
+
 ??? question "Syncthing バッジが「off」のまま"
     - `SYNCTHING_API_KEY` が設定されているか確認
     - Syncthing が起動しているか、`SYNCTHING_URL` が正しいか確認
