@@ -110,47 +110,105 @@ YOUTUBE_REDIRECT_URI=http://localhost:8000/api/v1/youtube/auth/callback
 
 Google Cloud Console の「承認済みリダイレクト URI」に同じ URI を追加してください。
 
-#### パターン 2: LAN の IP アドレスで動かす場合
+#### パターン 2: LAN の VM にセルフホストする場合（同一 LAN からアクセス）
 
-サーバーの IP アドレスが `192.168.1.50` の場合:
+!!! danger "LAN の IP アドレスはリダイレクト URI に登録できない"
+    Google Cloud Console は、`localhost` および `127.0.0.1` 以外の **IP アドレスをリダイレクト URI として登録できません**。  
+    `http://192.168.1.50:8000/...` を入力してもエラーになります。
+
+以下の 3 つの方法で回避できます。
+
+---
+
+##### 方法 A: カスタムホスト名 + /etc/hosts（推奨）
+
+**概要**: 任意のホスト名を決めて `/etc/hosts` でサーバーの IP に向け、そのホスト名をリダイレクト URI として登録する。
+
+!!! tip "OAuth 認証フローは初回セットアップ時の一度だけ"
+    トークンは DB に保存されるため、OAuth フローを踏むのはセットアップ時の 1 回だけです。  
+    **認証を行う PC 1 台にだけ `/etc/hosts` を設定すれば十分**です。  
+    その後は他のデバイスから IP アドレスで普通にアクセスできます。
+
+**手順:**
+
+1. **ホスト名を決める**（例: `synctunehub.home`。TLD は何でも可）
+
+2. **`.env` を設定する**
+
+    ```dotenv
+    YOUTUBE_REDIRECT_URI=http://synctunehub.home:8000/api/v1/youtube/auth/callback
+    ```
+
+3. **Google Cloud Console に登録する**  
+    「承認済みリダイレクト URI」に上記と同じ URI を追加する。  
+    ホスト名形式であれば HTTP でも登録できます（「テスト」モードのアプリの場合）。
+
+4. **認証を行う PC の `/etc/hosts` にエントリを追加する**
+
+    === "Linux / macOS"
+
+        ```bash
+        # /etc/hosts に追記（sudo が必要）
+        192.168.1.50  synctunehub.home
+        ```
+
+    === "Windows"
+
+        `C:\Windows\System32\drivers\etc\hosts` をメモ帳（管理者権限）で開き、以下を追記します。
+
+        ```
+        192.168.1.50  synctunehub.home
+        ```
+
+5. **OAuth フローを実行する**  
+    ブラウザで `http://synctunehub.home:8000` にアクセスし、「YouTubeアカウントに接続」をクリックします。  
+    認証完了後は、他のデバイスから `http://192.168.1.50:8000` で通常どおりアクセスできます。
+
+---
+
+##### 方法 B: nip.io（ワイルドカード DNS サービス）
+
+**概要**: `nip.io` という公開 DNS サービスを使う。`<IP>.nip.io` 形式のドメイン名が自動的にその IP に解決されるため、`/etc/hosts` の設定が不要。
 
 ```dotenv
-YOUTUBE_REDIRECT_URI=http://192.168.1.50:8000/api/v1/youtube/auth/callback
+# 192.168.1.50 の場合
+YOUTUBE_REDIRECT_URI=http://192.168.1.50.nip.io:8000/api/v1/youtube/auth/callback
 ```
 
-Google Cloud Console の「承認済みリダイレクト URI」に **同じ URI を完全一致で** 追加してください。
+Google Cloud Console の「承認済みリダイレクト URI」に上記 URI を追加します。
 
-!!! note "IP アドレスのリダイレクト URI について"
-    Google Cloud では、HTTP の IP アドレス指定はテスト用途で許可されています。  
-    ただし、Google のセキュリティポリシーの変更によって将来的に制限される可能性があります。
-    長期運用にはドメイン名の使用を推奨します。
+!!! note "nip.io の要件"
+    - DNS 解決にインターネット接続が必要です（LAN 内のみのエアギャップ環境では使用不可）
+    - 認証フロー時に `http://192.168.1.50.nip.io:8000` にブラウザでアクセスする必要があります  
+      （Google がブラウザをリダイレクトするため、名前解決できないと認証が完了しません）
 
-#### パターン 3: ホスト名（カスタムドメイン・mDNS）で動かす場合
+---
 
-`http://synctunehub.local:8000` のようなホスト名で運用する場合:
+##### 方法 C: SSH ローカルポートフォワーディング
+
+**概要**: SSH でサーバーのポートを手元の `localhost` に転送し、`localhost` 宛てのリダイレクト URI（デフォルト設定）をそのまま使う。**Google Cloud の設定変更は不要**。
+
+```bash
+# 認証フローを踏む前に実行し、セッションを維持する
+ssh -N -L 8000:localhost:8000 user@192.168.1.50
+```
+
+`.env` はデフォルトのまま使えます。
 
 ```dotenv
-YOUTUBE_REDIRECT_URI=http://synctunehub.local:8000/api/v1/youtube/auth/callback
+YOUTUBE_REDIRECT_URI=http://localhost:8000/api/v1/youtube/auth/callback
 ```
 
-Google Cloud Console の「承認済みリダイレクト URI」に同じ URI を追加します。
+ブラウザで `http://localhost:8000` を開いて OAuth フローを実行します。  
+認証完了後は SSH セッションを切断し、以後は IP アドレスで通常どおりアクセスできます。
 
-さらに、**ブラウザを動かしているマシン**（スマートフォン・PC など）の `/etc/hosts`（Windows の場合は `C:\Windows\System32\drivers\etc\hosts`）にホスト名を追記してください。
+!!! note "SSH が必要な場面"
+    ポートフォワーディングは **OAuth フロー実行中だけ** 維持すれば十分です。  
+    認証後のトークンは DB に保存されているため、SSH は不要になります。
 
-```
-# /etc/hosts（ブラウザを動かすマシン側）
-192.168.1.50  synctunehub.local
-```
+---
 
-!!! warning "hosts ファイルはブラウザ側のマシンに設定する"
-    `/etc/hosts` はサーバー側ではなく、**認証フローを踏むブラウザが動いているマシン**に設定します。  
-    複数のデバイスからアクセスする場合は、それぞれのデバイスに設定が必要です。
-
-!!! warning "Google Cloud はプライベートホスト名を承認済み URI として登録できない場合がある"
-    `.local` や社内専用のホスト名は、Google Cloud Console での登録が拒否される場合があります。  
-    その場合は IP アドレス（パターン 2）または実在するドメイン名（パターン 4）を使用してください。
-
-#### パターン 4: 公開ドメインで動かす場合（本番環境）
+#### パターン 3: 公開ドメインで動かす場合（本番環境）
 
 ```dotenv
 YOUTUBE_REDIRECT_URI=https://example.com/api/v1/youtube/auth/callback
@@ -158,8 +216,8 @@ YOUTUBE_REDIRECT_URI=https://example.com/api/v1/youtube/auth/callback
 
 Google Cloud Console の「承認済みリダイレクト URI」に同じ URI を追加してください。
 
-!!! tip "本番環境では HTTPS を推奨"
-    外部からアクセス可能なサーバーで運用する場合、Google は HTTPS のリダイレクト URI を推奨しています。
+!!! tip "本番環境では HTTPS が必須"
+    外部からアクセス可能なサーバーで運用する場合、Google は HTTPS の URI のみを承認します。
 
 ---
 
@@ -170,8 +228,6 @@ Google Cloud Console の「承認済みリダイレクト URI」に同じ URI �
 - OAuth 同意画面の設定: <https://support.google.com/cloud/answer/10311615>
 - OAuth クライアント ID の作成: <https://support.google.com/cloud/answer/6158849>
 - YouTube チャンネルの作成: <https://support.google.com/youtube/answer/1646861>
-
----
 
 ---
 
@@ -187,6 +243,7 @@ Google Cloud Console の「承認済みリダイレクト URI」に同じ URI �
 | `502 YouTube API error: … 401 …` | トークンはあるが Google API に拒否された |
 | `502 YouTube API error: … invalid_grant …` | リフレッシュトークンが失効している |
 | プレイリスト一覧が空（エラーなし） | 認証アカウントに YouTube チャンネルがない |
+| 認証フロー自体が開始できない / `redirect_uri_mismatch` | リダイレクト URI の設定ミス（LAN IP を登録しようとしている場合は[パターン 2](#パターン-2-lan-の-vm-にセルフホストする場合同一-lan-からアクセス) を参照） |
 
 ---
 
