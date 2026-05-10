@@ -35,5 +35,10 @@ def get_db():
 
 
 def init_db():
-    from app import models  # noqa: F401
-    Base.metadata.create_all(bind=engine)
+    from alembic import command
+    from alembic.config import Config
+    from pathlib import Path
+
+    alembic_cfg = Config(str(Path(__file__).parent.parent / "alembic.ini"))
+    alembic_cfg.set_main_option("sqlalchemy.url", settings.database_url)
+    command.upgrade(alembic_cfg, "head")
