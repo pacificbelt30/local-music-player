@@ -18,7 +18,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('youtube_playlist_syncs', sa.Column('last_error', sa.Text(), nullable=True))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_cols = {col["name"] for col in inspector.get_columns("youtube_playlist_syncs")}
+    if "last_error" not in existing_cols:
+        op.add_column("youtube_playlist_syncs", sa.Column("last_error", sa.Text(), nullable=True))
 
 
 def downgrade() -> None:
