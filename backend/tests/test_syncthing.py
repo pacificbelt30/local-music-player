@@ -429,39 +429,3 @@ def test_config_test_rejects_empty_key(client):
     resp = client.post("/api/v1/syncthing/config/test", json={"url": "http://x:8384", "api_key": ""})
     assert resp.status_code == 200
     assert resp.json()["ok"] is False
-
-
-def test_add_device_requires_api_key(client):
-    resp = client.post("/api/v1/syncthing/devices", json={"device_id": "AAA-BBB"})
-    assert resp.status_code == 400
-
-
-def test_add_device_calls_service(client, db):
-    db.add(AppSetting(key="syncthing_api_key", value="k"))
-    db.commit()
-    fake = AsyncMock(return_value={"ok": True})
-    with patch("app.services.syncthing_service.add_device", fake):
-        resp = client.post("/api/v1/syncthing/devices", json={"device_id": "AAA-BBB", "name": "Phone"})
-    assert resp.status_code == 200
-    fake.assert_awaited_once()
-
-
-def test_add_folder_requires_api_key(client):
-    resp = client.post(
-        "/api/v1/syncthing/folders",
-        json={"folder_id": "music", "label": "Music", "path": "/data/music", "folder_type": "sendreceive"},
-    )
-    assert resp.status_code == 400
-
-
-def test_add_folder_calls_service(client, db):
-    db.add(AppSetting(key="syncthing_api_key", value="k"))
-    db.commit()
-    fake = AsyncMock(return_value={"ok": True})
-    with patch("app.services.syncthing_service.add_folder", fake):
-        resp = client.post(
-            "/api/v1/syncthing/folders",
-            json={"folder_id": "music", "label": "Music", "path": "/data/music", "folder_type": "sendreceive"},
-        )
-    assert resp.status_code == 200
-    fake.assert_awaited_once()

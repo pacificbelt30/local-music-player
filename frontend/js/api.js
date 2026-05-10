@@ -41,8 +41,6 @@ export const api = {
   syncthingTestConfig: (payload) => request("POST", "/syncthing/config/test", payload),
   syncthingListFolders: () => request("GET", "/syncthing/folders"),
   syncthingListDevices: () => request("GET", "/syncthing/devices"),
-  syncthingAddDevice: (payload) => request("POST", "/syncthing/devices", payload),
-  syncthingAddFolder: (payload) => request("POST", "/syncthing/folders", payload),
   syncthingRescanFolder: (folderId) => request("POST", `/syncthing/folders/${encodeURIComponent(folderId)}/rescan`),
 
   // Health

@@ -5,7 +5,6 @@ export function initSyncthing() {
   if (!modal) return;
 
   bindConfigForm();
-  bindQuickActions();
 
   document.getElementById("syncthing-badge")?.addEventListener("click", openModal);
   modal.querySelectorAll("[data-close-modal]").forEach((el) => {
@@ -18,50 +17,6 @@ export function initSyncthing() {
   document.getElementById("syncthing-refresh-btn")?.addEventListener("click", () => {
     refreshFolders();
     refreshDevices();
-  });
-}
-
-function bindQuickActions() {
-  const addDeviceForm = document.getElementById("syncthing-add-device-form");
-  addDeviceForm?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const errEl = document.getElementById("syncthing-config-error");
-    const okEl = document.getElementById("syncthing-config-ok");
-    errEl.textContent = "";
-    okEl.textContent = "";
-    try {
-      await api.syncthingAddDevice({
-        device_id: addDeviceForm.device_id.value.trim(),
-        name: addDeviceForm.name.value.trim() || undefined,
-      });
-      okEl.textContent = "デバイスを追加しました";
-      addDeviceForm.reset();
-      refreshDevices();
-    } catch (e2) {
-      errEl.textContent = e2.message;
-    }
-  });
-
-  const addFolderForm = document.getElementById("syncthing-add-folder-form");
-  addFolderForm?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const errEl = document.getElementById("syncthing-config-error");
-    const okEl = document.getElementById("syncthing-config-ok");
-    errEl.textContent = "";
-    okEl.textContent = "";
-    try {
-      await api.syncthingAddFolder({
-        folder_id: addFolderForm.folder_id.value.trim(),
-        label: addFolderForm.label.value.trim(),
-        path: addFolderForm.path.value.trim(),
-        folder_type: addFolderForm.folder_type.value,
-      });
-      okEl.textContent = "フォルダを追加しました";
-      addFolderForm.reset();
-      refreshFolders();
-    } catch (e2) {
-      errEl.textContent = e2.message;
-    }
   });
 }
 
