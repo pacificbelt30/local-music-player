@@ -22,7 +22,17 @@ def sync_youtube_playlist(self, playlist_sync_id: int) -> None
    - **復活**（`status=removed` が再追加）: `status=pending` にリセット → `download_playlist_sync_track.apply_async`
    - **既存**: `position` を更新
    - **削除**（リモートに存在しない）: ファイルを削除 → `status=removed`
-5. `YoutubePlaylistSync.last_synced` を更新
+5. `YoutubePlaylistSync.last_synced` を更新、`last_error` を `None` にクリア
+
+**エラーハンドリング**
+
+| エラー種別 | 挙動 |
+|-----------|------|
+| OAuth トークンエンドポイントからの `400 Bad Request` | リトライせず即終了。`YoutubePlaylistSync.last_error` にメッセージを保存（リフレッシュトークンの失効が原因。再認証で解消） |
+| その他の例外 | 最大 2 回リトライ（60 秒後）。`last_error` にエラーメッセージを保存 |
+| 正常終了 | `last_error` を `None` にクリア |
+
+`last_error` が設定されている場合、UI の同期カードに **「同期エラーが発生しました」** バナーが表示され、「詳細を見る」でメッセージを確認できます。
 
 ---
 

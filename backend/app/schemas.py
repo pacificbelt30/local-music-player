@@ -132,6 +132,7 @@ class YoutubePlaylistSyncResponse(BaseModel):
     created_at: datetime
     track_count: int = 0
     downloaded_count: int = 0
+    last_error: str | None = None
 
 
 class PlaylistSyncTrackResponse(BaseModel):
