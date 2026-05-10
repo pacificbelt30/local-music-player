@@ -38,7 +38,18 @@ def init_db():
     from alembic import command
     from alembic.config import Config
     from pathlib import Path
+    import sqlalchemy as sa
 
     alembic_cfg = Config(str(Path(__file__).parent.parent / "alembic.ini"))
     alembic_cfg.set_main_option("sqlalchemy.url", settings.database_url)
-    command.upgrade(alembic_cfg, "head")
+
+    with engine.connect() as conn:
+        inspector = sa.inspect(conn)
+        has_alembic_version = inspector.has_table("alembic_version")
+        has_app_tables = inspector.has_table("tracks")
+
+    if has_app_tables and not has_alembic_version:
+        # DB was created by pre-Alembic create_all(); stamp it so migrations don't re-run
+        command.stamp(alembic_cfg, "head")
+    else:
+        command.upgrade(alembic_cfg, "head")
