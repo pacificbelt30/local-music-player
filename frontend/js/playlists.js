@@ -26,11 +26,13 @@ async function renderAuthSection() {
       container.innerHTML = `
         <div class="yt-auth-connected">
           <span class="status-badge status-complete">YouTube接続済み</span>
-          <button class="btn btn-ghost" id="yt-token-toggle-btn">トークンを更新</button>
+          <button class="btn btn-primary" id="yt-reauth-btn">再認証（OAuth）</button>
+          <button class="btn btn-ghost" id="yt-token-toggle-btn">トークンを直接入力</button>
           <button class="btn btn-ghost" id="yt-disconnect-btn">接続解除</button>
         </div>
         ${tokenFormHTML()}
       `;
+      document.getElementById("yt-reauth-btn").addEventListener("click", connectYouTube);
       document.getElementById("yt-disconnect-btn").addEventListener("click", disconnectYouTube);
       bindTokenForm();
       document.getElementById("yt-playlist-picker").style.display = "";
