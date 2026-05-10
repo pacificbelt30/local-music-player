@@ -4,6 +4,7 @@ import tempfile
 from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from app.models import AppSetting, PlaylistSyncTrack, YouTubeOAuthToken, YoutubePlaylistSync
@@ -573,6 +574,116 @@ class TestSyncYoutubePlaylistTask:
 
         db.refresh(sync)
         assert sync.last_synced is not None
+
+    def test_clears_last_error_on_successful_sync(self, db):
+        """Successful sync clears a previously stored error."""
+        from app.tasks.sync_playlist import sync_youtube_playlist
+        sync = _make_sync(db)
+        sync.last_error = "前回のエラーメッセージ"
+        db.commit()
+
+        with patch("app.database.SessionLocal", return_value=db):
+            with patch("app.services.youtube_api_service.get_fresh_access_token", return_value="tok"):
+                with patch("app.services.youtube_api_service.get_playlist_items", return_value=[]):
+                    sync_youtube_playlist.apply(args=[sync.id])
+
+        db.refresh(sync)
+        assert sync.last_error is None
+
+    def test_token_400_error_stores_last_error_and_does_not_retry(self, db):
+        """HTTP 400 from OAuth token endpoint stores last_error and exits without retrying."""
+        from app.tasks.sync_playlist import sync_youtube_playlist
+        sync = _make_sync(db)
+
+        # Build a realistic httpx.HTTPStatusError for a 400 from the token endpoint
+        fake_request = httpx.Request("POST", "https://oauth2.googleapis.com/token")
+        fake_response = httpx.Response(400, request=fake_request)
+        auth_error = httpx.HTTPStatusError(
+            "Client error '400 Bad Request'",
+            request=fake_request,
+            response=fake_response,
+        )
+
+        retry_count = []
+
+        def raising_get_token(db_session):
+            raise auth_error
+
+        with patch("app.database.SessionLocal", return_value=db):
+            with patch("app.services.youtube_api_service.get_fresh_access_token", side_effect=raising_get_token):
+                # apply() runs the task eagerly; if retry is called it raises Retry which apply() suppresses
+                result = sync_youtube_playlist.apply(args=[sync.id])
+
+        db.refresh(sync)
+        # last_error should be set with a descriptive message
+        assert sync.last_error is not None
+        assert "認証トークン" in sync.last_error or "400" in sync.last_error
+        # last_synced should NOT be updated (task aborted before success)
+        assert sync.last_synced is None
+
+    def test_token_400_error_does_not_exhaust_retries(self, db):
+        """Verify the task does not retry on 400 token errors (retries would update last_synced=None via side effect)."""
+        from app.tasks.sync_playlist import sync_youtube_playlist
+        sync = _make_sync(db)
+
+        fake_request = httpx.Request("POST", "https://oauth2.googleapis.com/token")
+        fake_response = httpx.Response(400, request=fake_request)
+        auth_error = httpx.HTTPStatusError(
+            "400",
+            request=fake_request,
+            response=fake_response,
+        )
+
+        call_count = {"n": 0}
+
+        def counting_get_token(db_session):
+            call_count["n"] += 1
+            raise auth_error
+
+        with patch("app.database.SessionLocal", return_value=db):
+            with patch("app.services.youtube_api_service.get_fresh_access_token", side_effect=counting_get_token):
+                sync_youtube_playlist.apply(args=[sync.id])
+
+        # Should only be called once — no retry
+        assert call_count["n"] == 1
+
+    def test_non_auth_error_stores_last_error(self, db):
+        """Non-authentication errors store last_error on the sync record."""
+        from app.tasks.sync_playlist import sync_youtube_playlist
+        sync = _make_sync(db)
+
+        def raising_get_items(playlist_id, access_token):
+            raise RuntimeError("YouTube API quota exceeded")
+
+        with patch("app.database.SessionLocal", return_value=db):
+            with patch("app.services.youtube_api_service.get_fresh_access_token", return_value="tok"):
+                with patch("app.services.youtube_api_service.get_playlist_items", side_effect=raising_get_items):
+                    sync_youtube_playlist.apply(args=[sync.id])
+
+        db.refresh(sync)
+        assert sync.last_error is not None
+        assert "quota exceeded" in sync.last_error
+
+
+class TestLastErrorInApiResponse:
+    def test_last_error_returned_in_sync_list(self, client, db):
+        """last_error field is included in the GET /syncs response."""
+        sync = _make_sync(db)
+        sync.last_error = "トークンが無効です"
+        db.commit()
+
+        resp = client.get("/api/v1/youtube/syncs")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["last_error"] == "トークンが無効です"
+
+    def test_last_error_none_when_no_error(self, client, db):
+        """last_error is None when there is no error."""
+        _make_sync(db)
+        resp = client.get("/api/v1/youtube/syncs")
+        assert resp.status_code == 200
+        assert resp.json()[0]["last_error"] is None
 
 
 class TestDeleteSyncTrackFile:
