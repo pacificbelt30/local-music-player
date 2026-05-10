@@ -148,7 +148,7 @@ async function renderAccountPlaylists() {
 
   try {
     const playlists = await api.youtubeListAccountPlaylists();
-    const syncs = await api.youtubeListSyncs();
+    const syncs = await api.youtubeListSyncs().catch(() => []);
     const syncedIds = new Set(syncs.map((s) => s.playlist_id));
 
     if (!playlists.length) {
