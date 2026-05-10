@@ -58,14 +58,29 @@ def init_db():
     has_alembic_version = "alembic_version" in existing_tables
     partial_tables = existing_tables & _initial_schema_tables
 
-    if not has_alembic_version and partial_tables:
+    # alembic_version table may exist but be empty when a previous migration run
+    # crashed after CREATE TABLE but before committing the version row.  In that
+    # case Alembic would attempt to re-run all migrations and fail with
+    # "table already exists", causing an infinite restart loop.
+    alembic_version_empty = False
+    if has_alembic_version:
+        with engine.connect() as conn:
+            row = conn.execute(sa.text("SELECT version_num FROM alembic_version LIMIT 1")).fetchone()
+            alembic_version_empty = row is None
+
+    untracked_db = (not has_alembic_version or alembic_version_empty) and partial_tables
+
+    if untracked_db:
         if _initial_schema_tables.issubset(existing_tables):
-            # All app tables present but no Alembic tracking — DB was created by the old
-            # create_all() path.  Stamp it at head so migrations don't try to re-create tables.
+            # All app tables present but Alembic has no record of them.  Stamp at
+            # the initial revision so upgrade() only runs newer migrations on top.
             logger.info(
-                "init_db: pre-Alembic database detected; stamping to head without running migrations."
+                "init_db: untracked database detected (alembic_version %s); "
+                "stamping to d8524591de41 then upgrading to head.",
+                "empty" if alembic_version_empty else "missing",
             )
-            command.stamp(alembic_cfg, "head")
+            command.stamp(alembic_cfg, "d8524591de41")
+            command.upgrade(alembic_cfg, "head")
         else:
             # Partial state: some tables exist (from an interrupted previous migration run)
             # but not all.  Drop them so a clean upgrade can proceed.
