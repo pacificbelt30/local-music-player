@@ -273,6 +273,17 @@ function syncCardHTML(sync) {
     ? `${sync.downloaded_count}/${sync.track_count} 曲ダウンロード済み`
     : "トラックなし";
 
+  const errorBanner = sync.last_error ? `
+    <div class="yt-sync-error-banner">
+      <span class="yt-sync-error-icon">⚠</span>
+      <span class="yt-sync-error-summary">同期エラーが発生しました</span>
+      <button class="btn btn-ghost yt-sync-error-detail-btn" data-id="${sync.id}">詳細を見る ▾</button>
+    </div>
+    <div class="yt-sync-error-detail" id="yt-sync-error-${sync.id}" style="display:none">
+      <pre class="yt-sync-error-text">${escHtml(sync.last_error)}</pre>
+    </div>
+  ` : "";
+
   return `
     <div class="yt-sync-header">
       <div class="yt-sync-info">
@@ -288,12 +299,23 @@ function syncCardHTML(sync) {
         <button class="btn btn-danger yt-sync-delete-btn" data-id="${sync.id}">削除</button>
       </div>
     </div>
+    ${errorBanner}
     <div class="yt-sync-tracks" id="yt-tracks-${sync.id}" style="display:none"></div>
     <button class="yt-tracks-toggle btn btn-ghost" data-id="${sync.id}">トラック一覧を表示 ▾</button>
   `;
 }
 
 function bindSyncCardEvents(card, sync) {
+  const errorDetailBtn = card.querySelector(".yt-sync-error-detail-btn");
+  if (errorDetailBtn) {
+    errorDetailBtn.addEventListener("click", () => {
+      const detail = document.getElementById(`yt-sync-error-${sync.id}`);
+      const expanded = detail.style.display !== "none";
+      detail.style.display = expanded ? "none" : "";
+      errorDetailBtn.textContent = expanded ? "詳細を見る ▾" : "詳細を隠す ▴";
+    });
+  }
+
   card.querySelector(".yt-sync-now-btn").addEventListener("click", async (e) => {
     const btn = e.currentTarget;
     btn.disabled = true;
@@ -365,6 +387,12 @@ async function renderSyncTracks(syncId, container) {
     for (const t of tracks) {
       const item = document.createElement("div");
       item.className = "yt-track-item";
+      const errorSection = t.status === "failed" && t.error_message ? `
+        <div class="yt-track-error-row">
+          <button class="btn btn-ghost yt-track-error-btn" data-track-id="${t.id}">詳細を見る ▾</button>
+          <pre class="yt-track-error-text" id="yt-track-err-${t.id}" style="display:none">${escHtml(t.error_message)}</pre>
+        </div>
+      ` : "";
       item.innerHTML = `
         ${t.thumbnail_url
           ? `<img class="track-thumb" src="${escHtml(t.thumbnail_url)}" alt="" loading="lazy">`
@@ -372,6 +400,7 @@ async function renderSyncTracks(syncId, container) {
         <div class="track-info">
           <div class="track-title">${escHtml(t.title)}</div>
           <div class="track-artist">${escHtml(t.artist || "")}</div>
+          ${errorSection}
         </div>
         <div class="yt-track-right">
           <span class="status-badge status-${t.status}">${statusLabel(t.status)}</span>
@@ -381,6 +410,16 @@ async function renderSyncTracks(syncId, container) {
       if (t.stream_url) {
         item.style.cursor = "pointer";
         item.addEventListener("click", () => playTrack(t));
+      }
+      const errBtn = item.querySelector(".yt-track-error-btn");
+      if (errBtn) {
+        errBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const errPre = document.getElementById(`yt-track-err-${t.id}`);
+          const expanded = errPre.style.display !== "none";
+          errPre.style.display = expanded ? "none" : "";
+          errBtn.textContent = expanded ? "詳細を見る ▾" : "詳細を隠す ▴";
+        });
       }
       container.appendChild(item);
     }

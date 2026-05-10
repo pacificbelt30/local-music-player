@@ -3,6 +3,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+import httpx
 import redis as redis_lib
 import yt_dlp
 
@@ -84,14 +85,33 @@ def sync_youtube_playlist(self, playlist_sync_id: int) -> None:
                 track.status = "removed"
 
         sync.last_synced = datetime.now(timezone.utc)
+        sync.last_error = None
         db.commit()
 
         # Dispatch download tasks after commit so workers can find the records
         for track_id in tracks_to_download:
             download_playlist_sync_track.apply_async(args=[track_id])
 
+    except httpx.HTTPStatusError as exc:
+        db.rollback()
+        # 400 from the token endpoint means the refresh token is invalid/revoked — permanent error, no retry
+        if exc.response.status_code == 400 and "oauth2.googleapis.com/token" in str(exc.request.url):
+            sync = db.get(YoutubePlaylistSync, playlist_sync_id)
+            if sync:
+                sync.last_error = (
+                    "YouTubeの認証トークンが無効または失効しています。"
+                    " YouTubeアカウントの設定から再接続してください。"
+                    f" (詳細: {exc})"
+                )
+                db.commit()
+            return
+        raise self.retry(exc=exc, countdown=60)
     except Exception as exc:
         db.rollback()
+        sync = db.get(YoutubePlaylistSync, playlist_sync_id)
+        if sync:
+            sync.last_error = str(exc)[:500]
+            db.commit()
         raise self.retry(exc=exc, countdown=60)
     finally:
         db.close()

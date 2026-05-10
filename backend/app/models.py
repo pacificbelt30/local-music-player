@@ -28,6 +28,7 @@ class YoutubePlaylistSync(Base):
     audio_quality: Mapped[str] = mapped_column(String(10), default="192")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     last_synced: Mapped[datetime | None] = mapped_column(DateTime)
+    last_error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     tracks: Mapped[list["PlaylistSyncTrack"]] = relationship(back_populates="playlist_sync", cascade="all, delete-orphan")
