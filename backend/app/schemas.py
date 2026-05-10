@@ -102,6 +102,7 @@ class YouTubePlaylistInfo(BaseModel):
     title: str
     item_count: int
     thumbnail_url: str | None = None
+    total_duration_secs: int | None = None
 
 
 class YoutubePlaylistSyncCreate(BaseModel):

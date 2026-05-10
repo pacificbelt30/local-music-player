@@ -1,5 +1,6 @@
 """YouTube Data API v3 + OAuth2 helpers (uses httpx, no google-auth dependency)."""
 from datetime import datetime, timezone, timedelta
+import re
 from urllib.parse import urlencode, urljoin
 from typing import Any
 
@@ -108,11 +109,13 @@ def get_my_playlists(access_token: str) -> list[dict[str, Any]]:
                 thumbnails.get("medium", {}).get("url")
                 or thumbnails.get("default", {}).get("url")
             )
+            total_duration_secs = _get_playlist_total_duration(item["id"], access_token)
             playlists.append({
                 "playlist_id": item["id"],
                 "title": snippet.get("title", "Untitled"),
                 "item_count": item.get("contentDetails", {}).get("itemCount", 0),
                 "thumbnail_url": thumb_url,
+                "total_duration_secs": total_duration_secs,
             })
 
         page_token = data.get("nextPageToken")
@@ -120,6 +123,46 @@ def get_my_playlists(access_token: str) -> list[dict[str, Any]]:
             break
 
     return playlists
+
+
+def _get_playlist_total_duration(playlist_id: str, access_token: str) -> int | None:
+    items = get_playlist_items(playlist_id, access_token)
+    video_ids = [i["youtube_id"] for i in items if i.get("youtube_id")]
+    if not video_ids:
+        return None
+
+    total = 0
+    known = 0
+    for idx in range(0, len(video_ids), 50):
+        chunk = video_ids[idx:idx + 50]
+        resp = httpx.get(
+            f"{YOUTUBE_API_BASE}/videos",
+            params={"part": "contentDetails", "id": ",".join(chunk), "maxResults": 50},
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        for video in data.get("items", []):
+            duration = video.get("contentDetails", {}).get("duration")
+            secs = _parse_iso8601_duration(duration)
+            if secs is None:
+                continue
+            total += secs
+            known += 1
+
+    return total if known else None
+
+
+def _parse_iso8601_duration(raw: str | None) -> int | None:
+    if not raw:
+        return None
+    m = re.fullmatch(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", raw)
+    if not m:
+        return None
+    h = int(m.group(1) or 0)
+    mins = int(m.group(2) or 0)
+    secs = int(m.group(3) or 0)
+    return h * 3600 + mins * 60 + secs
 
 
 def get_playlist_items(playlist_id: str, access_token: str) -> list[dict[str, Any]]:
