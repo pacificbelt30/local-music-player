@@ -157,13 +157,17 @@ async function renderAccountPlaylists() {
     container.innerHTML = "";
     for (const pl of playlists) {
       const already = syncedIds.has(pl.playlist_id);
+      const totalDuration = formatPlaylistDuration(pl.total_duration_secs);
       const item = document.createElement("div");
       item.className = "yt-pl-item";
       item.innerHTML = `
         ${pl.thumbnail_url ? `<img class="yt-pl-thumb" src="${escHtml(pl.thumbnail_url)}" alt="" loading="lazy">` : '<div class="track-thumb-placeholder">▶</div>'}
         <div class="yt-pl-info">
           <div class="yt-pl-title">${escHtml(pl.title)}</div>
-          <div class="yt-pl-meta">${pl.item_count} 曲</div>
+          <div class="yt-pl-meta-row">
+            <span class="yt-pl-meta-badge">${pl.item_count} 曲</span>
+            ${totalDuration ? `<span class="yt-pl-meta">総再生時間: ${escHtml(totalDuration)}</span>` : ""}
+          </div>
         </div>
         <button class="btn ${already ? "btn-ghost" : "btn-primary"} yt-add-sync-btn"
           data-id="${escHtml(pl.playlist_id)}" data-name="${escHtml(pl.title)}"
@@ -180,6 +184,15 @@ async function renderAccountPlaylists() {
   } catch (e) {
     container.innerHTML = `<div class="error-msg">${escHtml(e.message)}</div>`;
   }
+}
+
+
+function formatPlaylistDuration(seconds) {
+  if (seconds == null || Number.isNaN(Number(seconds)) || seconds <= 0) return null;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}時間${m}分`;
+  return `${m}分`;
 }
 
 // ── Add Sync Dialog ───────────────────────────────────────────────────────────
