@@ -210,5 +210,39 @@ async def rescan_folder(db: Session, folder_id: str) -> dict:
     return await _proxy_post(db, "/rest/db/scan", params={"folder": folder_id})
 
 
+async def add_device(db: Session, device_id: str, name: str | None = None) -> dict:
+    url, api_key = get_effective_config(db)
+    if not api_key:
+        raise _ConfigError("SYNCTHING_API_KEY not configured")
+    headers = {"X-API-Key": api_key}
+
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.post(
+            f"{url}/rest/config/devices",
+            headers=headers,
+            json={"deviceID": device_id, "name": name or ""},
+        )
+        resp.raise_for_status()
+        await client.post(f"{url}/rest/config/restart", headers=headers)
+    return {"ok": True}
+
+
+async def add_folder(db: Session, folder_id: str, label: str, path: str, folder_type: str = "sendreceive") -> dict:
+    url, api_key = get_effective_config(db)
+    if not api_key:
+        raise _ConfigError("SYNCTHING_API_KEY not configured")
+    headers = {"X-API-Key": api_key}
+
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.post(
+            f"{url}/rest/config/folders",
+            headers=headers,
+            json={"id": folder_id, "label": label, "path": path, "type": folder_type},
+        )
+        resp.raise_for_status()
+        await client.post(f"{url}/rest/config/restart", headers=headers)
+    return {"ok": True}
+
+
 class _ConfigError(Exception):
     pass

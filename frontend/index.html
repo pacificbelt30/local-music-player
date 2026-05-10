@@ -188,6 +188,38 @@
       <div id="syncthing-device-list" class="syncthing-list">
         <div class="empty-state">読込中…</div>
       </div>
+
+      <div class="section-title syncthing-section-title"><span>クイック追加</span></div>
+      <form class="syncthing-config-form" id="syncthing-add-device-form" style="margin-bottom:10px">
+        <label class="syncthing-field">
+          <span>デバイスID</span>
+          <input type="text" name="device_id" placeholder="ABCDEF-..." required autocomplete="off">
+        </label>
+        <label class="syncthing-field">
+          <span>デバイス名（任意）</span>
+          <input type="text" name="name" placeholder="My Phone" autocomplete="off">
+        </label>
+        <div class="syncthing-config-actions">
+          <button type="submit" class="btn btn-ghost">デバイス追加</button>
+        </div>
+      </form>
+
+      <form class="syncthing-config-form" id="syncthing-add-folder-form">
+        <label class="syncthing-field"><span>フォルダID</span><input type="text" name="folder_id" placeholder="music" required></label>
+        <label class="syncthing-field"><span>表示名</span><input type="text" name="label" placeholder="Music" required></label>
+        <label class="syncthing-field"><span>パス</span><input type="text" name="path" placeholder="/var/syncthing/downloads" required></label>
+        <label class="syncthing-field">
+          <span>タイプ</span>
+          <select name="folder_type">
+            <option value="sendreceive">Send & Receive</option>
+            <option value="sendonly">Send Only</option>
+            <option value="receiveonly">Receive Only</option>
+          </select>
+        </label>
+        <div class="syncthing-config-actions">
+          <button type="submit" class="btn btn-ghost">フォルダ追加</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>

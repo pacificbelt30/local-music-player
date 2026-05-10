@@ -25,6 +25,18 @@ class SyncthingConfigTest(BaseModel):
     api_key: str
 
 
+class SyncthingAddDeviceRequest(BaseModel):
+    device_id: str
+    name: str | None = None
+
+
+class SyncthingAddFolderRequest(BaseModel):
+    folder_id: str
+    label: str
+    path: str
+    folder_type: str = "sendreceive"
+
+
 @router.get("/status")
 async def syncthing_status(db: Session = Depends(get_db)):
     return await syncthing_service.get_syncthing_status(db)
@@ -76,6 +88,36 @@ async def list_devices(db: Session = Depends(get_db)):
 async def rescan_folder(folder_id: str, db: Session = Depends(get_db)):
     try:
         return await syncthing_service.rescan_folder(db, folder_id)
+    except _ConfigError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except (httpx.ConnectError, httpx.TimeoutException):
+        raise HTTPException(status_code=502, detail="Syncthing not reachable")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=502, detail=f"Syncthing HTTP {e.response.status_code}")
+
+
+@router.post("/devices")
+async def add_device(payload: SyncthingAddDeviceRequest, db: Session = Depends(get_db)):
+    try:
+        return await syncthing_service.add_device(db, payload.device_id, payload.name)
+    except _ConfigError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except (httpx.ConnectError, httpx.TimeoutException):
+        raise HTTPException(status_code=502, detail="Syncthing not reachable")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=502, detail=f"Syncthing HTTP {e.response.status_code}")
+
+
+@router.post("/folders")
+async def add_folder(payload: SyncthingAddFolderRequest, db: Session = Depends(get_db)):
+    try:
+        return await syncthing_service.add_folder(
+            db,
+            payload.folder_id,
+            payload.label,
+            payload.path,
+            payload.folder_type,
+        )
     except _ConfigError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except (httpx.ConnectError, httpx.TimeoutException):
