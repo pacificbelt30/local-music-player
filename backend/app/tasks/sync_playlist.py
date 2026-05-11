@@ -11,6 +11,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models import AppSetting, PlaylistSyncTrack, YoutubePlaylistSync
 from app.services import youtube_api_service, ytdlp_service
+from app.services.notification import notify_discord
 from app.tasks.celery_app import celery_app
 
 _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
@@ -168,14 +169,35 @@ def download_playlist_sync_track(self, track_id: int) -> None:
         track.downloaded_at = datetime.now(timezone.utc)
         track.error_message = None
         _redis.delete(f"pstrack:{track_id}:progress")
+        webhook_row = db.get(AppSetting, "discord_webhook_url")
+        webhook_url = webhook_row.value if webhook_row else None
+        playlist_name = sync.playlist_name if sync else None
         db.commit()
+
+        notify_discord(
+            webhook_url,
+            "ダウンロード完了",
+            f"**{track.title}**" + (f"\nプレイリスト: {playlist_name}" if playlist_name else ""),
+            0x57F287,
+        )
 
     except Exception as exc:
         db.rollback()
         if track:
             track.status = "failed"
             track.error_message = str(exc)[:500]
-            db.commit()
+            try:
+                webhook_row = db.get(AppSetting, "discord_webhook_url")
+                webhook_url = webhook_row.value if webhook_row else None
+                db.commit()
+                notify_discord(
+                    webhook_url,
+                    "ダウンロード失敗",
+                    f"**{track.title or track.youtube_id}**\n```{str(exc)[:300]}```",
+                    0xED4245,
+                )
+            except Exception:
+                pass
         raise self.retry(exc=exc, countdown=30 * (2 ** self.request.retries))
     finally:
         db.close()

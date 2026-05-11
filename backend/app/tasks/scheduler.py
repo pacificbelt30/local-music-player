@@ -9,6 +9,8 @@ DEFAULTS = {
     "youtube_sync_interval_minutes": "60",
     "download_gain_percent": "0",
     "ffmpeg_threads": "1",
+    "celery_worker_concurrency": "0",
+    "discord_webhook_url": "",
 }
 
 

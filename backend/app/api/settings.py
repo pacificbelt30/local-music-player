@@ -15,6 +15,8 @@ class SyncSettings(BaseModel):
     youtube_sync_interval_minutes: int
     download_gain_percent: float
     ffmpeg_threads: int
+    celery_worker_concurrency: int
+    discord_webhook_url: str
 
     @field_validator("url_sync_interval_minutes", "youtube_sync_interval_minutes")
     @classmethod
@@ -29,6 +31,8 @@ class SyncSettingsUpdate(BaseModel):
     youtube_sync_interval_minutes: int | None = None
     download_gain_percent: float | None = None
     ffmpeg_threads: int | None = None
+    celery_worker_concurrency: int | None = None
+    discord_webhook_url: str | None = None
 
     @field_validator("url_sync_interval_minutes", "youtube_sync_interval_minutes", mode="before")
     @classmethod
@@ -44,9 +48,9 @@ class SyncSettingsUpdate(BaseModel):
             raise ValueError("Must be >= 0")
         return v
 
-    @field_validator("ffmpeg_threads")
+    @field_validator("ffmpeg_threads", "celery_worker_concurrency")
     @classmethod
-    def ffmpeg_threads_must_be_non_negative(cls, v: int | None) -> int | None:
+    def must_be_non_negative(cls, v: int | None) -> int | None:
         if v is not None and v < 0:
             raise ValueError("Must be >= 0")
         return v
@@ -62,6 +66,8 @@ def _read(db: Session) -> SyncSettings:
         youtube_sync_interval_minutes=int(get("youtube_sync_interval_minutes")),
         download_gain_percent=float(get("download_gain_percent")),
         ffmpeg_threads=int(get("ffmpeg_threads")),
+        celery_worker_concurrency=int(get("celery_worker_concurrency")),
+        discord_webhook_url=get("discord_webhook_url"),
     )
 
 

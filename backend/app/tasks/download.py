@@ -8,6 +8,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models import AppSetting, DownloadJob, Track, UrlSource, PlaylistTrack
 from app.services import ytdlp_service
+from app.services.notification import notify_discord
 from app.tasks.celery_app import celery_app
 from app.tasks.scheduler import DEFAULTS
 
@@ -139,7 +140,16 @@ def download_track(self, job_id: int) -> None:
         job.progress_pct = 100.0
         job.finished_at = datetime.now(timezone.utc)
         _redis.delete(f"job:{job_id}:progress")
+        webhook_row = db.get(AppSetting, "discord_webhook_url")
+        webhook_url = webhook_row.value if webhook_row else None
         db.commit()
+
+        notify_discord(
+            webhook_url,
+            "ダウンロード完了",
+            f"**{job.title or job.youtube_id}**",
+            0x57F287,
+        )
 
     except Exception as exc:
         db.rollback()
@@ -147,7 +157,18 @@ def download_track(self, job_id: int) -> None:
             job.status = "failed"
             job.error_message = str(exc)[:500]
             job.finished_at = datetime.now(timezone.utc)
-            db.commit()
+            try:
+                webhook_row = db.get(AppSetting, "discord_webhook_url")
+                webhook_url = webhook_row.value if webhook_row else None
+                db.commit()
+                notify_discord(
+                    webhook_url,
+                    "ダウンロード失敗",
+                    f"**{job.title or job.youtube_id}**\n```{str(exc)[:300]}```",
+                    0xED4245,
+                )
+            except Exception:
+                pass
         raise self.retry(exc=exc, countdown=30 * (2 ** self.request.retries))
     finally:
         db.close()

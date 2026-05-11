@@ -32,3 +32,16 @@ celery_app.conf.update(
         },
     },
 )
+
+# Apply worker concurrency from DB if configured (takes effect on worker startup)
+try:
+    from app.database import SessionLocal as _SessionLocal
+    from app.models import AppSetting as _AppSetting
+    _db = _SessionLocal()
+    _row = _db.get(_AppSetting, "celery_worker_concurrency")
+    _concurrency = int(_row.value) if _row and _row.value else 0
+    _db.close()
+    if _concurrency > 0:
+        celery_app.conf.worker_concurrency = _concurrency
+except Exception:
+    pass

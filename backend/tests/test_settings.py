@@ -247,3 +247,42 @@ def test_update_ffmpeg_threads(client):
 def test_negative_ffmpeg_threads_rejected(client):
     resp = client.patch("/api/v1/settings", json={"ffmpeg_threads": -1})
     assert resp.status_code == 422
+
+
+def test_update_celery_worker_concurrency(client):
+    resp = client.patch("/api/v1/settings", json={"celery_worker_concurrency": 4})
+    assert resp.status_code == 200
+    assert resp.json()["celery_worker_concurrency"] == 4
+
+
+def test_zero_celery_worker_concurrency_means_auto(client):
+    resp = client.patch("/api/v1/settings", json={"celery_worker_concurrency": 0})
+    assert resp.status_code == 200
+    assert resp.json()["celery_worker_concurrency"] == 0
+
+
+def test_negative_celery_worker_concurrency_rejected(client):
+    resp = client.patch("/api/v1/settings", json={"celery_worker_concurrency": -1})
+    assert resp.status_code == 422
+
+
+def test_update_discord_webhook_url(client):
+    url = "https://discord.com/api/webhooks/123/abc"
+    resp = client.patch("/api/v1/settings", json={"discord_webhook_url": url})
+    assert resp.status_code == 200
+    assert resp.json()["discord_webhook_url"] == url
+
+
+def test_clear_discord_webhook_url(client):
+    client.patch("/api/v1/settings", json={"discord_webhook_url": "https://discord.com/api/webhooks/123/abc"})
+    resp = client.patch("/api/v1/settings", json={"discord_webhook_url": ""})
+    assert resp.status_code == 200
+    assert resp.json()["discord_webhook_url"] == ""
+
+
+def test_get_settings_includes_new_fields(client):
+    data = client.get("/api/v1/settings").json()
+    assert "celery_worker_concurrency" in data
+    assert "discord_webhook_url" in data
+    assert data["celery_worker_concurrency"] == 0
+    assert data["discord_webhook_url"] == ""

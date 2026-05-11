@@ -138,6 +138,14 @@
           <span>ffmpeg スレッド数（0で自動）</span>
           <input type="number" min="0" step="1" name="ffmpeg_threads" placeholder="例: 1">
         </label>
+        <label class="syncthing-field">
+          <span>ワーカー同時実行数（0でCPU数に合わせて自動）</span>
+          <input type="number" min="0" step="1" name="celery_worker_concurrency" placeholder="例: 4">
+        </label>
+        <label class="syncthing-field">
+          <span>Discord Webhook URL（空で通知なし）</span>
+          <input type="url" name="discord_webhook_url" placeholder="https://discord.com/api/webhooks/..." autocomplete="off">
+        </label>
         <div class="syncthing-config-actions">
           <button type="submit" class="btn btn-primary">保存</button>
         </div>
