@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
 from app.config import settings
+from app.database import get_db
 from app.models import (
     DownloadJob,
     PlaylistSyncTrack,
