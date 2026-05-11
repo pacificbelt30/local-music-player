@@ -15,6 +15,7 @@ EVENTS: dict[str, bool] = {
     "notify_on_download_failed": True,
     "notify_on_db_error": True,
     "notify_on_youtube_auth_expired": True,
+    "notify_on_oauth_expiry_warning": True,
 }
 
 

@@ -22,6 +22,8 @@ class SyncSettings(BaseModel):
     notify_on_download_failed: bool
     notify_on_db_error: bool
     notify_on_youtube_auth_expired: bool
+    notify_on_oauth_expiry_warning: bool
+    oauth_expiry_warning_minutes: int
 
     @field_validator("url_sync_interval_minutes", "youtube_sync_interval_minutes")
     @classmethod
@@ -42,6 +44,8 @@ class SyncSettingsUpdate(BaseModel):
     notify_on_download_failed: bool | None = None
     notify_on_db_error: bool | None = None
     notify_on_youtube_auth_expired: bool | None = None
+    notify_on_oauth_expiry_warning: bool | None = None
+    oauth_expiry_warning_minutes: int | None = None
 
     @field_validator("url_sync_interval_minutes", "youtube_sync_interval_minutes", mode="before")
     @classmethod
@@ -62,6 +66,13 @@ class SyncSettingsUpdate(BaseModel):
     def must_be_non_negative(cls, v: int | None) -> int | None:
         if v is not None and v < 0:
             raise ValueError("Must be >= 0")
+        return v
+
+    @field_validator("oauth_expiry_warning_minutes")
+    @classmethod
+    def must_be_positive(cls, v: int | None) -> int | None:
+        if v is not None and v < 1:
+            raise ValueError("Must be >= 1")
         return v
 
 
@@ -87,6 +98,8 @@ def _read(db: Session) -> SyncSettings:
         notify_on_download_failed=_get_bool(db, "notify_on_download_failed"),
         notify_on_db_error=_get_bool(db, "notify_on_db_error"),
         notify_on_youtube_auth_expired=_get_bool(db, "notify_on_youtube_auth_expired"),
+        notify_on_oauth_expiry_warning=_get_bool(db, "notify_on_oauth_expiry_warning"),
+        oauth_expiry_warning_minutes=int(get("oauth_expiry_warning_minutes")),
     )
 
 

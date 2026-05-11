@@ -30,6 +30,10 @@ celery_app.conf.update(
             "task": "app.tasks.scheduler.periodic_youtube_playlist_sync",
             "schedule": crontab(minute="*/5"),
         },
+        "check-oauth-expiry": {
+            "task": "app.tasks.scheduler.periodic_oauth_expiry_check",
+            "schedule": crontab(minute="*/5"),
+        },
     },
 )
 

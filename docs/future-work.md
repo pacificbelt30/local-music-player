@@ -82,6 +82,7 @@ SQLite ファイルのバックアップ・エクスポートを行う API や�
 - ダウンロード失敗 (`notify_on_download_failed`、デフォルト: 有効)
 - DB障害 (`notify_on_db_error`、デフォルト: 有効) — DB 不通時は `DISCORD_WEBHOOK_URL` 環境変数にフォールバック
 - YouTube OAuth 認証切れ (`notify_on_youtube_auth_expired`、デフォルト: 有効)
+- YouTube OAuth トークン期限切れ間近 (`notify_on_oauth_expiry_warning`、デフォルト: 有効) — 期限の何分前に通知するかを `oauth_expiry_warning_minutes`（デフォルト: 60分）で設定可能。同一トークンへの重複通知はスキップ。
 
 ---
 

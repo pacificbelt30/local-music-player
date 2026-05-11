@@ -30,6 +30,8 @@ export function initSettings() {
       notify_on_download_failed: form.notify_on_download_failed.checked,
       notify_on_db_error: form.notify_on_db_error.checked,
       notify_on_youtube_auth_expired: form.notify_on_youtube_auth_expired.checked,
+      notify_on_oauth_expiry_warning: form.notify_on_oauth_expiry_warning.checked,
+      oauth_expiry_warning_minutes: Number(form.oauth_expiry_warning_minutes.value || 60),
     };
 
     try {
@@ -54,4 +56,6 @@ async function loadSettings() {
   form.notify_on_download_failed.checked = s.notify_on_download_failed ?? true;
   form.notify_on_db_error.checked = s.notify_on_db_error ?? true;
   form.notify_on_youtube_auth_expired.checked = s.notify_on_youtube_auth_expired ?? true;
+  form.notify_on_oauth_expiry_warning.checked = s.notify_on_oauth_expiry_warning ?? true;
+  form.oauth_expiry_warning_minutes.value = String(s.oauth_expiry_warning_minutes ?? 60);
 }
