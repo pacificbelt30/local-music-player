@@ -73,3 +73,4 @@ graph LR
 | [フロントエンド](frontend/index.md) | バニラ JS / CSS の UI 仕様 |
 | [デプロイ](deployment/docker.md) | Docker・Linux セットアップ・環境変数 |
 | [Android クライアント](android-client.md) | スマートフォンからの利用方法 |
+| [実装点検メモ (2026-05-10)](implementation-gap-review-2026-05-10.md) | 実装漏れリスクと改善要件の整理 |
