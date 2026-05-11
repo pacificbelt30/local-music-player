@@ -26,6 +26,10 @@ export function initSettings() {
       ffmpeg_threads: Number(form.ffmpeg_threads.value || 1),
       celery_worker_concurrency: Number(form.celery_worker_concurrency.value || 0),
       discord_webhook_url: form.discord_webhook_url.value || "",
+      notify_on_download_complete: form.notify_on_download_complete.checked,
+      notify_on_download_failed: form.notify_on_download_failed.checked,
+      notify_on_db_error: form.notify_on_db_error.checked,
+      notify_on_youtube_auth_expired: form.notify_on_youtube_auth_expired.checked,
     };
 
     try {
@@ -46,5 +50,8 @@ async function loadSettings() {
   form.ffmpeg_threads.value = String(s.ffmpeg_threads ?? 1);
   form.celery_worker_concurrency.value = String(s.celery_worker_concurrency ?? 0);
   form.discord_webhook_url.value = s.discord_webhook_url ?? "";
+  form.notify_on_download_complete.checked = s.notify_on_download_complete ?? false;
+  form.notify_on_download_failed.checked = s.notify_on_download_failed ?? true;
+  form.notify_on_db_error.checked = s.notify_on_db_error ?? true;
+  form.notify_on_youtube_auth_expired.checked = s.notify_on_youtube_auth_expired ?? true;
 }
-

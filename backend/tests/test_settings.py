@@ -286,3 +286,54 @@ def test_get_settings_includes_new_fields(client):
     assert "discord_webhook_url" in data
     assert data["celery_worker_concurrency"] == 0
     assert data["discord_webhook_url"] == ""
+
+
+# ── Notification settings ─────────────────────────────────────────────────────
+
+def test_get_settings_notification_defaults(client):
+    data = client.get("/api/v1/settings").json()
+    assert data["notify_on_download_complete"] is False
+    assert data["notify_on_download_failed"] is True
+    assert data["notify_on_db_error"] is True
+    assert data["notify_on_youtube_auth_expired"] is True
+
+
+def test_update_notification_flags(client):
+    resp = client.patch("/api/v1/settings", json={
+        "notify_on_download_complete": True,
+        "notify_on_download_failed": False,
+        "notify_on_db_error": False,
+        "notify_on_youtube_auth_expired": False,
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["notify_on_download_complete"] is True
+    assert data["notify_on_download_failed"] is False
+    assert data["notify_on_db_error"] is False
+    assert data["notify_on_youtube_auth_expired"] is False
+
+
+def test_notification_flags_persist(client):
+    client.patch("/api/v1/settings", json={"notify_on_download_complete": True})
+    data = client.get("/api/v1/settings").json()
+    assert data["notify_on_download_complete"] is True
+
+
+def test_partial_notification_update_leaves_others_unchanged(client):
+    client.patch("/api/v1/settings", json={"notify_on_download_complete": True})
+    data = client.get("/api/v1/settings").json()
+    assert data["notify_on_download_failed"] is True   # default unchanged
+    assert data["notify_on_download_complete"] is True
+
+
+def test_notification_flags_stored_as_lowercase_string(client, db):
+    from app.models import AppSetting
+    client.patch("/api/v1/settings", json={"notify_on_download_complete": True})
+    row = db.get(AppSetting, "notify_on_download_complete")
+    assert row is not None
+    assert row.value == "true"
+
+    client.patch("/api/v1/settings", json={"notify_on_download_complete": False})
+    db.expire(row)
+    row = db.get(AppSetting, "notify_on_download_complete")
+    assert row.value == "false"

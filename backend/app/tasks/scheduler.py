@@ -11,6 +11,10 @@ DEFAULTS = {
     "ffmpeg_threads": "1",
     "celery_worker_concurrency": "0",
     "discord_webhook_url": "",
+    "notify_on_download_complete": "false",
+    "notify_on_download_failed": "true",
+    "notify_on_db_error": "true",
+    "notify_on_youtube_auth_expired": "true",
 }
 
 

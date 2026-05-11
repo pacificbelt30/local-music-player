@@ -5,13 +5,14 @@ from pathlib import Path
 
 import httpx
 import redis as redis_lib
+import sqlalchemy.exc
 import yt_dlp
 
 from app.config import settings
 from app.database import SessionLocal
 from app.models import AppSetting, PlaylistSyncTrack, YoutubePlaylistSync
 from app.services import youtube_api_service, ytdlp_service
-from app.services.notification import notify_discord
+from app.services.notification import notify
 from app.tasks.celery_app import celery_app
 
 _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
@@ -105,7 +106,22 @@ def sync_youtube_playlist(self, playlist_sync_id: int) -> None:
                     f" (詳細: {exc})"
                 )
                 db.commit()
+            notify(
+                "notify_on_youtube_auth_expired",
+                "YouTube認証切れ",
+                f"プレイリスト同期でYouTube OAuthトークンが失効しました。再認証が必要です。\nプレイリスト: {sync.playlist_name if sync else playlist_sync_id}",
+                0xFEE75C,
+            )
             return
+        raise self.retry(exc=exc, countdown=60)
+    except sqlalchemy.exc.SQLAlchemyError as exc:
+        db.rollback()
+        notify(
+            "notify_on_db_error",
+            "DB障害",
+            f"プレイリスト同期タスク (id={playlist_sync_id}) でDB障害が発生しました\n```{str(exc)[:300]}```",
+            0xFEE75C,
+        )
         raise self.retry(exc=exc, countdown=60)
     except Exception as exc:
         db.rollback()
@@ -122,6 +138,7 @@ def sync_youtube_playlist(self, playlist_sync_id: int) -> None:
 def download_playlist_sync_track(self, track_id: int) -> None:
     """Download a single PlaylistSyncTrack using yt-dlp into the playlists directory."""
     db = SessionLocal()
+    track: PlaylistSyncTrack | None = None
     try:
         track = db.get(PlaylistSyncTrack, track_id)
         if not track or track.status in ("complete", "removed"):
@@ -169,35 +186,39 @@ def download_playlist_sync_track(self, track_id: int) -> None:
         track.downloaded_at = datetime.now(timezone.utc)
         track.error_message = None
         _redis.delete(f"pstrack:{track_id}:progress")
-        webhook_row = db.get(AppSetting, "discord_webhook_url")
-        webhook_url = webhook_row.value if webhook_row else None
-        playlist_name = sync.playlist_name if sync else None
         db.commit()
 
-        notify_discord(
-            webhook_url,
+        notify(
+            "notify_on_download_complete",
             "ダウンロード完了",
-            f"**{track.title}**" + (f"\nプレイリスト: {playlist_name}" if playlist_name else ""),
+            f"**{track.title}**" + (f"\nプレイリスト: {playlist_name}" if sync else ""),
             0x57F287,
         )
 
+    except sqlalchemy.exc.SQLAlchemyError as exc:
+        db.rollback()
+        notify(
+            "notify_on_db_error",
+            "DB障害",
+            f"プレイリストトラックDLタスク (track_id={track_id}) でDB障害が発生しました\n```{str(exc)[:300]}```",
+            0xFEE75C,
+        )
+        raise self.retry(exc=exc, countdown=30 * (2 ** self.request.retries))
     except Exception as exc:
         db.rollback()
         if track:
             track.status = "failed"
             track.error_message = str(exc)[:500]
             try:
-                webhook_row = db.get(AppSetting, "discord_webhook_url")
-                webhook_url = webhook_row.value if webhook_row else None
                 db.commit()
-                notify_discord(
-                    webhook_url,
-                    "ダウンロード失敗",
-                    f"**{track.title or track.youtube_id}**\n```{str(exc)[:300]}```",
-                    0xED4245,
-                )
             except Exception:
                 pass
+        notify(
+            "notify_on_download_failed",
+            "ダウンロード失敗",
+            f"**{track.title if track else track_id}**\n```{str(exc)[:300]}```",
+            0xED4245,
+        )
         raise self.retry(exc=exc, countdown=30 * (2 ** self.request.retries))
     finally:
         db.close()

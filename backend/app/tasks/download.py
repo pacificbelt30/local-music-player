@@ -2,13 +2,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import redis as redis_lib
+import sqlalchemy.exc
 import yt_dlp
 
 from app.config import settings
 from app.database import SessionLocal
 from app.models import AppSetting, DownloadJob, Track, UrlSource, PlaylistTrack
 from app.services import ytdlp_service
-from app.services.notification import notify_discord
+from app.services.notification import notify
 from app.tasks.celery_app import celery_app
 from app.tasks.scheduler import DEFAULTS
 
@@ -76,6 +77,15 @@ def resolve_url(self, url_source_id: int) -> None:
         if new_jobs:
             db.commit()
 
+    except sqlalchemy.exc.SQLAlchemyError as exc:
+        db.rollback()
+        notify(
+            "notify_on_db_error",
+            "DB障害",
+            f"URL解決タスク (url_source_id={url_source_id}) でDB障害が発生しました\n```{str(exc)[:300]}```",
+            0xFEE75C,
+        )
+        raise self.retry(exc=exc, countdown=60)
     except Exception as exc:
         db.rollback()
         raise self.retry(exc=exc, countdown=60)
@@ -86,6 +96,7 @@ def resolve_url(self, url_source_id: int) -> None:
 @celery_app.task(name="app.tasks.download.download_track", bind=True, max_retries=3)
 def download_track(self, job_id: int) -> None:
     db = SessionLocal()
+    job: DownloadJob | None = None
     try:
         job = db.get(DownloadJob, job_id)
         if not job:
@@ -140,17 +151,24 @@ def download_track(self, job_id: int) -> None:
         job.progress_pct = 100.0
         job.finished_at = datetime.now(timezone.utc)
         _redis.delete(f"job:{job_id}:progress")
-        webhook_row = db.get(AppSetting, "discord_webhook_url")
-        webhook_url = webhook_row.value if webhook_row else None
         db.commit()
 
-        notify_discord(
-            webhook_url,
+        notify(
+            "notify_on_download_complete",
             "ダウンロード完了",
             f"**{job.title or job.youtube_id}**",
             0x57F287,
         )
 
+    except sqlalchemy.exc.SQLAlchemyError as exc:
+        db.rollback()
+        notify(
+            "notify_on_db_error",
+            "DB障害",
+            f"ダウンロードタスク (job_id={job_id}) でDB障害が発生しました\n```{str(exc)[:300]}```",
+            0xFEE75C,
+        )
+        raise self.retry(exc=exc, countdown=30 * (2 ** self.request.retries))
     except Exception as exc:
         db.rollback()
         if job:
@@ -158,17 +176,15 @@ def download_track(self, job_id: int) -> None:
             job.error_message = str(exc)[:500]
             job.finished_at = datetime.now(timezone.utc)
             try:
-                webhook_row = db.get(AppSetting, "discord_webhook_url")
-                webhook_url = webhook_row.value if webhook_row else None
                 db.commit()
-                notify_discord(
-                    webhook_url,
-                    "ダウンロード失敗",
-                    f"**{job.title or job.youtube_id}**\n```{str(exc)[:300]}```",
-                    0xED4245,
-                )
             except Exception:
                 pass
+        notify(
+            "notify_on_download_failed",
+            "ダウンロード失敗",
+            f"**{job.title if job else job_id}**\n```{str(exc)[:300]}```",
+            0xED4245,
+        )
         raise self.retry(exc=exc, countdown=30 * (2 ** self.request.retries))
     finally:
         db.close()

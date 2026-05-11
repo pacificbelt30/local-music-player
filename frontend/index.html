@@ -146,6 +146,27 @@
           <span>Discord Webhook URL（空で通知なし）</span>
           <input type="url" name="discord_webhook_url" placeholder="https://discord.com/api/webhooks/..." autocomplete="off">
         </label>
+        <div class="syncthing-field">
+          <span class="notify-group-label">Discord 通知イベント</span>
+          <div class="notify-checkboxes">
+            <label class="notify-checkbox-item">
+              <input type="checkbox" name="notify_on_download_complete">
+              <span>ダウンロード完了時</span>
+            </label>
+            <label class="notify-checkbox-item">
+              <input type="checkbox" name="notify_on_download_failed">
+              <span>ダウンロード失敗時</span>
+            </label>
+            <label class="notify-checkbox-item">
+              <input type="checkbox" name="notify_on_db_error">
+              <span>DB障害時</span>
+            </label>
+            <label class="notify-checkbox-item">
+              <input type="checkbox" name="notify_on_youtube_auth_expired">
+              <span>YouTube認証切れ時</span>
+            </label>
+          </div>
+        </div>
         <div class="syncthing-config-actions">
           <button type="submit" class="btn btn-primary">保存</button>
         </div>
