@@ -73,7 +73,16 @@ SQLite ファイルのバックアップ・エクスポートを行う API や�
 
 ### ダウンロード完了通知がない
 
-ダウンロード完了時に Web Notifications API や Webhook 等の通知機能がありません。SSE のキューイベントで確認する必要があります。
+~~ダウンロード完了時に Web Notifications API や Webhook 等の通知機能がありません。SSE のキューイベントで確認する必要があります。~~
+
+**実装済み**: Discord Webhook 通知を実装しました。設定画面から Webhook URL と通知イベントを選択できます。
+
+対応イベント:
+- ダウンロード完了 (`notify_on_download_complete`、デフォルト: 無効)
+- ダウンロード失敗 (`notify_on_download_failed`、デフォルト: 有効)
+- DB障害 (`notify_on_db_error`、デフォルト: 有効) — DB 不通時は `DISCORD_WEBHOOK_URL` 環境変数にフォールバック
+- YouTube OAuth 認証切れ (`notify_on_youtube_auth_expired`、デフォルト: 有効)
+- YouTube OAuth トークン期限切れ間近 (`notify_on_oauth_expiry_warning`、デフォルト: 有効) — 期限の何分前に通知するかを `oauth_expiry_warning_minutes`（デフォルト: 60分）で設定可能。同一トークンへの重複通知はスキップ。
 
 ---
 

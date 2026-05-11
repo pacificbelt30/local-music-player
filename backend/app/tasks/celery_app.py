@@ -30,5 +30,22 @@ celery_app.conf.update(
             "task": "app.tasks.scheduler.periodic_youtube_playlist_sync",
             "schedule": crontab(minute="*/5"),
         },
+        "check-oauth-expiry": {
+            "task": "app.tasks.scheduler.periodic_oauth_expiry_check",
+            "schedule": crontab(minute="*/5"),
+        },
     },
 )
+
+# Apply worker concurrency from DB if configured (takes effect on worker startup)
+try:
+    from app.database import SessionLocal as _SessionLocal
+    from app.models import AppSetting as _AppSetting
+    _db = _SessionLocal()
+    _row = _db.get(_AppSetting, "celery_worker_concurrency")
+    _concurrency = int(_row.value) if _row and _row.value else 0
+    _db.close()
+    if _concurrency > 0:
+        celery_app.conf.worker_concurrency = _concurrency
+except Exception:
+    pass

@@ -247,3 +247,232 @@ def test_update_ffmpeg_threads(client):
 def test_negative_ffmpeg_threads_rejected(client):
     resp = client.patch("/api/v1/settings", json={"ffmpeg_threads": -1})
     assert resp.status_code == 422
+
+
+def test_update_celery_worker_concurrency(client):
+    resp = client.patch("/api/v1/settings", json={"celery_worker_concurrency": 4})
+    assert resp.status_code == 200
+    assert resp.json()["celery_worker_concurrency"] == 4
+
+
+def test_zero_celery_worker_concurrency_means_auto(client):
+    resp = client.patch("/api/v1/settings", json={"celery_worker_concurrency": 0})
+    assert resp.status_code == 200
+    assert resp.json()["celery_worker_concurrency"] == 0
+
+
+def test_negative_celery_worker_concurrency_rejected(client):
+    resp = client.patch("/api/v1/settings", json={"celery_worker_concurrency": -1})
+    assert resp.status_code == 422
+
+
+def test_update_discord_webhook_url(client):
+    url = "https://discord.com/api/webhooks/123/abc"
+    resp = client.patch("/api/v1/settings", json={"discord_webhook_url": url})
+    assert resp.status_code == 200
+    assert resp.json()["discord_webhook_url"] == url
+
+
+def test_clear_discord_webhook_url(client):
+    client.patch("/api/v1/settings", json={"discord_webhook_url": "https://discord.com/api/webhooks/123/abc"})
+    resp = client.patch("/api/v1/settings", json={"discord_webhook_url": ""})
+    assert resp.status_code == 200
+    assert resp.json()["discord_webhook_url"] == ""
+
+
+def test_get_settings_includes_new_fields(client):
+    data = client.get("/api/v1/settings").json()
+    assert "celery_worker_concurrency" in data
+    assert "discord_webhook_url" in data
+    assert data["celery_worker_concurrency"] == 0
+    assert data["discord_webhook_url"] == ""
+
+
+# ── Notification settings ─────────────────────────────────────────────────────
+
+def test_get_settings_notification_defaults(client):
+    data = client.get("/api/v1/settings").json()
+    assert data["notify_on_download_complete"] is False
+    assert data["notify_on_download_failed"] is True
+    assert data["notify_on_db_error"] is True
+    assert data["notify_on_youtube_auth_expired"] is True
+
+
+def test_update_notification_flags(client):
+    resp = client.patch("/api/v1/settings", json={
+        "notify_on_download_complete": True,
+        "notify_on_download_failed": False,
+        "notify_on_db_error": False,
+        "notify_on_youtube_auth_expired": False,
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["notify_on_download_complete"] is True
+    assert data["notify_on_download_failed"] is False
+    assert data["notify_on_db_error"] is False
+    assert data["notify_on_youtube_auth_expired"] is False
+
+
+def test_notification_flags_persist(client):
+    client.patch("/api/v1/settings", json={"notify_on_download_complete": True})
+    data = client.get("/api/v1/settings").json()
+    assert data["notify_on_download_complete"] is True
+
+
+def test_partial_notification_update_leaves_others_unchanged(client):
+    client.patch("/api/v1/settings", json={"notify_on_download_complete": True})
+    data = client.get("/api/v1/settings").json()
+    assert data["notify_on_download_failed"] is True   # default unchanged
+    assert data["notify_on_download_complete"] is True
+
+
+def test_notification_flags_stored_as_lowercase_string(client, db):
+    from app.models import AppSetting
+    client.patch("/api/v1/settings", json={"notify_on_download_complete": True})
+    row = db.get(AppSetting, "notify_on_download_complete")
+    assert row is not None
+    assert row.value == "true"
+
+    client.patch("/api/v1/settings", json={"notify_on_download_complete": False})
+    db.expire(row)
+    row = db.get(AppSetting, "notify_on_download_complete")
+    assert row.value == "false"
+
+
+# ── OAuth expiry warning settings ─────────────────────────────────────────────
+
+def test_get_settings_oauth_expiry_defaults(client):
+    data = client.get("/api/v1/settings").json()
+    assert data["notify_on_oauth_expiry_warning"] is True
+    assert data["oauth_expiry_warning_minutes"] == 60
+
+
+def test_update_oauth_expiry_warning_flag(client):
+    resp = client.patch("/api/v1/settings", json={"notify_on_oauth_expiry_warning": False})
+    assert resp.status_code == 200
+    assert resp.json()["notify_on_oauth_expiry_warning"] is False
+
+
+def test_update_oauth_expiry_warning_minutes(client):
+    resp = client.patch("/api/v1/settings", json={"oauth_expiry_warning_minutes": 30})
+    assert resp.status_code == 200
+    assert resp.json()["oauth_expiry_warning_minutes"] == 30
+
+
+def test_oauth_expiry_warning_minutes_zero_rejected(client):
+    resp = client.patch("/api/v1/settings", json={"oauth_expiry_warning_minutes": 0})
+    assert resp.status_code == 422
+
+
+def test_oauth_expiry_warning_minutes_negative_rejected(client):
+    resp = client.patch("/api/v1/settings", json={"oauth_expiry_warning_minutes": -10})
+    assert resp.status_code == 422
+
+
+# ── periodic_oauth_expiry_check ───────────────────────────────────────────────
+
+class TestOAuthExpiryCheck:
+    def _token(self, db, expiry):
+        from app.models import YouTubeOAuthToken
+        db.add(YouTubeOAuthToken(
+            access_token="token",
+            refresh_token="refresh",
+            token_expiry=expiry,
+        ))
+        db.commit()
+
+    def test_does_nothing_when_no_token(self, db):
+        from app.tasks.scheduler import periodic_oauth_expiry_check
+        from app.models import AppSetting
+        db.add(AppSetting(key="oauth_expiry_warning_minutes", value="60"))
+        db.commit()
+
+        with patch("app.tasks.scheduler.SessionLocal", return_value=db):
+            with patch("app.services.notification.notify") as mock_notify:
+                periodic_oauth_expiry_check.apply()
+        mock_notify.assert_not_called()
+
+    def test_does_nothing_when_threshold_zero(self, db):
+        from datetime import datetime, timezone, timedelta
+        from app.tasks.scheduler import periodic_oauth_expiry_check
+        from app.models import AppSetting
+        db.add(AppSetting(key="oauth_expiry_warning_minutes", value="0"))
+        db.commit()
+        self._token(db, datetime.now(timezone.utc) + timedelta(minutes=30))
+
+        with patch("app.tasks.scheduler.SessionLocal", return_value=db):
+            with patch("app.services.notification.notify") as mock_notify:
+                periodic_oauth_expiry_check.apply()
+        mock_notify.assert_not_called()
+
+    def test_notifies_when_within_threshold(self, db):
+        from datetime import datetime, timezone, timedelta
+        from app.tasks.scheduler import periodic_oauth_expiry_check
+        from app.models import AppSetting
+        db.add(AppSetting(key="oauth_expiry_warning_minutes", value="60"))
+        db.commit()
+        self._token(db, datetime.now(timezone.utc) + timedelta(minutes=30))
+
+        with patch("app.tasks.scheduler.SessionLocal", return_value=db):
+            with patch("app.services.notification.notify") as mock_notify:
+                periodic_oauth_expiry_check.apply()
+        mock_notify.assert_called_once()
+        assert mock_notify.call_args[0][0] == "notify_on_oauth_expiry_warning"
+        assert "分" in mock_notify.call_args[0][2]  # remaining minutes in message
+
+    def test_does_not_notify_when_outside_threshold(self, db):
+        from datetime import datetime, timezone, timedelta
+        from app.tasks.scheduler import periodic_oauth_expiry_check
+        from app.models import AppSetting
+        db.add(AppSetting(key="oauth_expiry_warning_minutes", value="60"))
+        db.commit()
+        self._token(db, datetime.now(timezone.utc) + timedelta(hours=3))
+
+        with patch("app.tasks.scheduler.SessionLocal", return_value=db):
+            with patch("app.services.notification.notify") as mock_notify:
+                periodic_oauth_expiry_check.apply()
+        mock_notify.assert_not_called()
+
+    def test_does_not_notify_when_already_expired(self, db):
+        from datetime import datetime, timezone, timedelta
+        from app.tasks.scheduler import periodic_oauth_expiry_check
+        from app.models import AppSetting
+        db.add(AppSetting(key="oauth_expiry_warning_minutes", value="60"))
+        db.commit()
+        self._token(db, datetime.now(timezone.utc) - timedelta(minutes=5))
+
+        with patch("app.tasks.scheduler.SessionLocal", return_value=db):
+            with patch("app.services.notification.notify") as mock_notify:
+                periodic_oauth_expiry_check.apply()
+        mock_notify.assert_not_called()
+
+    def test_does_not_spam_for_same_expiry(self, db):
+        from datetime import datetime, timezone, timedelta
+        from app.tasks.scheduler import periodic_oauth_expiry_check
+        from app.models import AppSetting
+        expiry = datetime.now(timezone.utc) + timedelta(minutes=30)
+        db.add(AppSetting(key="oauth_expiry_warning_minutes", value="60"))
+        db.add(AppSetting(key="oauth_expiry_last_notified_expiry", value=expiry.isoformat()))
+        db.commit()
+        self._token(db, expiry)
+
+        with patch("app.tasks.scheduler.SessionLocal", return_value=db):
+            with patch("app.services.notification.notify") as mock_notify:
+                periodic_oauth_expiry_check.apply()
+        mock_notify.assert_not_called()
+
+    def test_records_notified_expiry_after_notification(self, db):
+        from datetime import datetime, timezone, timedelta
+        from app.tasks.scheduler import periodic_oauth_expiry_check
+        from app.models import AppSetting
+        expiry = datetime.now(timezone.utc) + timedelta(minutes=30)
+        db.add(AppSetting(key="oauth_expiry_warning_minutes", value="60"))
+        db.commit()
+        self._token(db, expiry)
+
+        with patch("app.tasks.scheduler.SessionLocal", return_value=db):
+            with patch("app.services.notification.notify"):
+                periodic_oauth_expiry_check.apply()
+
+        row = db.get(AppSetting, "oauth_expiry_last_notified_expiry")
+        assert row is not None and row.value != ""

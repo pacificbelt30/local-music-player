@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     youtube_client_secret: str = ""
     youtube_redirect_uri: str = "http://localhost:8000/api/v1/youtube/auth/callback"
 
+    # Notification (env fallback used when DB is unavailable)
+    discord_webhook_url: str = ""
+
     # ffmpeg/yt-dlp resource controls
     ffmpeg_threads: int = 1  # 1 keeps CPU usage predictable; set 0 for ffmpeg default(auto)
 

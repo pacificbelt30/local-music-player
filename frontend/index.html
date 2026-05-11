@@ -138,6 +138,43 @@
           <span>ffmpeg スレッド数（0で自動）</span>
           <input type="number" min="0" step="1" name="ffmpeg_threads" placeholder="例: 1">
         </label>
+        <label class="syncthing-field">
+          <span>ワーカー同時実行数（0でCPU数に合わせて自動）</span>
+          <input type="number" min="0" step="1" name="celery_worker_concurrency" placeholder="例: 4">
+        </label>
+        <label class="syncthing-field">
+          <span>Discord Webhook URL（空で通知なし）</span>
+          <input type="url" name="discord_webhook_url" placeholder="https://discord.com/api/webhooks/..." autocomplete="off">
+        </label>
+        <div class="syncthing-field">
+          <span class="notify-group-label">Discord 通知イベント</span>
+          <div class="notify-checkboxes">
+            <label class="notify-checkbox-item">
+              <input type="checkbox" name="notify_on_download_complete">
+              <span>ダウンロード完了時</span>
+            </label>
+            <label class="notify-checkbox-item">
+              <input type="checkbox" name="notify_on_download_failed">
+              <span>ダウンロード失敗時</span>
+            </label>
+            <label class="notify-checkbox-item">
+              <input type="checkbox" name="notify_on_db_error">
+              <span>DB障害時</span>
+            </label>
+            <label class="notify-checkbox-item">
+              <input type="checkbox" name="notify_on_youtube_auth_expired">
+              <span>YouTube認証切れ時</span>
+            </label>
+            <label class="notify-checkbox-item">
+              <input type="checkbox" name="notify_on_oauth_expiry_warning">
+              <span>YouTubeトークン期限切れ前警告</span>
+            </label>
+          </div>
+        </div>
+        <label class="syncthing-field">
+          <span>トークン期限切れ警告タイミング（何分前に通知するか）</span>
+          <input type="number" min="1" step="1" name="oauth_expiry_warning_minutes" placeholder="例: 60">
+        </label>
         <div class="syncthing-config-actions">
           <button type="submit" class="btn btn-primary">保存</button>
         </div>
