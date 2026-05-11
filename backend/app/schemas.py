@@ -84,6 +84,66 @@ class HealthResponse(BaseModel):
     worker_active: bool
 
 
+# ── Debug / Monitoring ─────────────────────────────────────────────────────────
+
+class WorkerInfo(BaseModel):
+    name: str
+    active_tasks: int
+    concurrency: int | None = None
+    active_task_names: list[str] = []
+
+
+class QueueStats(BaseModel):
+    pending: int
+    downloading: int
+    complete: int
+    failed: int
+    skipped: int
+    total: int
+    stuck: int
+
+
+class OAuthDebugInfo(BaseModel):
+    authenticated: bool
+    token_expiry: datetime | None = None
+    expires_in_seconds: int | None = None
+    scope: str | None = None
+    is_expired: bool = False
+    needs_refresh: bool = False
+
+
+class RedisInfo(BaseModel):
+    connected: bool
+    used_memory_human: str | None = None
+    connected_clients: int | None = None
+    uptime_in_seconds: int | None = None
+    total_commands_processed: int | None = None
+
+
+class DBStats(BaseModel):
+    tracks: int
+    download_jobs: int
+    url_sources: int
+    youtube_syncs: int
+    playlist_sync_tracks: int
+
+
+class BeatTaskInfo(BaseModel):
+    name: str
+    schedule: str
+
+
+class DebugResponse(BaseModel):
+    server_time: datetime
+    workers: list[WorkerInfo]
+    worker_count: int
+    queue: QueueStats
+    oauth: OAuthDebugInfo
+    redis: RedisInfo
+    db: DBStats
+    beat_schedule: list[BeatTaskInfo]
+
+
 # ── YouTube Playlist Sync ──────────────────────────────────────────────────────
 
 class YouTubeAuthStatus(BaseModel):

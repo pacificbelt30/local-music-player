@@ -68,6 +68,9 @@ export const api = {
   // Settings
   getSettings: () => request("GET", "/settings"),
   updateSettings: (payload) => request("PATCH", "/settings", payload),
+
+  // Debug / monitoring
+  getDebug: () => request("GET", "/debug"),
 };
 
 // SSE for queue progress

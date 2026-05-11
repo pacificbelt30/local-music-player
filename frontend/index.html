@@ -15,6 +15,7 @@
 <header>
   <h1>🎵 SyncTune Hub</h1>
   <div style="display:flex;gap:8px">
+    <button id="debug-badge" class="syncthing-badge" title="デバッグ・モニタリング">Debug</button>
     <button id="settings-badge" class="syncthing-badge" title="設定を開く">設定</button>
     <button id="syncthing-badge" class="syncthing-badge" title="Syncthing 設定を開く">Syncthing</button>
   </div>
@@ -229,6 +230,23 @@
   </div>
 </div>
 
+<!-- Debug / Monitoring modal -->
+<div id="debug-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="debug-modal-title">
+  <div class="modal-backdrop" data-close-debug-modal></div>
+  <div class="modal-content modal-content-wide">
+    <div class="modal-header">
+      <h2 id="debug-modal-title">デバッグ・モニタリング</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-ghost" id="debug-refresh-btn" title="今すぐ更新">↻ 更新</button>
+        <button class="modal-close" data-close-debug-modal aria-label="閉じる">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" id="debug-modal-body">
+      <div class="empty-state">読込中…</div>
+    </div>
+  </div>
+</div>
+
 <!-- Player bar (fixed bottom) -->
 <div id="player-bar" class="hidden">
   <img class="player-thumb" src="" alt="">
@@ -261,12 +279,14 @@
   import { initPlaylists } from "/js/playlists.js";
   import { initSyncthing } from "/js/syncthing.js";
   import { initSettings } from "/js/settings.js";
+  import { initDebug } from "/js/debug.js";
 
   initQueue();
   initLibrary();
   initPlaylists();
   initSyncthing();
   initSettings();
+  initDebug();
 
   // Mobile tabs
   document.querySelectorAll(".tab-btn").forEach((btn) => {
