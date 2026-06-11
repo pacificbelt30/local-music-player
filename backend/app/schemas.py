@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Literal
-from pydantic import BaseModel, HttpUrl, field_validator
+from pydantic import BaseModel, HttpUrl, field_validator, model_validator
 
 
 AudioFormat = Literal["mp3", "flac", "aac", "ogg"]
@@ -115,6 +115,13 @@ class YoutubePlaylistSyncCreate(BaseModel):
     audio_format: AudioFormat = "mp3"
     audio_quality: AudioQuality = "192"
     enabled: bool = True
+
+    @model_validator(mode="after")
+    def source_url_must_be_youtube(self):
+        if self.source_type == "url":
+            if "youtube.com" not in self.source_url and "youtu.be" not in self.source_url:
+                raise ValueError("source_url must be a YouTube URL")
+        return self
 
 
 class YoutubePlaylistSyncUpdate(BaseModel):

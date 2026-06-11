@@ -167,6 +167,9 @@ function renderUrlSyncSection() {
     <div id="yt-add-url-error" class="error-msg" style="display:none"></div>
   `;
   document.getElementById("yt-add-url-btn").addEventListener("click", addSyncFromUrl);
+  document.getElementById("yt-playlist-url-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") addSyncFromUrl();
+  });
 }
 
 async function addSyncFromUrl() {

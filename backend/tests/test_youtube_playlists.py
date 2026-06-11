@@ -856,6 +856,22 @@ class TestCreateSyncUrlBased:
         })
         assert resp.status_code == 422
 
+    def test_create_url_sync_rejects_non_youtube_url(self, client):
+        resp = client.post("/api/v1/youtube/syncs", json={
+            "source_type": "url",
+            "source_url": "https://soundcloud.com/some/playlist",
+        })
+        assert resp.status_code == 422
+
+    def test_api_mode_ignores_source_url_validation(self, client):
+        # API mode should not require a YouTube source_url
+        with patch("app.tasks.sync_playlist.sync_youtube_playlist.apply_async"):
+            resp = client.post("/api/v1/youtube/syncs", json={
+                "playlist_id": "PLapionly",
+                "playlist_name": "API Only",
+            })
+        assert resp.status_code == 201
+
     def test_response_includes_source_type_and_url(self, client):
         fake_info = {
             "playlist_id": "PLresp",
