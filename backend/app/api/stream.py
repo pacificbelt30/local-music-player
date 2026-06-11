@@ -29,6 +29,8 @@ async def _range_response(file_path: str, request: Request, filename: str | None
         ".aac": "audio/aac",
         ".ogg": "audio/ogg",
         ".m4a": "audio/mp4",
+        ".mp4": "video/mp4",
+        ".webm": "video/webm",
     }
     content_type = content_type_map.get(ext, "audio/mpeg")
 

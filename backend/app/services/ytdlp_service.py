@@ -8,7 +8,19 @@ import yt_dlp
 from app.config import settings
 
 
+AUDIO_FORMATS = ("mp3", "flac", "aac", "ogg", "m4a")
+VIDEO_FORMATS = ("mp4", "webm")
+
+
+def is_video_format(audio_format: str) -> bool:
+    return audio_format in VIDEO_FORMATS
+
+
 def _postprocessors_for(audio_format: str, audio_quality: str) -> list[dict]:
+    if audio_format in VIDEO_FORMATS:
+        # Remux into the requested container when the merged download ends up
+        # in a different one (note: yt-dlp spells the key "preferedformat").
+        return [{"key": "FFmpegVideoRemuxer", "preferedformat": audio_format}]
     if audio_format == "mp3":
         return [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": audio_quality if audio_quality != "best" else "0"}]
     if audio_format == "flac":
@@ -17,7 +29,15 @@ def _postprocessors_for(audio_format: str, audio_quality: str) -> list[dict]:
         return [{"key": "FFmpegExtractAudio", "preferredcodec": "aac"}]
     if audio_format == "ogg":
         return [{"key": "FFmpegExtractAudio", "preferredcodec": "vorbis"}]
+    if audio_format == "m4a":
+        return [{"key": "FFmpegExtractAudio", "preferredcodec": "m4a"}]
     return [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}]
+
+
+def _format_selector(audio_format: str) -> str:
+    if audio_format in VIDEO_FORMATS:
+        return f"bestvideo[ext={audio_format}]+bestaudio/bestvideo+bestaudio/best"
+    return "bestaudio/best"
 
 
 def get_playlist_info(url: str) -> dict:
@@ -104,8 +124,9 @@ def download_track(
     dest.mkdir(parents=True, exist_ok=True)
     output_template = str(dest / "%(title)s.%(ext)s")
 
+    is_video = is_video_format(audio_format)
     ydl_opts: dict[str, Any] = {
-        "format": "bestaudio/best",
+        "format": _format_selector(audio_format),
         "outtmpl": output_template,
         "postprocessors": _postprocessors_for(audio_format, audio_quality),
         "writeinfojson": False,
@@ -114,12 +135,16 @@ def download_track(
         "no_warnings": True,
         "noplaylist": True,
     }
+    if is_video:
+        ydl_opts["merge_output_format"] = audio_format
 
     ffmpeg_args: list[str] = []
     if settings.ffmpeg_threads >= 0:
         ffmpeg_args.extend(["-threads", str(settings.ffmpeg_threads)])
 
-    if gain_percent > 0:
+    # Video downloads are stream-copied (no re-encode), so an audio filter
+    # cannot be applied there.
+    if gain_percent > 0 and not is_video:
         ffmpeg_args.extend(["-af", f"volume={1 + (gain_percent / 100):.4f}"])
 
     if ffmpeg_args:
@@ -133,7 +158,7 @@ def download_track(
         info = ydl.extract_info(f"https://www.youtube.com/watch?v={youtube_id}", download=True)
 
     # Determine the actual downloaded file path
-    ext = audio_format if audio_format in ("mp3", "flac", "aac", "ogg") else "mp3"
+    ext = audio_format if audio_format in AUDIO_FORMATS + VIDEO_FORMATS else "mp3"
     uploader = info.get("uploader") or info.get("channel") or "Unknown"
     title = info.get("title", youtube_id)
 

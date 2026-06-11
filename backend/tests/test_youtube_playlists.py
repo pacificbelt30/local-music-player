@@ -25,11 +25,11 @@ def _make_token(db, access_token="tok", refresh_token="ref", expires_in=3600) ->
     return record
 
 
-def _make_sync(db, playlist_id="PLabc", playlist_name="My List", enabled=True) -> YoutubePlaylistSync:
+def _make_sync(db, playlist_id="PLabc", playlist_name="My List", enabled=True, audio_format="mp3") -> YoutubePlaylistSync:
     sync = YoutubePlaylistSync(
         playlist_id=playlist_id,
         playlist_name=playlist_name,
-        audio_format="mp3",
+        audio_format=audio_format,
         audio_quality="192",
         enabled=enabled,
     )
@@ -242,14 +242,37 @@ class TestCreateSync:
             })
         mock_task.assert_not_called()
 
-    def test_duplicate_playlist_id_rejected(self, client, db):
-        _make_sync(db, playlist_id="PLdup")
+    def test_duplicate_playlist_id_same_format_rejected(self, client, db):
+        _make_sync(db, playlist_id="PLdup", audio_format="mp3")
         with patch("app.tasks.sync_playlist.sync_youtube_playlist.apply_async"):
             resp = client.post("/api/v1/youtube/syncs", json={
                 "playlist_id": "PLdup",
                 "playlist_name": "Dup",
+                "audio_format": "mp3",
             })
         assert resp.status_code == 409
+
+    def test_same_playlist_different_format_allowed(self, client, db):
+        _make_sync(db, playlist_id="PLmulti", playlist_name="Multi", audio_format="mp3")
+        with patch("app.tasks.sync_playlist.sync_youtube_playlist.apply_async"):
+            resp = client.post("/api/v1/youtube/syncs", json={
+                "playlist_id": "PLmulti",
+                "playlist_name": "Multi",
+                "audio_format": "mp4",
+            })
+        assert resp.status_code == 201
+        assert resp.json()["audio_format"] == "mp4"
+        assert db.query(YoutubePlaylistSync).filter_by(playlist_id="PLmulti").count() == 2
+
+    def test_create_sync_accepts_video_format(self, client):
+        with patch("app.tasks.sync_playlist.sync_youtube_playlist.apply_async"):
+            resp = client.post("/api/v1/youtube/syncs", json={
+                "playlist_id": "PLvideo",
+                "playlist_name": "Videos",
+                "audio_format": "mp4",
+            })
+        assert resp.status_code == 201
+        assert resp.json()["audio_format"] == "mp4"
 
 
 class TestUpdateSync:
@@ -274,6 +297,12 @@ class TestUpdateSync:
     def test_update_not_found(self, client):
         resp = client.patch("/api/v1/youtube/syncs/999", json={"enabled": False})
         assert resp.status_code == 404
+
+    def test_update_format_conflicts_with_existing_sync(self, client, db):
+        _make_sync(db, playlist_id="PLfmt", audio_format="mp3")
+        other = _make_sync(db, playlist_id="PLfmt", audio_format="mp4")
+        resp = client.patch(f"/api/v1/youtube/syncs/{other.id}", json={"audio_format": "mp3"})
+        assert resp.status_code == 409
 
 
 class TestDeleteSync:
@@ -806,6 +835,45 @@ class TestDownloadPlaylistSyncTrackTask:
 
         db.refresh(track)
         assert track.status == "complete"
+
+    def test_uses_plain_dir_when_no_name_collision(self, db, tmp_path):
+        from app.tasks.sync_playlist import download_playlist_sync_track
+
+        sync = _make_sync(db, playlist_id="PLsolo", playlist_name="Solo List")
+        track = _make_track(db, sync, youtube_id="vid_solo", status="pending")
+
+        fake_metadata = {
+            "youtube_id": "vid_solo", "title": "Song", "artist": None, "duration_secs": 1,
+            "file_path": "/tmp/x.mp3", "file_format": "mp3", "file_size_bytes": 1, "thumbnail_path": None,
+        }
+        with patch("app.database.SessionLocal", return_value=db):
+            with patch("app.tasks.sync_playlist.settings.downloads_path", tmp_path):
+                with patch("app.tasks.sync_playlist.ytdlp_service.download_track", return_value=fake_metadata) as mock_dl:
+                    with patch("app.tasks.sync_playlist._redis.delete"):
+                        download_playlist_sync_track.apply(args=[track.id])
+
+        _, kwargs = mock_dl.call_args
+        assert kwargs["base_path"] == tmp_path / "Solo List"
+
+    def test_appends_format_suffix_on_name_collision(self, db, tmp_path):
+        from app.tasks.sync_playlist import download_playlist_sync_track
+
+        _make_sync(db, playlist_id="PLdual", playlist_name="Dual List", audio_format="mp3")
+        sync_mp4 = _make_sync(db, playlist_id="PLdual2", playlist_name="Dual List", audio_format="mp4")
+        track = _make_track(db, sync_mp4, youtube_id="vid_dual", status="pending")
+
+        fake_metadata = {
+            "youtube_id": "vid_dual", "title": "Video", "artist": None, "duration_secs": 1,
+            "file_path": "/tmp/x.mp4", "file_format": "mp4", "file_size_bytes": 1, "thumbnail_path": None,
+        }
+        with patch("app.database.SessionLocal", return_value=db):
+            with patch("app.tasks.sync_playlist.settings.downloads_path", tmp_path):
+                with patch("app.tasks.sync_playlist.ytdlp_service.download_track", return_value=fake_metadata) as mock_dl:
+                    with patch("app.tasks.sync_playlist._redis.delete"):
+                        download_playlist_sync_track.apply(args=[track.id])
+
+        _, kwargs = mock_dl.call_args
+        assert kwargs["base_path"] == tmp_path / "Dual List [mp4]"
 
 
 # ── URL-based sync tests ──────────────────────────────────────────────────────

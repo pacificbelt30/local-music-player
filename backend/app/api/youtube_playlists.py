@@ -198,9 +198,11 @@ def create_sync(payload: YoutubePlaylistSyncCreate, db: Session = Depends(get_db
         playlist_id = payload.playlist_id
         playlist_name = payload.playlist_name
 
-    existing = db.query(YoutubePlaylistSync).filter_by(playlist_id=playlist_id).first()
+    existing = db.query(YoutubePlaylistSync).filter_by(
+        playlist_id=playlist_id, audio_format=payload.audio_format
+    ).first()
     if existing:
-        raise HTTPException(status_code=409, detail="Playlist already configured for sync")
+        raise HTTPException(status_code=409, detail="Playlist already configured for sync with this format")
 
     sync = YoutubePlaylistSync(
         playlist_id=playlist_id,
@@ -227,7 +229,14 @@ def update_sync(sync_id: int, payload: YoutubePlaylistSyncUpdate, db: Session = 
     sync = db.get(YoutubePlaylistSync, sync_id)
     if not sync:
         raise HTTPException(status_code=404, detail="Sync not found")
-    if payload.audio_format is not None:
+    if payload.audio_format is not None and payload.audio_format != sync.audio_format:
+        conflict = db.query(YoutubePlaylistSync).filter(
+            YoutubePlaylistSync.id != sync.id,
+            YoutubePlaylistSync.playlist_id == sync.playlist_id,
+            YoutubePlaylistSync.audio_format == payload.audio_format,
+        ).first()
+        if conflict:
+            raise HTTPException(status_code=409, detail="Another sync for this playlist already uses this format")
         sync.audio_format = payload.audio_format
     if payload.audio_quality is not None:
         sync.audio_quality = payload.audio_quality

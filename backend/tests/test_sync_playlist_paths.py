@@ -14,3 +14,15 @@ def test_playlist_sync_dir_name_falls_back_for_blank_name() -> None:
     from app.tasks.sync_playlist import _playlist_sync_dir_name
 
     assert _playlist_sync_dir_name("   ") == "unknown"
+
+
+def test_playlist_sync_dir_name_appends_format_suffix() -> None:
+    from app.tasks.sync_playlist import _playlist_sync_dir_name
+
+    assert _playlist_sync_dir_name("My Playlist", "mp4") == "My Playlist [mp4]"
+
+
+def test_playlist_sync_dir_name_suffix_with_blank_name() -> None:
+    from app.tasks.sync_playlist import _playlist_sync_dir_name
+
+    assert _playlist_sync_dir_name("", "mp3") == "unknown [mp3]"
