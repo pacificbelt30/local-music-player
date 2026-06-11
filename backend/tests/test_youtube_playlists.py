@@ -272,7 +272,8 @@ class TestCreateSync:
         sync = db.query(YoutubePlaylistSync).filter_by(playlist_id="PLdir").first()
         assert sync.dir_name == "Dir List"
 
-    def test_second_sync_same_name_gets_suffixed_dir_name(self, client, db):
+    def test_second_sync_same_name_suffixes_all_dir_names(self, client, db):
+        """Once a name is shared, every sync of that name carries its format."""
         with patch("app.tasks.sync_playlist.sync_youtube_playlist.apply_async"):
             client.post("/api/v1/youtube/syncs", json={
                 "playlist_id": "PLdir", "playlist_name": "Dir List", "audio_format": "mp3",
@@ -281,7 +282,32 @@ class TestCreateSync:
                 "playlist_id": "PLdir", "playlist_name": "Dir List", "audio_format": "mp4",
             })
         dirs = {s.audio_format: s.dir_name for s in db.query(YoutubePlaylistSync).all()}
-        assert dirs == {"mp3": "Dir List", "mp4": "Dir List [mp4]"}
+        assert dirs == {"mp3": "Dir List [mp3]", "mp4": "Dir List [mp4]"}
+
+    def test_second_sync_renames_existing_folder_and_file_paths(self, client, db, tmp_path):
+        """Re-labeling the first sync moves its folder and updates tracked paths."""
+        plain_dir = tmp_path / "Dir List"
+        plain_dir.mkdir()
+        (plain_dir / "song.mp3").write_bytes(b"x")
+
+        with patch("app.tasks.sync_playlist.sync_youtube_playlist.apply_async"):
+            client.post("/api/v1/youtube/syncs", json={
+                "playlist_id": "PLdir", "playlist_name": "Dir List", "audio_format": "mp3",
+            })
+            first = db.query(YoutubePlaylistSync).filter_by(playlist_id="PLdir", audio_format="mp3").first()
+            _make_track(db, first, youtube_id="v1", file_path=str(plain_dir / "song.mp3"))
+
+            with patch("app.services.sync_dirs.settings.downloads_path", tmp_path):
+                client.post("/api/v1/youtube/syncs", json={
+                    "playlist_id": "PLdir", "playlist_name": "Dir List", "audio_format": "mp4",
+                })
+
+        db.refresh(first)
+        assert first.dir_name == "Dir List [mp3]"
+        assert not plain_dir.exists()
+        assert (tmp_path / "Dir List [mp3]" / "song.mp3").exists()
+        track = db.query(PlaylistSyncTrack).filter_by(youtube_id="v1").first()
+        assert track.file_path == str(tmp_path / "Dir List [mp3]" / "song.mp3")
 
     def test_create_sync_accepts_video_format(self, client):
         with patch("app.tasks.sync_playlist.sync_youtube_playlist.apply_async"):

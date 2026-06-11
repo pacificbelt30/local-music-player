@@ -50,6 +50,12 @@ class TestAllocateSyncDirName:
         _add_sync(db, "PL1", "Mix", "mp3", dir_name=None)
         assert allocate_sync_dir_name(db, "Mix", "mp4") == "Mix [mp4]"
 
+    def test_same_name_never_reuses_plain_dir(self, db):
+        # Even when the plain name is free, a shared playlist name means
+        # every sync carries its format suffix
+        _add_sync(db, "PL1", "Mix", "mp3", dir_name="Mix [mp3]")
+        assert allocate_sync_dir_name(db, "Mix", "m4a") == "Mix [m4a]"
+
     def test_exclude_id_ignores_own_row(self, db):
         sync = _add_sync(db, "PL1", "Mix", "mp3", dir_name="Mix")
         assert allocate_sync_dir_name(db, "Mix", "m4a", exclude_id=sync.id) == "Mix"

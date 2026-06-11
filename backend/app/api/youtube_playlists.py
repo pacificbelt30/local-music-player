@@ -216,6 +216,20 @@ def create_sync(payload: YoutubePlaylistSyncCreate, db: Session = Depends(get_db
         enabled=payload.enabled,
     )
     db.add(sync)
+    db.flush()
+
+    # The name is now shared, so every sync of this name carries its format:
+    # move an existing plain-named sync (folder and tracked files included)
+    base = sync_dirs.playlist_sync_dir_name(playlist_name)
+    others = db.query(YoutubePlaylistSync).filter(YoutubePlaylistSync.id != sync.id).all()
+    for other in others:
+        other_dir = other.dir_name or sync_dirs.playlist_sync_dir_name(other.playlist_name)
+        if other_dir == base:
+            sync_dirs.relabel_sync_dir(
+                db, other,
+                sync_dirs.allocate_sync_dir_name(db, other.playlist_name, other.audio_format, exclude_id=other.id),
+            )
+
     db.commit()
     db.refresh(sync)
 
@@ -239,11 +253,12 @@ def update_sync(sync_id: int, payload: YoutubePlaylistSyncUpdate, db: Session = 
         ).first()
         if conflict:
             raise HTTPException(status_code=409, detail="Another sync for this playlist already uses this format")
-        # Re-label the directory only when it carried the old format suffix;
-        # an unsuffixed folder stays put.
+        # Re-label the directory (folder and tracked files included) only when
+        # it carried the old format suffix; an unsuffixed folder stays put.
         if sync.dir_name == sync_dirs.playlist_sync_dir_name(sync.playlist_name, sync.audio_format):
-            sync.dir_name = sync_dirs.allocate_sync_dir_name(
-                db, sync.playlist_name, payload.audio_format, exclude_id=sync.id
+            sync_dirs.relabel_sync_dir(
+                db, sync,
+                sync_dirs.allocate_sync_dir_name(db, sync.playlist_name, payload.audio_format, exclude_id=sync.id),
             )
         sync.audio_format = payload.audio_format
     if payload.audio_quality is not None:
