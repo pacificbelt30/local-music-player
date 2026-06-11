@@ -106,8 +106,12 @@ class YouTubePlaylistInfo(BaseModel):
 
 
 class YoutubePlaylistSyncCreate(BaseModel):
-    playlist_id: str
-    playlist_name: str
+    # API方式用
+    playlist_id: str = ""
+    playlist_name: str = ""
+    # URL方式用
+    source_type: Literal["api", "url"] = "api"
+    source_url: str = ""
     audio_format: AudioFormat = "mp3"
     audio_quality: AudioQuality = "192"
     enabled: bool = True
@@ -125,6 +129,8 @@ class YoutubePlaylistSyncResponse(BaseModel):
     id: int
     playlist_id: str
     playlist_name: str
+    source_type: str = "api"
+    source_url: str = ""
     audio_format: str
     audio_quality: str
     enabled: bool

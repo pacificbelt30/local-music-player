@@ -20,7 +20,7 @@ from app.schemas import (
     YoutubePlaylistSyncUpdate,
     PlaylistSyncTrackResponse,
 )
-from app.services import youtube_api_service
+from app.services import youtube_api_service, ytdlp_service
 from app.api.stream import _range_response
 
 router = APIRouter(prefix="/youtube", tags=["youtube"])
@@ -181,13 +181,32 @@ def list_syncs(db: Session = Depends(get_db)):
 
 @router.post("/syncs", response_model=YoutubePlaylistSyncResponse, status_code=201)
 def create_sync(payload: YoutubePlaylistSyncCreate, db: Session = Depends(get_db)):
-    existing = db.query(YoutubePlaylistSync).filter_by(playlist_id=payload.playlist_id).first()
+    if payload.source_type == "url":
+        if not payload.source_url:
+            raise HTTPException(status_code=422, detail="source_url is required for URL-based sync")
+        try:
+            info = ytdlp_service.get_playlist_info(payload.source_url)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Failed to resolve playlist: {e}")
+        playlist_id = info["playlist_id"]
+        playlist_name = info["playlist_title"] or playlist_id
+    else:
+        if not payload.playlist_id:
+            raise HTTPException(status_code=422, detail="playlist_id is required for API-based sync")
+        playlist_id = payload.playlist_id
+        playlist_name = payload.playlist_name
+
+    existing = db.query(YoutubePlaylistSync).filter_by(playlist_id=playlist_id).first()
     if existing:
         raise HTTPException(status_code=409, detail="Playlist already configured for sync")
 
     sync = YoutubePlaylistSync(
-        playlist_id=payload.playlist_id,
-        playlist_name=payload.playlist_name,
+        playlist_id=playlist_id,
+        playlist_name=playlist_name,
+        source_type=payload.source_type,
+        source_url=payload.source_url,
         audio_format=payload.audio_format,
         audio_quality=payload.audio_quality,
         enabled=payload.enabled,
@@ -246,9 +265,10 @@ def run_sync_now(sync_id: int, db: Session = Depends(get_db)):
     sync = db.get(YoutubePlaylistSync, sync_id)
     if not sync:
         raise HTTPException(status_code=404, detail="Sync not found")
-    access_token = youtube_api_service.get_fresh_access_token(db)
-    if not access_token:
-        raise HTTPException(status_code=401, detail="Not authenticated with YouTube")
+    if sync.source_type == "api":
+        access_token = youtube_api_service.get_fresh_access_token(db)
+        if not access_token:
+            raise HTTPException(status_code=401, detail="Not authenticated with YouTube")
 
     from app.tasks.sync_playlist import sync_youtube_playlist
     sync_youtube_playlist.apply_async(args=[sync.id])

@@ -806,3 +806,207 @@ class TestDownloadPlaylistSyncTrackTask:
 
         db.refresh(track)
         assert track.status == "complete"
+
+
+# ── URL-based sync tests ──────────────────────────────────────────────────────
+
+class TestCreateSyncUrlBased:
+    def test_create_url_sync_resolves_playlist_id(self, client):
+        fake_info = {
+            "playlist_id": "PLurl123",
+            "playlist_title": "URL Playlist",
+            "entries": [],
+        }
+        with patch("app.api.youtube_playlists.ytdlp_service.get_playlist_info", return_value=fake_info):
+            with patch("app.tasks.sync_playlist.sync_youtube_playlist.apply_async"):
+                resp = client.post("/api/v1/youtube/syncs", json={
+                    "source_type": "url",
+                    "source_url": "https://www.youtube.com/playlist?list=PLurl123",
+                    "audio_format": "mp3",
+                    "audio_quality": "320",
+                    "enabled": True,
+                })
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["playlist_id"] == "PLurl123"
+        assert data["playlist_name"] == "URL Playlist"
+        assert data["source_type"] == "url"
+        assert "PLurl123" in data["source_url"]
+
+    def test_create_url_sync_returns_502_on_ytdlp_error(self, client):
+        with patch("app.api.youtube_playlists.ytdlp_service.get_playlist_info", side_effect=Exception("yt-dlp network error")):
+            resp = client.post("/api/v1/youtube/syncs", json={
+                "source_type": "url",
+                "source_url": "https://www.youtube.com/playlist?list=PLfail",
+            })
+        assert resp.status_code == 502
+
+    def test_create_url_sync_returns_422_on_non_playlist_url(self, client):
+        with patch("app.api.youtube_playlists.ytdlp_service.get_playlist_info", side_effect=ValueError("URL must be a YouTube playlist")):
+            resp = client.post("/api/v1/youtube/syncs", json={
+                "source_type": "url",
+                "source_url": "https://www.youtube.com/watch?v=notaplaylist",
+            })
+        assert resp.status_code == 422
+
+    def test_create_url_sync_requires_source_url(self, client):
+        resp = client.post("/api/v1/youtube/syncs", json={
+            "source_type": "url",
+            "source_url": "",
+        })
+        assert resp.status_code == 422
+
+    def test_response_includes_source_type_and_url(self, client):
+        fake_info = {
+            "playlist_id": "PLresp",
+            "playlist_title": "Resp Playlist",
+            "entries": [],
+        }
+        with patch("app.api.youtube_playlists.ytdlp_service.get_playlist_info", return_value=fake_info):
+            with patch("app.tasks.sync_playlist.sync_youtube_playlist.apply_async"):
+                resp = client.post("/api/v1/youtube/syncs", json={
+                    "source_type": "url",
+                    "source_url": "https://www.youtube.com/playlist?list=PLresp",
+                })
+        data = resp.json()
+        assert data["source_type"] == "url"
+        assert data["source_url"] == "https://www.youtube.com/playlist?list=PLresp"
+
+
+class TestSyncNowUrlBased:
+    def test_url_sync_does_not_require_oauth(self, client, db):
+        sync = YoutubePlaylistSync(
+            playlist_id="PLurl",
+            playlist_name="URL Sync",
+            source_type="url",
+            source_url="https://www.youtube.com/playlist?list=PLurl",
+            audio_format="mp3",
+            audio_quality="192",
+            enabled=True,
+        )
+        db.add(sync)
+        db.commit()
+        db.refresh(sync)
+
+        with patch("app.tasks.sync_playlist.sync_youtube_playlist.apply_async") as mock_task:
+            resp = client.post(f"/api/v1/youtube/syncs/{sync.id}/run")
+        assert resp.status_code == 202
+        mock_task.assert_called_once_with(args=[sync.id])
+
+
+class TestSyncYoutubePlaylistTaskUrlBased:
+    def test_url_sync_uses_ytdlp(self, db):
+        from app.tasks.sync_playlist import sync_youtube_playlist
+
+        sync = YoutubePlaylistSync(
+            playlist_id="PLytdlp",
+            playlist_name="yt-dlp Sync",
+            source_type="url",
+            source_url="https://www.youtube.com/playlist?list=PLytdlp",
+            audio_format="mp3",
+            audio_quality="192",
+            enabled=True,
+        )
+        db.add(sync)
+        db.commit()
+        db.refresh(sync)
+
+        remote_items = [
+            {"youtube_id": "urlvid1", "title": "URL Song", "position": 1, "artist": None, "duration_secs": 200, "thumbnail_url": None},
+        ]
+        fake_info = {"playlist_id": "PLytdlp", "playlist_title": "yt-dlp Sync", "entries": remote_items}
+
+        with patch("app.database.SessionLocal", return_value=db):
+            with patch("app.tasks.sync_playlist.ytdlp_service.get_playlist_info", return_value=fake_info) as mock_info:
+                with patch("app.tasks.sync_playlist.download_playlist_sync_track.apply_async"):
+                    sync_youtube_playlist.apply(args=[sync.id])
+
+        mock_info.assert_called_once_with(sync.source_url)
+        track = db.query(PlaylistSyncTrack).filter_by(youtube_id="urlvid1").first()
+        assert track is not None
+        assert track.status == "pending"
+
+    def test_url_sync_does_not_call_youtube_api(self, db):
+        from app.tasks.sync_playlist import sync_youtube_playlist
+
+        sync = YoutubePlaylistSync(
+            playlist_id="PLnoapi",
+            playlist_name="No API",
+            source_type="url",
+            source_url="https://www.youtube.com/playlist?list=PLnoapi",
+            audio_format="mp3",
+            audio_quality="192",
+            enabled=True,
+        )
+        db.add(sync)
+        db.commit()
+        db.refresh(sync)
+
+        fake_info = {"playlist_id": "PLnoapi", "playlist_title": "No API", "entries": []}
+        with patch("app.database.SessionLocal", return_value=db):
+            with patch("app.tasks.sync_playlist.ytdlp_service.get_playlist_info", return_value=fake_info):
+                with patch("app.tasks.sync_playlist.download_playlist_sync_track.apply_async"):
+                    with patch("app.services.youtube_api_service.get_fresh_access_token") as mock_token:
+                        sync_youtube_playlist.apply(args=[sync.id])
+
+        mock_token.assert_not_called()
+
+
+class TestYtdlpPlaylistService:
+    def test_get_playlist_info_parses_entries(self):
+        from app.services.ytdlp_service import get_playlist_info
+
+        fake_info = {
+            "_type": "playlist",
+            "id": "PLtest",
+            "title": "Test Playlist",
+            "entries": [
+                {
+                    "id": "vid1",
+                    "title": "Song One",
+                    "uploader": "Artist A",
+                    "duration": 180,
+                    "playlist_index": 1,
+                    "thumbnails": [{"url": "https://i.ytimg.com/vi/vid1/hqdefault.jpg"}],
+                },
+                {
+                    "id": "vid2",
+                    "title": "Song Two",
+                    "channel": "Channel B",
+                    "duration": 240,
+                    "playlist_index": 2,
+                    "thumbnails": [],
+                },
+            ],
+        }
+        mock_ydl = MagicMock()
+        mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
+        mock_ydl.__exit__ = MagicMock(return_value=False)
+        mock_ydl.extract_info = MagicMock(return_value=fake_info)
+
+        with patch("app.services.ytdlp_service.yt_dlp.YoutubeDL", return_value=mock_ydl):
+            result = get_playlist_info("https://www.youtube.com/playlist?list=PLtest")
+
+        assert result["playlist_id"] == "PLtest"
+        assert result["playlist_title"] == "Test Playlist"
+        assert len(result["entries"]) == 2
+        e1 = result["entries"][0]
+        assert e1["youtube_id"] == "vid1"
+        assert e1["title"] == "Song One"
+        assert e1["artist"] == "Artist A"
+        assert e1["duration_secs"] == 180
+        assert e1["position"] == 1
+        assert e1["thumbnail_url"] is not None
+
+    def test_get_playlist_info_raises_on_video_url(self):
+        from app.services.ytdlp_service import get_playlist_info
+
+        fake_info = {"_type": "video", "id": "vid1", "title": "Single Video"}
+        mock_ydl = MagicMock()
+        mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
+        mock_ydl.__exit__ = MagicMock(return_value=False)
+        mock_ydl.extract_info = MagicMock(return_value=fake_info)
+
+        with patch("app.services.ytdlp_service.yt_dlp.YoutubeDL", return_value=mock_ydl):
+            with pytest.raises(ValueError, match="playlist"):
+                get_playlist_info("https://www.youtube.com/watch?v=vid1")

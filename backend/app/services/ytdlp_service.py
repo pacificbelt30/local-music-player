@@ -20,6 +20,42 @@ def _postprocessors_for(audio_format: str, audio_quality: str) -> list[dict]:
     return [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}]
 
 
+def get_playlist_info(url: str) -> dict:
+    """Fetch playlist metadata and all entries without downloading."""
+    ydl_opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "extract_flat": True,
+        "dump_single_json": True,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+
+    if info.get("_type") not in ("playlist", "channel"):
+        raise ValueError("URL must be a YouTube playlist")
+
+    entries = []
+    for i, entry in enumerate(info.get("entries") or []):
+        if not entry or not entry.get("id"):
+            continue
+        thumbnails = entry.get("thumbnails") or []
+        thumbnail_url = thumbnails[-1].get("url") if thumbnails else None
+        entries.append({
+            "youtube_id": entry["id"],
+            "title": entry.get("title", "Unknown"),
+            "artist": entry.get("uploader") or entry.get("channel"),
+            "duration_secs": entry.get("duration"),
+            "position": entry.get("playlist_index", i + 1),
+            "thumbnail_url": thumbnail_url,
+        })
+
+    return {
+        "playlist_id": info.get("id", ""),
+        "playlist_title": info.get("title", ""),
+        "entries": entries,
+    }
+
+
 def resolve_url(url: str) -> list[dict[str, Any]]:
     """Return a flat list of {id, title, url_type} dicts without downloading."""
     ydl_opts = {
