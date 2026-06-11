@@ -27,6 +27,8 @@ class YoutubePlaylistSync(Base):
     audio_format: Mapped[str] = mapped_column(String(10), default="mp3")
     audio_quality: Mapped[str] = mapped_column(String(10), default="192")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    source_type: Mapped[str] = mapped_column(String(8), default="api")  # "api" | "url"
+    source_url: Mapped[str] = mapped_column(String(2048), default="")
     last_synced: Mapped[datetime | None] = mapped_column(DateTime)
     last_error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

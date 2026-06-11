@@ -4,6 +4,7 @@ let syncPollers = {};
 
 export function initPlaylists() {
   renderAuthSection();
+  renderUrlSyncSection();
   renderSyncList();
 
   // Handle youtube_auth=success redirect from OAuth callback
@@ -136,6 +137,68 @@ async function disconnectYouTube() {
     document.getElementById("yt-account-playlists").innerHTML = "";
   } catch (e) {
     alert("解除に失敗しました: " + e.message);
+  }
+}
+
+// ── URL-based Sync Section ────────────────────────────────────────────────────
+
+function renderUrlSyncSection() {
+  const container = document.getElementById("yt-url-sync-section");
+  if (!container) return;
+  container.innerHTML = `
+    <p class="yt-auth-hint">YouTubeプレイリストの共有URLを貼り付けて同期を追加（認証不要）。</p>
+    <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+      <input type="url" id="yt-playlist-url-input"
+             placeholder="https://www.youtube.com/playlist?list=PLxxxx"
+             style="flex:1;min-width:240px">
+      <select id="yt-url-format">
+        <option value="mp3">MP3</option>
+        <option value="flac">FLAC</option>
+        <option value="aac">AAC</option>
+        <option value="ogg">OGG</option>
+      </select>
+      <select id="yt-url-quality">
+        <option value="192">192 kbps</option>
+        <option value="320">320 kbps</option>
+        <option value="best">Best</option>
+      </select>
+      <button class="btn btn-primary" id="yt-add-url-btn">同期追加</button>
+    </div>
+    <div id="yt-add-url-error" class="error-msg" style="display:none"></div>
+  `;
+  document.getElementById("yt-add-url-btn").addEventListener("click", addSyncFromUrl);
+  document.getElementById("yt-playlist-url-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") addSyncFromUrl();
+  });
+}
+
+async function addSyncFromUrl() {
+  const urlInput = document.getElementById("yt-playlist-url-input");
+  const url = urlInput.value.trim();
+  const audio_format = document.getElementById("yt-url-format").value;
+  const audio_quality = document.getElementById("yt-url-quality").value;
+  const errDiv = document.getElementById("yt-add-url-error");
+  const btn = document.getElementById("yt-add-url-btn");
+
+  errDiv.style.display = "none";
+  if (!url) {
+    errDiv.textContent = "URLを入力してください";
+    errDiv.style.display = "";
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "解析中…";
+  try {
+    await api.youtubeCreateSync({ source_type: "url", source_url: url, audio_format, audio_quality });
+    urlInput.value = "";
+    renderSyncList();
+  } catch (e) {
+    errDiv.textContent = e.message;
+    errDiv.style.display = "";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "同期追加";
   }
 }
 
@@ -299,10 +362,16 @@ function syncCardHTML(sync) {
     </div>
   ` : "";
 
+  const sourceLabel = sync.source_type === "url" ? "URL" : "API";
+  const sourceBadgeClass = sync.source_type === "url" ? "status-badge" : "status-badge status-complete";
+
   return `
     <div class="yt-sync-header">
       <div class="yt-sync-info">
-        <div class="yt-sync-title">${escHtml(sync.playlist_name)}</div>
+        <div class="yt-sync-title">
+          ${escHtml(sync.playlist_name)}
+          <span class="${sourceBadgeClass}" style="font-size:0.7em;margin-left:6px">${sourceLabel}</span>
+        </div>
         <div class="yt-sync-meta">${progress} · 最終同期: ${lastSynced}</div>
         <div class="yt-sync-meta">${sync.audio_format.toUpperCase()} / ${sync.audio_quality === "best" ? "Best" : sync.audio_quality + "kbps"}</div>
       </div>

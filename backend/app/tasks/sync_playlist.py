@@ -34,11 +34,14 @@ def sync_youtube_playlist(self, playlist_sync_id: int) -> None:
         if not sync or not sync.enabled:
             return
 
-        access_token = youtube_api_service.get_fresh_access_token(db)
-        if not access_token:
-            return
-
-        remote_items = youtube_api_service.get_playlist_items(sync.playlist_id, access_token)
+        if sync.source_type == "url":
+            info = ytdlp_service.get_playlist_info(sync.source_url)
+            remote_items = info["entries"]
+        else:
+            access_token = youtube_api_service.get_fresh_access_token(db)
+            if not access_token:
+                return
+            remote_items = youtube_api_service.get_playlist_items(sync.playlist_id, access_token)
         remote_ids = {item["youtube_id"] for item in remote_items}
 
         existing = {t.youtube_id: t for t in db.query(PlaylistSyncTrack).filter_by(playlist_sync_id=sync.id).all()}
