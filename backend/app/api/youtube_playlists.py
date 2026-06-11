@@ -20,7 +20,7 @@ from app.schemas import (
     YoutubePlaylistSyncUpdate,
     PlaylistSyncTrackResponse,
 )
-from app.services import youtube_api_service, ytdlp_service
+from app.services import sync_dirs, youtube_api_service, ytdlp_service
 from app.api.stream import _range_response
 
 router = APIRouter(prefix="/youtube", tags=["youtube"])
@@ -207,6 +207,8 @@ def create_sync(payload: YoutubePlaylistSyncCreate, db: Session = Depends(get_db
     sync = YoutubePlaylistSync(
         playlist_id=playlist_id,
         playlist_name=playlist_name,
+        # Fixed at creation so the folder never changes once downloads start
+        dir_name=sync_dirs.allocate_sync_dir_name(db, playlist_name, payload.audio_format),
         source_type=payload.source_type,
         source_url=payload.source_url,
         audio_format=payload.audio_format,
@@ -237,6 +239,12 @@ def update_sync(sync_id: int, payload: YoutubePlaylistSyncUpdate, db: Session = 
         ).first()
         if conflict:
             raise HTTPException(status_code=409, detail="Another sync for this playlist already uses this format")
+        # Re-label the directory only when it carried the old format suffix;
+        # an unsuffixed folder stays put.
+        if sync.dir_name == sync_dirs.playlist_sync_dir_name(sync.playlist_name, sync.audio_format):
+            sync.dir_name = sync_dirs.allocate_sync_dir_name(
+                db, sync.playlist_name, payload.audio_format, exclude_id=sync.id
+            )
         sync.audio_format = payload.audio_format
     if payload.audio_quality is not None:
         sync.audio_quality = payload.audio_quality

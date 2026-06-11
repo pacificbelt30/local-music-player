@@ -28,6 +28,9 @@ class YoutubePlaylistSync(Base):
     playlist_name: Mapped[str] = mapped_column(Text, nullable=False)
     audio_format: Mapped[str] = mapped_column(String(10), default="mp3")  # audio: mp3/flac/aac/ogg/m4a, video: mp4/webm
     audio_quality: Mapped[str] = mapped_column(String(10), default="192")
+    # Download directory name, fixed at sync creation so files never split
+    # across folders when another sync with the same playlist name is added later
+    dir_name: Mapped[str | None] = mapped_column(Text)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     source_type: Mapped[str] = mapped_column(String(8), default="api")  # "api" | "url"
     source_url: Mapped[str] = mapped_column(String(2048), default="")

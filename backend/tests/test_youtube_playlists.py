@@ -264,6 +264,25 @@ class TestCreateSync:
         assert resp.json()["audio_format"] == "mp4"
         assert db.query(YoutubePlaylistSync).filter_by(playlist_id="PLmulti").count() == 2
 
+    def test_create_sync_fixes_dir_name(self, client, db):
+        with patch("app.tasks.sync_playlist.sync_youtube_playlist.apply_async"):
+            client.post("/api/v1/youtube/syncs", json={
+                "playlist_id": "PLdir", "playlist_name": "Dir List", "audio_format": "mp3",
+            })
+        sync = db.query(YoutubePlaylistSync).filter_by(playlist_id="PLdir").first()
+        assert sync.dir_name == "Dir List"
+
+    def test_second_sync_same_name_gets_suffixed_dir_name(self, client, db):
+        with patch("app.tasks.sync_playlist.sync_youtube_playlist.apply_async"):
+            client.post("/api/v1/youtube/syncs", json={
+                "playlist_id": "PLdir", "playlist_name": "Dir List", "audio_format": "mp3",
+            })
+            client.post("/api/v1/youtube/syncs", json={
+                "playlist_id": "PLdir", "playlist_name": "Dir List", "audio_format": "mp4",
+            })
+        dirs = {s.audio_format: s.dir_name for s in db.query(YoutubePlaylistSync).all()}
+        assert dirs == {"mp3": "Dir List", "mp4": "Dir List [mp4]"}
+
     def test_create_sync_accepts_video_format(self, client):
         with patch("app.tasks.sync_playlist.sync_youtube_playlist.apply_async"):
             resp = client.post("/api/v1/youtube/syncs", json={
@@ -303,6 +322,25 @@ class TestUpdateSync:
         other = _make_sync(db, playlist_id="PLfmt", audio_format="mp4")
         resp = client.patch(f"/api/v1/youtube/syncs/{other.id}", json={"audio_format": "mp3"})
         assert resp.status_code == 409
+
+    def test_update_format_relabels_suffixed_dir_name(self, client, db):
+        _make_sync(db, playlist_id="PLa", playlist_name="Mix")
+        suffixed = _make_sync(db, playlist_id="PLb", playlist_name="Mix", audio_format="mp4")
+        suffixed.dir_name = "Mix [mp4]"
+        db.commit()
+        resp = client.patch(f"/api/v1/youtube/syncs/{suffixed.id}", json={"audio_format": "webm"})
+        assert resp.status_code == 200
+        db.refresh(suffixed)
+        assert suffixed.dir_name == "Mix [webm]"
+
+    def test_update_format_keeps_unsuffixed_dir_name(self, client, db):
+        sync = _make_sync(db, playlist_id="PLplain", playlist_name="Solo", audio_format="mp3")
+        sync.dir_name = "Solo"
+        db.commit()
+        resp = client.patch(f"/api/v1/youtube/syncs/{sync.id}", json={"audio_format": "mp4"})
+        assert resp.status_code == 200
+        db.refresh(sync)
+        assert sync.dir_name == "Solo"
 
 
 class TestDeleteSync:
@@ -855,7 +893,34 @@ class TestDownloadPlaylistSyncTrackTask:
         _, kwargs = mock_dl.call_args
         assert kwargs["base_path"] == tmp_path / "Solo List"
 
+    def test_stored_dir_name_wins_over_later_collision(self, db, tmp_path):
+        """A sync keeps its creation-time folder even after a same-name sync appears."""
+        from app.tasks.sync_playlist import download_playlist_sync_track
+
+        first = _make_sync(db, playlist_id="PLfix1", playlist_name="Fixed List", audio_format="mp3")
+        first.dir_name = "Fixed List"
+        db.commit()
+        # A second sync with the same name arrives while first is mid-download
+        second = _make_sync(db, playlist_id="PLfix2", playlist_name="Fixed List", audio_format="mp4")
+        second.dir_name = "Fixed List [mp4]"
+        db.commit()
+        track = _make_track(db, first, youtube_id="vid_fix", status="pending")
+
+        fake_metadata = {
+            "youtube_id": "vid_fix", "title": "Song", "artist": None, "duration_secs": 1,
+            "file_path": "/tmp/x.mp3", "file_format": "mp3", "file_size_bytes": 1, "thumbnail_path": None,
+        }
+        with patch("app.database.SessionLocal", return_value=db):
+            with patch("app.tasks.sync_playlist.settings.downloads_path", tmp_path):
+                with patch("app.tasks.sync_playlist.ytdlp_service.download_track", return_value=fake_metadata) as mock_dl:
+                    with patch("app.tasks.sync_playlist._redis.delete"):
+                        download_playlist_sync_track.apply(args=[track.id])
+
+        _, kwargs = mock_dl.call_args
+        assert kwargs["base_path"] == tmp_path / "Fixed List"
+
     def test_appends_format_suffix_on_name_collision(self, db, tmp_path):
+        """Legacy rows without dir_name fall back to the dynamic collision rule."""
         from app.tasks.sync_playlist import download_playlist_sync_track
 
         _make_sync(db, playlist_id="PLdual", playlist_name="Dual List", audio_format="mp3")
