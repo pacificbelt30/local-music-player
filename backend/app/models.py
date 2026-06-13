@@ -20,12 +20,17 @@ class YouTubeOAuthToken(Base):
 
 class YoutubePlaylistSync(Base):
     __tablename__ = "youtube_playlist_syncs"
+    # The same playlist can be synced once per format (e.g. mp3 + mp4)
+    __table_args__ = (UniqueConstraint("playlist_id", "audio_format", name="uq_playlist_syncs_playlist_id_format"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    playlist_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    playlist_id: Mapped[str] = mapped_column(String(64), nullable=False)
     playlist_name: Mapped[str] = mapped_column(Text, nullable=False)
-    audio_format: Mapped[str] = mapped_column(String(10), default="mp3")
+    audio_format: Mapped[str] = mapped_column(String(10), default="mp3")  # audio: mp3/flac/aac/ogg/m4a, video: mp4/webm
     audio_quality: Mapped[str] = mapped_column(String(10), default="192")
+    # Download directory name, fixed at sync creation so files never split
+    # across folders when another sync with the same playlist name is added later
+    dir_name: Mapped[str | None] = mapped_column(Text)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     source_type: Mapped[str] = mapped_column(String(8), default="api")  # "api" | "url"
     source_url: Mapped[str] = mapped_column(String(2048), default="")
@@ -73,7 +78,7 @@ class UrlSource(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     url: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     url_type: Mapped[str] = mapped_column(String(20), nullable=False)  # video/playlist/channel
-    audio_format: Mapped[str] = mapped_column(String(10), default="mp3")  # mp3/flac/aac/ogg
+    audio_format: Mapped[str] = mapped_column(String(10), default="mp3")  # audio: mp3/flac/aac/ogg/m4a, video: mp4/webm
     audio_quality: Mapped[str] = mapped_column(String(10), default="192")  # best/192/320
     title: Mapped[str | None] = mapped_column(Text)
     added_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

@@ -3,14 +3,16 @@ from typing import Literal
 from pydantic import BaseModel, HttpUrl, field_validator, model_validator
 
 
-AudioFormat = Literal["mp3", "flac", "aac", "ogg"]
+# "audio_format" fields also accept video containers (mp4/webm); the name is
+# kept for API/DB compatibility.
+MediaFormat = Literal["mp3", "flac", "aac", "ogg", "m4a", "mp4", "webm"]
 AudioQuality = Literal["best", "192", "320"]
 JobStatus = Literal["pending", "downloading", "complete", "failed", "skipped"]
 
 
 class UrlSourceCreate(BaseModel):
     url: str
-    audio_format: AudioFormat = "mp3"
+    audio_format: MediaFormat = "mp3"
     audio_quality: AudioQuality = "192"
     sync_enabled: bool = True
 
@@ -112,7 +114,7 @@ class YoutubePlaylistSyncCreate(BaseModel):
     # URL方式用
     source_type: Literal["api", "url"] = "api"
     source_url: str = ""
-    audio_format: AudioFormat = "mp3"
+    audio_format: MediaFormat = "mp3"
     audio_quality: AudioQuality = "192"
     enabled: bool = True
 
@@ -125,7 +127,7 @@ class YoutubePlaylistSyncCreate(BaseModel):
 
 
 class YoutubePlaylistSyncUpdate(BaseModel):
-    audio_format: AudioFormat | None = None
+    audio_format: MediaFormat | None = None
     audio_quality: AudioQuality | None = None
     enabled: bool | None = None
 

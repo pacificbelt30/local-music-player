@@ -151,12 +151,7 @@ function renderUrlSyncSection() {
       <input type="url" id="yt-playlist-url-input"
              placeholder="https://www.youtube.com/playlist?list=PLxxxx"
              style="flex:1;min-width:240px">
-      <select id="yt-url-format">
-        <option value="mp3">MP3</option>
-        <option value="flac">FLAC</option>
-        <option value="aac">AAC</option>
-        <option value="ogg">OGG</option>
-      </select>
+      <select id="yt-url-format">${formatOptionsHTML()}</select>
       <select id="yt-url-quality">
         <option value="192">192 kbps</option>
         <option value="320">320 kbps</option>
@@ -231,19 +226,19 @@ async function renderAccountPlaylists() {
           <div class="yt-pl-title">${escHtml(pl.title)}</div>
           <div class="yt-pl-meta-row">
             <span class="yt-pl-meta-badge">${pl.item_count} 曲</span>
+            ${already ? '<span class="yt-pl-meta-badge">同期中</span>' : ""}
             ${totalDuration ? `<span class="yt-pl-meta">総再生時間: ${escHtml(totalDuration)}</span>` : ""}
           </div>
         </div>
         <button class="btn ${already ? "btn-ghost" : "btn-primary"} yt-add-sync-btn"
-          data-id="${escHtml(pl.playlist_id)}" data-name="${escHtml(pl.title)}"
-          ${already ? "disabled" : ""}>
-          ${already ? "同期中" : "+ 同期追加"}
+          data-id="${escHtml(pl.playlist_id)}" data-name="${escHtml(pl.title)}">
+          ${already ? "+ 別形式で同期" : "+ 同期追加"}
         </button>
       `;
       container.appendChild(item);
     }
 
-    container.querySelectorAll(".yt-add-sync-btn:not([disabled])").forEach((btn) => {
+    container.querySelectorAll(".yt-add-sync-btn").forEach((btn) => {
       btn.addEventListener("click", () => showAddSyncDialog(btn));
     });
   } catch (e) {
@@ -273,12 +268,7 @@ function showAddSyncDialog(btn) {
     <div class="yt-add-sync-dialog-inner">
       <div class="yt-add-sync-dialog-title">同期設定: ${escHtml(btn.dataset.name)}</div>
       <div class="format-row" style="margin-bottom:8px">
-        <select id="yt-sync-format">
-          <option value="mp3">MP3</option>
-          <option value="flac">FLAC</option>
-          <option value="aac">AAC</option>
-          <option value="ogg">OGG</option>
-        </select>
+        <select id="yt-sync-format">${formatOptionsHTML()}</select>
         <select id="yt-sync-quality">
           <option value="192">192 kbps</option>
           <option value="320">320 kbps</option>
@@ -309,7 +299,8 @@ function showAddSyncDialog(btn) {
         audio_format,
         audio_quality,
       });
-      btn.textContent = "同期中";
+      btn.disabled = false;
+      btn.textContent = "+ 別形式で同期";
       btn.className = "btn btn-ghost yt-add-sync-btn";
       renderSyncList();
     } catch (e) {
@@ -373,7 +364,9 @@ function syncCardHTML(sync) {
           <span class="${sourceBadgeClass}" style="font-size:0.7em;margin-left:6px">${sourceLabel}</span>
         </div>
         <div class="yt-sync-meta">${progress} · 最終同期: ${lastSynced}</div>
-        <div class="yt-sync-meta">${sync.audio_format.toUpperCase()} / ${sync.audio_quality === "best" ? "Best" : sync.audio_quality + "kbps"}</div>
+        <div class="yt-sync-meta">${["mp4", "webm"].includes(sync.audio_format)
+          ? `${sync.audio_format.toUpperCase()} (動画)`
+          : `${sync.audio_format.toUpperCase()} / ${sync.audio_quality === "best" ? "Best" : sync.audio_quality + "kbps"}`}</div>
       </div>
       <div class="yt-sync-actions">
         <button class="btn btn-primary yt-sync-now-btn" data-id="${sync.id}" title="今すぐ同期">同期</button>
@@ -520,6 +513,18 @@ function playTrack(track) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatOptionsHTML() {
+  return `
+    <option value="mp3">MP3</option>
+    <option value="m4a">M4A</option>
+    <option value="flac">FLAC</option>
+    <option value="aac">AAC</option>
+    <option value="ogg">OGG</option>
+    <option value="mp4">MP4 (動画)</option>
+    <option value="webm">WEBM (動画)</option>
+  `;
+}
 
 function statusLabel(status) {
   const map = { pending: "待機中", downloading: "DL中", complete: "完了", failed: "失敗", removed: "削除済" };

@@ -20,7 +20,7 @@ from app.schemas import (
     YoutubePlaylistSyncUpdate,
     PlaylistSyncTrackResponse,
 )
-from app.services import youtube_api_service, ytdlp_service
+from app.services import sync_dirs, youtube_api_service, ytdlp_service
 from app.api.stream import _range_response
 
 router = APIRouter(prefix="/youtube", tags=["youtube"])
@@ -198,13 +198,17 @@ def create_sync(payload: YoutubePlaylistSyncCreate, db: Session = Depends(get_db
         playlist_id = payload.playlist_id
         playlist_name = payload.playlist_name
 
-    existing = db.query(YoutubePlaylistSync).filter_by(playlist_id=playlist_id).first()
+    existing = db.query(YoutubePlaylistSync).filter_by(
+        playlist_id=playlist_id, audio_format=payload.audio_format
+    ).first()
     if existing:
-        raise HTTPException(status_code=409, detail="Playlist already configured for sync")
+        raise HTTPException(status_code=409, detail="Playlist already configured for sync with this format")
 
     sync = YoutubePlaylistSync(
         playlist_id=playlist_id,
         playlist_name=playlist_name,
+        # Fixed at creation so the folder never changes once downloads start
+        dir_name=sync_dirs.allocate_sync_dir_name(db, playlist_name, payload.audio_format),
         source_type=payload.source_type,
         source_url=payload.source_url,
         audio_format=payload.audio_format,
@@ -212,6 +216,20 @@ def create_sync(payload: YoutubePlaylistSyncCreate, db: Session = Depends(get_db
         enabled=payload.enabled,
     )
     db.add(sync)
+    db.flush()
+
+    # The name is now shared, so every sync of this name carries its format:
+    # move an existing plain-named sync (folder and tracked files included)
+    base = sync_dirs.playlist_sync_dir_name(playlist_name)
+    others = db.query(YoutubePlaylistSync).filter(YoutubePlaylistSync.id != sync.id).all()
+    for other in others:
+        other_dir = other.dir_name or sync_dirs.playlist_sync_dir_name(other.playlist_name)
+        if other_dir == base:
+            sync_dirs.relabel_sync_dir(
+                db, other,
+                sync_dirs.allocate_sync_dir_name(db, other.playlist_name, other.audio_format, exclude_id=other.id),
+            )
+
     db.commit()
     db.refresh(sync)
 
@@ -227,7 +245,21 @@ def update_sync(sync_id: int, payload: YoutubePlaylistSyncUpdate, db: Session = 
     sync = db.get(YoutubePlaylistSync, sync_id)
     if not sync:
         raise HTTPException(status_code=404, detail="Sync not found")
-    if payload.audio_format is not None:
+    if payload.audio_format is not None and payload.audio_format != sync.audio_format:
+        conflict = db.query(YoutubePlaylistSync).filter(
+            YoutubePlaylistSync.id != sync.id,
+            YoutubePlaylistSync.playlist_id == sync.playlist_id,
+            YoutubePlaylistSync.audio_format == payload.audio_format,
+        ).first()
+        if conflict:
+            raise HTTPException(status_code=409, detail="Another sync for this playlist already uses this format")
+        # Re-label the directory (folder and tracked files included) only when
+        # it carried the old format suffix; an unsuffixed folder stays put.
+        if sync.dir_name == sync_dirs.playlist_sync_dir_name(sync.playlist_name, sync.audio_format):
+            sync_dirs.relabel_sync_dir(
+                db, sync,
+                sync_dirs.allocate_sync_dir_name(db, sync.playlist_name, payload.audio_format, exclude_id=sync.id),
+            )
         sync.audio_format = payload.audio_format
     if payload.audio_quality is not None:
         sync.audio_quality = payload.audio_quality

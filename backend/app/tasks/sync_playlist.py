@@ -6,12 +6,11 @@ from pathlib import Path
 import httpx
 import redis as redis_lib
 import sqlalchemy.exc
-import yt_dlp
 
 from app.config import settings
 from app.database import SessionLocal
 from app.models import AppSetting, PlaylistSyncTrack, YoutubePlaylistSync
-from app.services import youtube_api_service, ytdlp_service
+from app.services import sync_dirs, youtube_api_service, ytdlp_service
 from app.services.notification import notify
 from app.tasks.celery_app import celery_app
 
@@ -19,10 +18,26 @@ _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
 _DEFAULT_GAIN_PERCENT = "0"
 
 
-def _playlist_sync_dir_name(playlist_name: str | None) -> str:
-    """Build a safe directory name while preserving non-ASCII playlist names."""
-    name = (playlist_name or "").strip()
-    return yt_dlp.utils.sanitize_filename(name, restricted=False) or "unknown"
+def _sync_dir_name(db, sync: YoutubePlaylistSync | None, audio_format: str) -> str:
+    """Directory name for a sync's downloads.
+
+    Normally this is sync.dir_name, fixed when the sync was created. Legacy
+    rows created before dir_name existed fall back to the old dynamic rule:
+    append the format when another sync shares the same playlist name.
+    """
+    if sync and sync.dir_name:
+        return sync.dir_name
+
+    playlist_name = sync.playlist_name if sync else "unknown"
+    format_suffix = None
+    if sync:
+        name_collision = db.query(YoutubePlaylistSync).filter(
+            YoutubePlaylistSync.id != sync.id,
+            YoutubePlaylistSync.playlist_name == sync.playlist_name,
+        ).first()
+        if name_collision:
+            format_suffix = audio_format
+    return sync_dirs.playlist_sync_dir_name(playlist_name, format_suffix)
 
 
 @celery_app.task(name="app.tasks.sync_playlist.sync_youtube_playlist", bind=True, max_retries=2)
@@ -153,9 +168,9 @@ def download_playlist_sync_track(self, track_id: int) -> None:
         gain_row = db.get(AppSetting, "download_gain_percent")
         gain_percent = float(gain_row.value if gain_row else _DEFAULT_GAIN_PERCENT)
 
-        # Store in downloads/{playlist_name}/
+        # Store in downloads/{dir_name}/, fixed at sync creation
         playlist_name = sync.playlist_name if sync else "unknown"
-        safe_playlist_name = _playlist_sync_dir_name(playlist_name)
+        safe_playlist_name = _sync_dir_name(db, sync, audio_format)
         base_path = settings.downloads_path / safe_playlist_name
         base_path.mkdir(parents=True, exist_ok=True)
 

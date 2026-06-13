@@ -40,7 +40,7 @@ async function renderUrlList() {
       item.innerHTML = `
         <div class="url-item-info">
           <div class="url-item-title">${escHtml(src.title || src.url)}</div>
-          <div class="url-item-meta">${src.url_type} · ${src.audio_format}/${src.audio_quality}kbps · ${src.sync_enabled ? "auto-sync on" : "auto-sync off"}</div>
+          <div class="url-item-meta">${src.url_type} · ${src.audio_format}/${src.audio_quality === "best" ? "best" : src.audio_quality + "kbps"} · ${src.sync_enabled ? "auto-sync on" : "auto-sync off"}</div>
         </div>
         <div class="url-item-actions">
           <button class="btn btn-ghost delete-url" data-id="${src.id}">✕</button>
