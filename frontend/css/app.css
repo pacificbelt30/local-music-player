@@ -595,7 +595,7 @@ header h1 {
   display: flex;
   gap: 8px;
   align-items: stretch;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   margin-top: 10px;
 }
 .yt-url-input,
@@ -617,13 +617,11 @@ header h1 {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-dim);
 }
-.yt-url-sync-row .btn { flex-shrink: 0; }
+.yt-url-sync-row .btn { flex: 1 1 100%; width: 100%; }
 
 @media (max-width: 720px) {
-  .yt-url-sync-row { flex-wrap: wrap; }
   .yt-url-input,
-  .yt-url-select,
-  .yt-url-sync-row .btn {
+  .yt-url-select {
     flex: 1 1 100%;
     width: 100%;
   }
