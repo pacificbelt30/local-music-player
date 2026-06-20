@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Literal
+from urllib.parse import urlparse
 from pydantic import BaseModel, HttpUrl, field_validator, model_validator
 
 
@@ -8,6 +9,26 @@ from pydantic import BaseModel, HttpUrl, field_validator, model_validator
 MediaFormat = Literal["mp3", "flac", "aac", "ogg", "m4a", "mp4", "webm"]
 AudioQuality = Literal["best", "192", "320"]
 JobStatus = Literal["pending", "downloading", "complete", "failed", "skipped"]
+
+_YOUTUBE_HOSTS = {"youtube.com", "youtu.be"}
+
+
+def _is_youtube_url(v: str) -> bool:
+    """True if v is an http(s) URL whose host is youtube.com/youtu.be or a
+    subdomain of youtube.com (www./m./music./etc). Validates the actual host
+    rather than checking for a substring, which a URL like
+    "https://evil.example/?x=youtube.com" would otherwise satisfy.
+    """
+    try:
+        parsed = urlparse(v)
+    except ValueError:
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if not host:
+        return False
+    return host in _YOUTUBE_HOSTS or host.endswith(".youtube.com")
 
 
 class UrlSourceCreate(BaseModel):
@@ -19,7 +40,7 @@ class UrlSourceCreate(BaseModel):
     @field_validator("url")
     @classmethod
     def url_must_be_youtube(cls, v: str) -> str:
-        if "youtube.com" not in v and "youtu.be" not in v:
+        if not _is_youtube_url(v):
             raise ValueError("URL must be a YouTube URL")
         return v
 
@@ -127,7 +148,7 @@ class YoutubePlaylistSyncCreate(BaseModel):
     @model_validator(mode="after")
     def source_url_must_be_youtube(self):
         if self.source_type == "url":
-            if "youtube.com" not in self.source_url and "youtu.be" not in self.source_url:
+            if not _is_youtube_url(self.source_url):
                 raise ValueError("source_url must be a YouTube URL")
         return self
 
