@@ -1,3 +1,4 @@
+import shutil
 from datetime import datetime, timezone, timedelta
 
 import redis as redis_lib
@@ -16,16 +17,23 @@ from app.models import (
     YoutubePlaylistSync,
 )
 from app.schemas import (
+    ActiveTaskDetail,
+    AppInfo,
     BeatTaskInfo,
     DBStats,
     DebugResponse,
+    DiskUsageInfo,
     OAuthDebugInfo,
     QueueStats,
+    RecentJobInfo,
     RedisInfo,
+    SyncErrorInfo,
     WorkerInfo,
 )
 
 router = APIRouter(prefix="/debug", tags=["admin"])
+
+_STARTED_AT = datetime.now(timezone.utc)
 
 
 def _get_worker_info() -> list[WorkerInfo]:
@@ -35,6 +43,8 @@ def _get_worker_info() -> list[WorkerInfo]:
         insp = celery_app.control.inspect(timeout=2.0)
         active = insp.active() or {}
         stats = insp.stats() or {}
+        reserved = insp.reserved() or {}
+        scheduled = insp.scheduled() or {}
 
         workers: list[WorkerInfo] = []
         for name, tasks in active.items():
@@ -44,12 +54,25 @@ def _get_worker_info() -> list[WorkerInfo]:
             if isinstance(concurrency, list):
                 concurrency = len(concurrency)
             task_names = [t.get("name", "unknown") for t in tasks]
+            task_details = [
+                ActiveTaskDetail(
+                    task_id=t.get("id", "unknown"),
+                    name=t.get("name", "unknown"),
+                    args=str(t.get("args", [])),
+                    kwargs=str(t.get("kwargs", {})),
+                    time_start=t.get("time_start"),
+                )
+                for t in tasks
+            ]
             workers.append(
                 WorkerInfo(
                     name=name,
                     active_tasks=len(tasks),
                     concurrency=concurrency,
                     active_task_names=task_names,
+                    active_tasks_detail=task_details,
+                    reserved_tasks=len(reserved.get(name, [])),
+                    scheduled_tasks=len(scheduled.get(name, [])),
                 )
             )
         # Workers that are registered but idle (in stats but not in active)
@@ -66,6 +89,8 @@ def _get_worker_info() -> list[WorkerInfo]:
                         active_tasks=0,
                         concurrency=concurrency,
                         active_task_names=[],
+                        reserved_tasks=len(reserved.get(name, [])),
+                        scheduled_tasks=len(scheduled.get(name, [])),
                     )
                 )
         return workers
@@ -88,6 +113,12 @@ def _get_queue_stats(db: Session) -> QueueStats:
         or 0
     )
     total = sum(counts.values())
+    recent_jobs = (
+        db.query(DownloadJob)
+        .order_by(DownloadJob.created_at.desc())
+        .limit(20)
+        .all()
+    )
     return QueueStats(
         pending=counts.get("pending", 0),
         downloading=counts.get("downloading", 0),
@@ -96,6 +127,7 @@ def _get_queue_stats(db: Session) -> QueueStats:
         skipped=counts.get("skipped", 0),
         total=total,
         stuck=stuck,
+        recent_jobs=[RecentJobInfo.model_validate(j) for j in recent_jobs],
     )
 
 
@@ -123,6 +155,10 @@ def _get_oauth_info(db: Session) -> OAuthDebugInfo:
         scope=token.scope,
         is_expired=is_expired,
         needs_refresh=needs_refresh,
+        access_token_preview=f"{token.access_token[:8]}…" if token.access_token else None,
+        refresh_token_set=bool(token.refresh_token),
+        created_at=token.created_at,
+        updated_at=token.updated_at,
     )
 
 
@@ -136,6 +172,7 @@ def _get_redis_info() -> RedisInfo:
             connected_clients=info.get("connected_clients"),
             uptime_in_seconds=info.get("uptime_in_seconds"),
             total_commands_processed=info.get("total_commands_processed"),
+            raw=info,
         )
     except Exception:
         return RedisInfo(connected=False)
@@ -166,6 +203,58 @@ def _get_beat_schedule() -> list[BeatTaskInfo]:
         return []
 
 
+def _get_disk_usage() -> list[DiskUsageInfo]:
+    labeled_paths = {
+        "ダウンロード": settings.downloads_path,
+        "データ": settings.data_path,
+        "プレイリスト": settings.playlists_path,
+    }
+    result = []
+    for label, path in labeled_paths.items():
+        try:
+            usage = shutil.disk_usage(path)
+            result.append(
+                DiskUsageInfo(
+                    label=label,
+                    path=str(path),
+                    total_bytes=usage.total,
+                    used_bytes=usage.used,
+                    free_bytes=usage.free,
+                )
+            )
+        except OSError:
+            continue
+    return result
+
+
+def _get_sync_errors(db: Session) -> list[SyncErrorInfo]:
+    syncs = (
+        db.query(YoutubePlaylistSync)
+        .filter(YoutubePlaylistSync.last_error.isnot(None))
+        .order_by(YoutubePlaylistSync.id.desc())
+        .limit(20)
+        .all()
+    )
+    return [
+        SyncErrorInfo(
+            id=s.id,
+            playlist_name=s.playlist_name,
+            last_error=s.last_error,
+            last_synced=s.last_synced,
+        )
+        for s in syncs
+    ]
+
+
+def _get_app_info() -> AppInfo:
+    now = datetime.now(timezone.utc)
+    return AppInfo(
+        version=settings.app_version,
+        started_at=_STARTED_AT,
+        uptime_seconds=(now - _STARTED_AT).total_seconds(),
+    )
+
+
 @router.get("", response_model=DebugResponse)
 def get_debug(db: Session = Depends(get_db)):
     workers = _get_worker_info()
@@ -178,4 +267,7 @@ def get_debug(db: Session = Depends(get_db)):
         redis=_get_redis_info(),
         db=_get_db_stats(db),
         beat_schedule=_get_beat_schedule(),
+        disk_usage=_get_disk_usage(),
+        sync_errors=_get_sync_errors(db),
+        app_info=_get_app_info(),
     )

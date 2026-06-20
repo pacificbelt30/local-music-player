@@ -1199,6 +1199,34 @@ header h1 {
   border: 1px solid rgba(244,67,54,0.3);
 }
 
+/* Detail / raw log toggle */
+.dbg-detail-btn {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  padding: 2px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dbg-detail-btn:hover { color: var(--text); border-color: var(--border-light); }
+.dbg-detail-pre {
+  margin-top: 8px;
+  max-height: 220px;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 @media (max-width: 600px) {
   .dbg-grid { grid-template-columns: 1fr; }
   .dbg-stat-grid { grid-template-columns: repeat(3, 1fr); }

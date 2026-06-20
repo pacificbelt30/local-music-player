@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     # ffmpeg/yt-dlp resource controls
     ffmpeg_threads: int = 1  # 1 keeps CPU usage predictable; set 0 for ffmpeg default(auto)
 
+    app_version: str = "0.1.0"
+
     @classmethod
     def settings_customise_sources(
         cls,
