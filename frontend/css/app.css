@@ -590,6 +590,44 @@ header h1 {
 .yt-auth-disconnected { display: flex; flex-direction: column; gap: 12px; }
 .yt-auth-hint { font-size: 0.8rem; color: var(--text-dim); line-height: 1.5; }
 
+/* URL-based sync form */
+.yt-url-sync-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.yt-url-input,
+.yt-url-select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  font-size: 0.85rem;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.yt-url-input { flex: 1 1 240px; min-width: 200px; }
+.yt-url-select { cursor: pointer; }
+.yt-url-input:focus,
+.yt-url-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+.yt-url-sync-row .btn { flex-shrink: 0; }
+
+@media (max-width: 720px) {
+  .yt-url-input,
+  .yt-url-select,
+  .yt-url-sync-row .btn {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
+
 .yt-account-playlists {
   display: flex;
   flex-direction: column;

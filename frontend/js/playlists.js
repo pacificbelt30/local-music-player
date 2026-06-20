@@ -148,12 +148,11 @@ function renderUrlSyncSection() {
   if (!container) return;
   container.innerHTML = `
     <p class="yt-auth-hint">YouTubeプレイリストの共有URLを貼り付けて同期を追加（認証不要）。</p>
-    <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
-      <input type="url" id="yt-playlist-url-input"
-             placeholder="https://www.youtube.com/playlist?list=PLxxxx"
-             style="flex:1;min-width:240px">
-      <select id="yt-url-format">${formatOptionsHTML()}</select>
-      <select id="yt-url-quality">
+    <div class="yt-url-sync-row">
+      <input type="url" id="yt-playlist-url-input" class="yt-url-input"
+             placeholder="https://www.youtube.com/playlist?list=PLxxxx">
+      <select id="yt-url-format" class="yt-url-select">${formatOptionsHTML()}</select>
+      <select id="yt-url-quality" class="yt-url-select">
         <option value="192">192 kbps</option>
         <option value="320">320 kbps</option>
         <option value="best">Best</option>
