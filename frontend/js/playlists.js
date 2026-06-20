@@ -416,7 +416,7 @@ function syncCardHTML(sync) {
     </div>
   ` : "";
 
-  const sourceLabel = sync.source_type === "url" ? "URL" : "API";
+  const sourceLabel = sync.source_type === "url" ? "共有URL同期" : "API同期";
   const sourceBadgeClass = sync.source_type === "url" ? "status-badge" : "status-badge status-complete";
 
   return `
