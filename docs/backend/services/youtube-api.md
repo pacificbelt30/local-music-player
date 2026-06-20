@@ -19,7 +19,8 @@
 
 Google OAuth2 の認証 URL を生成します。
 
-- スコープ: `https://www.googleapis.com/auth/youtube.readonly`
+- スコープ: `https://www.googleapis.com/auth/youtube`（読み取り + 書き込み）
+    - プレイリスト一覧の取得に加え、非公開プレイリストを限定公開へ切り替える（`update_playlist_privacy`）ために書き込み権限を含みます。読み取りのみで足りる場合は `youtube.readonly` でも一覧取得・API同期は可能です。
 - `access_type=offline`（リフレッシュトークン取得のため）
 - リダイレクト URI: `settings.youtube_redirect_uri`
 
@@ -64,8 +65,12 @@ YouTube Data API v3 の `playlists.list` を呼び出し、全ページを結合
     "title": "お気に入り",
     "thumbnail_url": "https://...",
     "item_count": 42,
+    "total_duration_secs": 8400,
+    "privacy_status": "unlisted",  # "private" | "unlisted" | "public"（readonly トークンでは None）
 }
 ```
+
+`part` に `status` を含めて取得するため、各プレイリストの公開状態（`privacy_status`）も返ります。フロントエンドはこの値で「共有URL同期に切り替え可能か」を判断します。
 
 ### `get_playlist_items(playlist_id: str, access_token: str) -> list[dict]`
 
@@ -82,3 +87,10 @@ YouTube Data API v3 の `playlistItems.list` を呼び出し、全ページを�
 ```
 
 削除済み・非公開動画（`youtube_id` が空）はフィルタリングされます。
+
+### `update_playlist_privacy(playlist_id, access_token, privacy_status="unlisted") -> dict`
+
+YouTube Data API v3 の `playlists.update`（`part=status`）を呼び出し、プレイリストの公開状態を変更します。非公開（`private`）を限定公開（`unlisted`）へ切り替えて、以降は共有URL（yt-dlp）で同期できるようにする用途を想定しています。
+
+- 書き込みスコープ（`https://www.googleapis.com/auth/youtube`）を持つトークンが必要です。`youtube.readonly` トークンでは API が 403 を返します。
+- `part=status` のみを送るため、`snippet`（タイトル等）には影響しません。

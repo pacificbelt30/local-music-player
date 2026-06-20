@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import aiofiles
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
@@ -12,6 +13,7 @@ from app.config import settings
 from app.database import get_db
 from app.models import PlaylistSyncTrack, YoutubePlaylistSync, YouTubeOAuthToken
 from app.schemas import (
+    PlaylistPrivacyUpdate,
     YouTubeAuthStatus,
     YouTubePlaylistInfo,
     YouTubeTokenInput,
@@ -159,6 +161,38 @@ def list_account_playlists(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"YouTube API error: {e}")
     return [YouTubePlaylistInfo(**item) for item in items]
+
+
+@router.patch("/playlists/{playlist_id}/privacy")
+def change_playlist_privacy(
+    playlist_id: str, payload: PlaylistPrivacyUpdate, db: Session = Depends(get_db)
+):
+    """Change a playlist's privacy status (e.g. private -> unlisted) via the API.
+
+    Lets the user flip a private playlist to unlisted so it can be synced by
+    its share URL afterwards (no per-sync API calls). Requires a write-scoped
+    token; a read-only token yields 403.
+    """
+    access_token = youtube_api_service.get_fresh_access_token(db)
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not authenticated with YouTube")
+    try:
+        youtube_api_service.update_playlist_privacy(
+            playlist_id, access_token, payload.privacy_status
+        )
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code in (401, 403):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "プレイリストの公開設定を変更する権限がありません。"
+                    " 書き込みスコープ (youtube) で再認証してください。"
+                ),
+            )
+        raise HTTPException(status_code=502, detail=f"YouTube API error: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"YouTube API error: {e}")
+    return {"playlist_id": playlist_id, "privacy_status": payload.privacy_status}
 
 
 # ── Sync configs ──────────────────────────────────────────────────────────────

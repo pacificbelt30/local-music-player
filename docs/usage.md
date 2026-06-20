@@ -102,7 +102,7 @@ graph LR
 
     1. **「トークンを直接入力」** をクリック
     2. [Google OAuth 2.0 Playground](https://developers.google.com/oauthplayground/) でトークンを取得
-        - Step 1: `https://www.googleapis.com/auth/youtube.readonly` を入力
+        - Step 1: `https://www.googleapis.com/auth/youtube` を入力（非公開→限定公開の切替も行う場合。読み取りのみなら `youtube.readonly`）
         - **「Authorize APIs」** → **「Exchange authorization code for tokens」** を実行
         - **Access token** をコピー（必要なら **Refresh token** も）
     3. フォームに貼り付けて **「保存」** をクリック

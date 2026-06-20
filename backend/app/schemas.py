@@ -105,6 +105,12 @@ class YouTubePlaylistInfo(BaseModel):
     item_count: int
     thumbnail_url: str | None = None
     total_duration_secs: int | None = None
+    # "private" | "unlisted" | "public" | None (older readonly tokens)
+    privacy_status: str | None = None
+
+
+class PlaylistPrivacyUpdate(BaseModel):
+    privacy_status: Literal["private", "unlisted", "public"] = "unlisted"
 
 
 class YoutubePlaylistSyncCreate(BaseModel):

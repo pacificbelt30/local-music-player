@@ -143,9 +143,38 @@ OAuth2 コールバック。認可コードをアクセストークンと交換�
     "playlist_id": "PLxxxx",
     "title": "お気に入り",
     "thumbnail_url": "https://...",
-    "item_count": 42
+    "item_count": 42,
+    "total_duration_secs": 8400,
+    "privacy_status": "unlisted"
   }
 ]
+```
+
+`privacy_status` は `private` / `unlisted` / `public`（readonly トークンの場合は `null`）。
+
+**エラー**
+
+| コード | 条件 |
+|--------|------|
+| `401` | YouTube 認証が完了していない |
+| `502` | YouTube API エラー |
+
+#### PATCH `/api/v1/youtube/playlists/{playlist_id}/privacy` — 公開状態の変更
+
+プレイリストの公開状態を変更します。非公開（`private`）を限定公開（`unlisted`）へ切り替え、以降は共有URL（API不要）で同期する運用に使います。書き込みスコープ（`https://www.googleapis.com/auth/youtube`）を持つトークンが必要です。
+
+**リクエストボディ**
+
+```json
+{ "privacy_status": "unlisted" }
+```
+
+`privacy_status` は `private` / `unlisted` / `public`（省略時は `unlisted`）。
+
+**レスポンス** `200 OK`
+
+```json
+{ "playlist_id": "PLxxxx", "privacy_status": "unlisted" }
 ```
 
 **エラー**
@@ -153,6 +182,7 @@ OAuth2 コールバック。認可コードをアクセストークンと交換�
 | コード | 条件 |
 |--------|------|
 | `401` | YouTube 認証が完了していない |
+| `403` | トークンに書き込み権限がない（`youtube.readonly` で認証している等） |
 | `502` | YouTube API エラー |
 
 ---

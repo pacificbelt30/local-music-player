@@ -185,6 +185,49 @@ class TestListAccountPlaylists:
         assert resp.status_code == 502
 
 
+class TestChangePlaylistPrivacy:
+    def test_requires_auth(self, client):
+        resp = client.patch("/api/v1/youtube/playlists/PL1/privacy", json={"privacy_status": "unlisted"})
+        assert resp.status_code == 401
+
+    def test_changes_privacy(self, client, db):
+        _make_token(db)
+        with patch("app.services.youtube_api_service.get_fresh_access_token", return_value="tok"):
+            with patch("app.services.youtube_api_service.update_playlist_privacy",
+                       return_value={"id": "PL1", "status": {"privacyStatus": "unlisted"}}) as mock_upd:
+                resp = client.patch("/api/v1/youtube/playlists/PL1/privacy", json={"privacy_status": "unlisted"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["playlist_id"] == "PL1"
+        assert data["privacy_status"] == "unlisted"
+        mock_upd.assert_called_once_with("PL1", "tok", "unlisted")
+
+    def test_defaults_to_unlisted(self, client, db):
+        _make_token(db)
+        with patch("app.services.youtube_api_service.get_fresh_access_token", return_value="tok"):
+            with patch("app.services.youtube_api_service.update_playlist_privacy",
+                       return_value={"id": "PL1", "status": {"privacyStatus": "unlisted"}}):
+                resp = client.patch("/api/v1/youtube/playlists/PL1/privacy", json={})
+        assert resp.status_code == 200
+        assert resp.json()["privacy_status"] == "unlisted"
+
+    def test_returns_403_on_insufficient_scope(self, client, db):
+        _make_token(db)
+        req = httpx.Request("PUT", "https://www.googleapis.com/youtube/v3/playlists")
+        err = httpx.HTTPStatusError("403", request=req, response=httpx.Response(403, request=req))
+        with patch("app.services.youtube_api_service.get_fresh_access_token", return_value="tok"):
+            with patch("app.services.youtube_api_service.update_playlist_privacy", side_effect=err):
+                resp = client.patch("/api/v1/youtube/playlists/PL1/privacy", json={"privacy_status": "unlisted"})
+        assert resp.status_code == 403
+
+    def test_returns_502_on_other_api_error(self, client, db):
+        _make_token(db)
+        with patch("app.services.youtube_api_service.get_fresh_access_token", return_value="tok"):
+            with patch("app.services.youtube_api_service.update_playlist_privacy", side_effect=Exception("boom")):
+                resp = client.patch("/api/v1/youtube/playlists/PL1/privacy", json={"privacy_status": "unlisted"})
+        assert resp.status_code == 502
+
+
 # ── Sync CRUD ─────────────────────────────────────────────────────────────────
 
 class TestListSyncs:
@@ -498,7 +541,8 @@ class TestYouTubeApiService:
             url = youtube_api_service.get_auth_url()
         assert "my_client_id" in url
         assert "accounts.google.com" in url
-        assert "youtube.readonly" in url
+        # Full youtube scope (read + write) so privacy can be changed
+        assert "youtube" in url
 
     def test_get_fresh_access_token_returns_none_if_no_record(self, db):
         from app.services.youtube_api_service import get_fresh_access_token
@@ -569,6 +613,47 @@ class TestYouTubeApiService:
             items = get_playlist_items("PL1", "tok")
         assert len(items) == 1
         assert items[0]["youtube_id"] == "vid1"
+
+    def test_get_my_playlists_includes_privacy_status(self):
+        from app.services.youtube_api_service import get_my_playlists
+
+        fake_resp = MagicMock(
+            status_code=200,
+            json=lambda: {
+                "items": [{
+                    "id": "PL1",
+                    "snippet": {"title": "List 1", "thumbnails": {}},
+                    "contentDetails": {"itemCount": 5},
+                    "status": {"privacyStatus": "unlisted"},
+                }],
+            },
+            raise_for_status=lambda: None,
+        )
+        with patch("app.services.youtube_api_service.httpx.get", return_value=fake_resp):
+            with patch("app.services.youtube_api_service._get_playlist_total_duration", return_value=None):
+                result = get_my_playlists("tok")
+        assert result[0]["privacy_status"] == "unlisted"
+
+    def test_update_playlist_privacy_sends_put(self):
+        from app.services.youtube_api_service import update_playlist_privacy
+
+        captured = {}
+
+        def fake_put(url, params, headers, json):
+            captured["params"] = params
+            captured["json"] = json
+            return MagicMock(
+                raise_for_status=lambda: None,
+                json=lambda: {"id": "PL1", "status": {"privacyStatus": "unlisted"}},
+            )
+
+        with patch("app.services.youtube_api_service.httpx.put", side_effect=fake_put):
+            result = update_playlist_privacy("PL1", "tok", "unlisted")
+
+        assert captured["params"]["part"] == "status"
+        assert captured["json"]["id"] == "PL1"
+        assert captured["json"]["status"]["privacyStatus"] == "unlisted"
+        assert result["status"]["privacyStatus"] == "unlisted"
 
 
 # ── Celery task unit tests ────────────────────────────────────────────────────
