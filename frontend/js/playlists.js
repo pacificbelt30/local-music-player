@@ -422,8 +422,8 @@ function syncCardHTML(sync) {
     <div class="yt-sync-header">
       <div class="yt-sync-info">
         <div class="yt-sync-title">
-          ${escHtml(sync.playlist_name)}
-          <span class="${sourceBadgeClass}" style="font-size:0.7em;margin-left:6px">${sourceLabel}</span>
+          <span class="yt-sync-name">${escHtml(sync.playlist_name)}</span>
+          <span class="${sourceBadgeClass}" style="font-size:0.7em">${sourceLabel}</span>
         </div>
         <div class="yt-sync-meta">${progress} · 最終同期: ${lastSynced}</div>
         <div class="yt-sync-meta">${["mp4", "webm"].includes(sync.audio_format)

@@ -595,7 +595,7 @@ header h1 {
   display: flex;
   gap: 8px;
   align-items: stretch;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin-top: 10px;
 }
 .yt-url-input,
@@ -610,8 +610,8 @@ header h1 {
   font-family: inherit;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-.yt-url-input { flex: 1 1 240px; min-width: 200px; }
-.yt-url-select { cursor: pointer; }
+.yt-url-input { flex: 1 1 auto; min-width: 0; }
+.yt-url-select { cursor: pointer; flex-shrink: 0; }
 .yt-url-input:focus,
 .yt-url-select:focus {
   border-color: var(--accent);
@@ -620,6 +620,7 @@ header h1 {
 .yt-url-sync-row .btn { flex-shrink: 0; }
 
 @media (max-width: 720px) {
+  .yt-url-sync-row { flex-wrap: wrap; }
   .yt-url-input,
   .yt-url-select,
   .yt-url-sync-row .btn {
@@ -705,7 +706,9 @@ header h1 {
 }
 
 .yt-sync-info { flex: 1; min-width: 0; }
-.yt-sync-title { font-size: 0.9rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+.yt-sync-title { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; font-weight: 700; margin-bottom: 4px; }
+.yt-sync-title .yt-sync-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yt-sync-title .status-badge { flex-shrink: 0; }
 .yt-sync-meta { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; line-height: 1.5; }
 
 .yt-sync-actions {
