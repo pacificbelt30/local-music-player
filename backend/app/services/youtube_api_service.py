@@ -12,7 +12,9 @@ GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
-SCOPES = "https://www.googleapis.com/auth/youtube.readonly"
+# Full youtube scope (read + write) so the app can both list playlists and
+# flip a playlist's privacy (private -> unlisted) for share-link based sync.
+SCOPES = "https://www.googleapis.com/auth/youtube"
 
 
 def get_auth_url() -> str:
@@ -87,7 +89,7 @@ def get_my_playlists(access_token: str) -> list[dict[str, Any]]:
 
     while True:
         params: dict[str, Any] = {
-            "part": "snippet,contentDetails",
+            "part": "snippet,contentDetails,status",
             "mine": "true",
             "maxResults": 50,
         }
@@ -116,6 +118,7 @@ def get_my_playlists(access_token: str) -> list[dict[str, Any]]:
                 "item_count": item.get("contentDetails", {}).get("itemCount", 0),
                 "thumbnail_url": thumb_url,
                 "total_duration_secs": total_duration_secs,
+                "privacy_status": item.get("status", {}).get("privacyStatus"),
             })
 
         page_token = data.get("nextPageToken")
@@ -213,3 +216,24 @@ def get_playlist_items(playlist_id: str, access_token: str) -> list[dict[str, An
             break
 
     return items
+
+
+def update_playlist_privacy(
+    playlist_id: str, access_token: str, privacy_status: str = "unlisted"
+) -> dict[str, Any]:
+    """Change a playlist's privacy status (e.g. private -> unlisted).
+
+    Requires a token with write access (the full ``youtube`` scope); a
+    read-only token will get a 403 from the API.
+    """
+    resp = httpx.put(
+        f"{YOUTUBE_API_BASE}/playlists",
+        params={"part": "status"},
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        },
+        json={"id": playlist_id, "status": {"privacyStatus": privacy_status}},
+    )
+    resp.raise_for_status()
+    return resp.json()

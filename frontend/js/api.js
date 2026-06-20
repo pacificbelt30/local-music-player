@@ -54,6 +54,8 @@ export const api = {
 
   // YouTube Playlists (account)
   youtubeListAccountPlaylists: () => request("GET", "/youtube/playlists"),
+  youtubeSetPlaylistPrivacy: (playlistId, privacyStatus) =>
+    request("PATCH", `/youtube/playlists/${encodeURIComponent(playlistId)}/privacy`, { privacy_status: privacyStatus }),
 
   // YouTube Sync configs
   youtubeListSyncs: () => request("GET", "/youtube/syncs"),

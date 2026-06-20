@@ -65,7 +65,8 @@ function tokenFormHTML() {
         トークンは
         <a href="https://developers.google.com/oauthplayground/" target="_blank" rel="noopener">Google OAuth 2.0 Playground</a>
         で取得できます。Scope に
-        <code>https://www.googleapis.com/auth/youtube.readonly</code> を指定してください。
+        <code>https://www.googleapis.com/auth/youtube</code>（非公開→限定公開の切替も行う場合）
+        または <code>https://www.googleapis.com/auth/youtube.readonly</code>（読み取りのみ）を指定してください。
       </p>
       <div style="margin-bottom:6px">
         <label style="display:block;font-size:0.85em;margin-bottom:4px">Access Token <span style="opacity:.6">（必須）</span></label>
@@ -147,12 +148,11 @@ function renderUrlSyncSection() {
   if (!container) return;
   container.innerHTML = `
     <p class="yt-auth-hint">YouTubeプレイリストの共有URLを貼り付けて同期を追加（認証不要）。</p>
-    <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
-      <input type="url" id="yt-playlist-url-input"
-             placeholder="https://www.youtube.com/playlist?list=PLxxxx"
-             style="flex:1;min-width:240px">
-      <select id="yt-url-format">${formatOptionsHTML()}</select>
-      <select id="yt-url-quality">
+    <div class="yt-url-sync-row">
+      <input type="url" id="yt-playlist-url-input" class="yt-url-input"
+             placeholder="https://www.youtube.com/playlist?list=PLxxxx">
+      <select id="yt-url-format" class="yt-url-select">${formatOptionsHTML()}</select>
+      <select id="yt-url-quality" class="yt-url-select">
         <option value="192">192 kbps</option>
         <option value="320">320 kbps</option>
         <option value="best">Best</option>
@@ -226,12 +226,14 @@ async function renderAccountPlaylists() {
           <div class="yt-pl-title">${escHtml(pl.title)}</div>
           <div class="yt-pl-meta-row">
             <span class="yt-pl-meta-badge">${pl.item_count} 曲</span>
+            ${pl.privacy_status ? `<span class="yt-pl-meta-badge">${escHtml(privacyLabel(pl.privacy_status))}</span>` : ""}
             ${already ? '<span class="yt-pl-meta-badge">同期中</span>' : ""}
             ${totalDuration ? `<span class="yt-pl-meta">総再生時間: ${escHtml(totalDuration)}</span>` : ""}
           </div>
         </div>
         <button class="btn ${already ? "btn-ghost" : "btn-primary"} yt-add-sync-btn"
-          data-id="${escHtml(pl.playlist_id)}" data-name="${escHtml(pl.title)}">
+          data-id="${escHtml(pl.playlist_id)}" data-name="${escHtml(pl.title)}"
+          data-privacy="${escHtml(pl.privacy_status || "")}">
           ${already ? "+ 別形式で同期" : "+ 同期追加"}
         </button>
       `;
@@ -247,6 +249,10 @@ async function renderAccountPlaylists() {
 }
 
 
+function privacyLabel(privacy) {
+  return { private: "非公開", unlisted: "限定公開", public: "公開" }[privacy] || privacy || "不明";
+}
+
 function formatPlaylistDuration(seconds) {
   if (seconds == null || Number.isNaN(Number(seconds)) || seconds <= 0) return null;
   const h = Math.floor(seconds / 3600);
@@ -261,12 +267,55 @@ function showAddSyncDialog(btn) {
   const existing = document.getElementById("yt-add-sync-dialog");
   if (existing) existing.remove();
 
+  const privacy = btn.dataset.privacy || "";
+  const isPrivate = privacy === "private";
+
+  // Private playlists can't be reached by a share URL unless switched to
+  // unlisted first; public/unlisted ones can use the share URL right away.
+  let methodSectionHTML;
+  if (isPrivate) {
+    methodSectionHTML = `
+      <p class="yt-auth-hint" style="margin-bottom:8px">
+        このプレイリストは<strong>非公開</strong>です。非公開のままYouTube APIで毎回同期できますが、
+        <strong>限定公開に切り替えて共有URLを使う方式</strong>（以降はAPIを使わずに同期）にすることもできます。
+      </p>
+      <div class="yt-sync-method" style="margin-bottom:8px">
+        <label style="display:block;margin-bottom:4px">
+          <input type="radio" name="yt-sync-method" value="api" checked>
+          API同期（非公開のまま・毎回API取得）
+        </label>
+        <label style="display:block">
+          <input type="radio" name="yt-sync-method" value="url-switch">
+          限定公開に切り替えて共有リンク同期（API節約）
+        </label>
+      </div>
+    `;
+  } else {
+    methodSectionHTML = `
+      <p class="yt-auth-hint" style="margin-bottom:8px">
+        このプレイリストは<strong>${escHtml(privacyLabel(privacy))}</strong>です。
+        共有URL経由でアクセスする方式（API不要）にしますか？
+      </p>
+      <div class="yt-sync-method" style="margin-bottom:8px">
+        <label style="display:block;margin-bottom:4px">
+          <input type="radio" name="yt-sync-method" value="url" checked>
+          共有リンク同期（API不要・推奨）
+        </label>
+        <label style="display:block">
+          <input type="radio" name="yt-sync-method" value="api">
+          API同期（毎回API取得）
+        </label>
+      </div>
+    `;
+  }
+
   const dialog = document.createElement("div");
   dialog.id = "yt-add-sync-dialog";
   dialog.className = "yt-add-sync-dialog";
   dialog.innerHTML = `
     <div class="yt-add-sync-dialog-inner">
       <div class="yt-add-sync-dialog-title">同期設定: ${escHtml(btn.dataset.name)}</div>
+      ${methodSectionHTML}
       <div class="format-row" style="margin-bottom:8px">
         <select id="yt-sync-format">${formatOptionsHTML()}</select>
         <select id="yt-sync-quality">
@@ -289,20 +338,33 @@ function showAddSyncDialog(btn) {
   document.getElementById("yt-sync-confirm-btn").addEventListener("click", async () => {
     const audio_format = document.getElementById("yt-sync-format").value;
     const audio_quality = document.getElementById("yt-sync-quality").value;
+    const method = dialog.querySelector('input[name="yt-sync-method"]:checked').value;
     dialog.remove();
     btn.disabled = true;
     btn.textContent = "追加中…";
     try {
-      await api.youtubeCreateSync({
-        playlist_id: btn.dataset.id,
-        playlist_name: btn.dataset.name,
-        audio_format,
-        audio_quality,
-      });
-      btn.disabled = false;
-      btn.textContent = "+ 別形式で同期";
-      btn.className = "btn btn-ghost yt-add-sync-btn";
+      if (method === "url-switch") {
+        // Flip the private playlist to unlisted before syncing by share URL.
+        await api.youtubeSetPlaylistPrivacy(btn.dataset.id, "unlisted");
+      }
+      if (method === "api") {
+        await api.youtubeCreateSync({
+          playlist_id: btn.dataset.id,
+          playlist_name: btn.dataset.name,
+          audio_format,
+          audio_quality,
+        });
+      } else {
+        // "url" or "url-switch": sync via the playlist's share URL (no API).
+        await api.youtubeCreateSync({
+          source_type: "url",
+          source_url: `https://www.youtube.com/playlist?list=${btn.dataset.id}`,
+          audio_format,
+          audio_quality,
+        });
+      }
       renderSyncList();
+      renderAccountPlaylists();
     } catch (e) {
       btn.disabled = false;
       btn.textContent = "+ 同期追加";
@@ -353,7 +415,7 @@ function syncCardHTML(sync) {
     </div>
   ` : "";
 
-  const sourceLabel = sync.source_type === "url" ? "URL" : "API";
+  const sourceLabel = sync.source_type === "url" ? "共有URL同期" : "API同期";
   const sourceBadgeClass = sync.source_type === "url" ? "status-badge" : "status-badge status-complete";
 
   return `
