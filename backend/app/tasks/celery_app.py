@@ -7,7 +7,7 @@ celery_app = Celery(
     "music_player",
     broker=settings.redis_url,
     backend=settings.redis_result_backend,
-    include=["app.tasks.download", "app.tasks.scheduler", "app.tasks.sync_playlist"],
+    include=["app.tasks.download", "app.tasks.scheduler", "app.tasks.sync_playlist", "app.tasks.maintenance"],
 )
 
 celery_app.conf.update(
@@ -20,6 +20,7 @@ celery_app.conf.update(
         "app.tasks.download.*": {"queue": "downloads"},
         "app.tasks.scheduler.*": {"queue": "scheduler"},
         "app.tasks.sync_playlist.*": {"queue": "downloads"},
+        "app.tasks.maintenance.*": {"queue": "scheduler"},
     },
     beat_schedule={
         "check-playlist-refresh": {

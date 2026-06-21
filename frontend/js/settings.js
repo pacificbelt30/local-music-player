@@ -37,8 +37,10 @@ export function initSettings() {
     };
 
     try {
-      await api.updateSettings(payload);
-      ok.textContent = "保存しました";
+      const result = await api.updateSettings(payload);
+      ok.textContent = result.silence_trim_requeued
+        ? "保存しました（無音トリミング設定の変更を検知し、既存トラックの再ダウンロードをキューに追加しました）"
+        : "保存しました";
     } catch (e2) {
       err.textContent = e2.message;
     }

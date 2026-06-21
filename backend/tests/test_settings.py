@@ -241,10 +241,11 @@ def test_negative_gain_rejected(client):
 
 
 def test_update_silence_trim_secs(client):
-    resp = client.patch("/api/v1/settings", json={
-        "silence_trim_start_secs": 3.0,
-        "silence_trim_end_secs": 1.5,
-    })
+    with patch("app.tasks.maintenance.requeue_silence_trim_changed.apply_async"):
+        resp = client.patch("/api/v1/settings", json={
+            "silence_trim_start_secs": 3.0,
+            "silence_trim_end_secs": 1.5,
+        })
     assert resp.status_code == 200
     data = resp.json()
     assert data["silence_trim_start_secs"] == 3.0
@@ -252,10 +253,11 @@ def test_update_silence_trim_secs(client):
 
 
 def test_silence_trim_zero_disables(client):
-    resp = client.patch("/api/v1/settings", json={
-        "silence_trim_start_secs": 0,
-        "silence_trim_end_secs": 0,
-    })
+    with patch("app.tasks.maintenance.requeue_silence_trim_changed.apply_async"):
+        resp = client.patch("/api/v1/settings", json={
+            "silence_trim_start_secs": 0,
+            "silence_trim_end_secs": 0,
+        })
     assert resp.status_code == 200
     data = resp.json()
     assert data["silence_trim_start_secs"] == 0.0
@@ -267,6 +269,29 @@ def test_negative_silence_trim_rejected(client):
     assert resp.status_code == 422
     resp = client.patch("/api/v1/settings", json={"silence_trim_end_secs": -1})
     assert resp.status_code == 422
+
+
+# ── Re-download trigger on silence-trim setting change ────────────────────────
+
+def test_silence_trim_change_triggers_requeue(client):
+    with patch("app.tasks.maintenance.requeue_silence_trim_changed.apply_async") as mock_task:
+        resp = client.patch("/api/v1/settings", json={"silence_trim_start_secs": 4.0})
+    assert resp.status_code == 200
+    mock_task.assert_called_once()
+    assert resp.json()["silence_trim_requeued"] is True
+
+
+def test_silence_trim_unchanged_value_does_not_requeue(client):
+    with patch("app.tasks.maintenance.requeue_silence_trim_changed.apply_async") as mock_task:
+        resp = client.patch("/api/v1/settings", json={"silence_trim_start_secs": 2.5})
+    mock_task.assert_not_called()
+    assert resp.json()["silence_trim_requeued"] is False
+
+
+def test_unrelated_setting_change_does_not_requeue(client):
+    with patch("app.tasks.maintenance.requeue_silence_trim_changed.apply_async") as mock_task:
+        client.patch("/api/v1/settings", json={"download_gain_percent": 15})
+    mock_task.assert_not_called()
 
 
 def test_update_ffmpeg_threads(client):

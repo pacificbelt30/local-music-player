@@ -9,6 +9,7 @@ from app.tasks.scheduler import DEFAULTS
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 VALID_INTERVALS = {0, 15, 30, 60, 180, 360, 720, 1440}
+SILENCE_TRIM_KEYS = ("silence_trim_start_secs", "silence_trim_end_secs")
 
 
 class SyncSettings(BaseModel):
@@ -26,6 +27,7 @@ class SyncSettings(BaseModel):
     notify_on_youtube_auth_expired: bool
     notify_on_oauth_expiry_warning: bool
     oauth_expiry_warning_minutes: int
+    silence_trim_requeued: bool = False
 
     @field_validator("url_sync_interval_minutes", "youtube_sync_interval_minutes")
     @classmethod
@@ -117,6 +119,16 @@ def get_settings(db: Session = Depends(get_db)):
 @router.patch("", response_model=SyncSettings)
 def update_settings(payload: SyncSettingsUpdate, db: Session = Depends(get_db)):
     updates = payload.model_dump(exclude_none=True)
+
+    silence_trim_changed = False
+    for key in SILENCE_TRIM_KEYS:
+        if key not in updates:
+            continue
+        row = db.get(AppSetting, key)
+        current = float(row.value if row else DEFAULTS[key])
+        if current != float(updates[key]):
+            silence_trim_changed = True
+
     for key, value in updates.items():
         str_value = ("true" if value else "false") if isinstance(value, bool) else str(value)
         row = db.get(AppSetting, key)
@@ -125,4 +137,11 @@ def update_settings(payload: SyncSettingsUpdate, db: Session = Depends(get_db)):
         else:
             db.add(AppSetting(key=key, value=str_value))
     db.commit()
-    return _read(db)
+
+    if silence_trim_changed:
+        from app.tasks.maintenance import requeue_silence_trim_changed
+        requeue_silence_trim_changed.apply_async()
+
+    result = _read(db)
+    result.silence_trim_requeued = silence_trim_changed
+    return result
