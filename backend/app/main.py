@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="SyncTune Hub",
-    version="0.1.0",
+    version=settings.app_version,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     lifespan=lifespan,

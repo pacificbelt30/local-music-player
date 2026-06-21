@@ -1,8 +1,19 @@
 import { api } from "/js/api.js";
 
-const REFRESH_INTERVAL = 30_000;
+const REFRESH_INTERVAL = 15_000;
 let _timer = null;
 let _open = false;
+let _lastData = null;
+const _openDetails = new Set();
+
+function escapeHtml(s) {
+  if (s == null) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 function fmtDuration(secs) {
   if (secs == null) return "—";
@@ -26,9 +37,31 @@ function fmtUptime(secs) {
   return `${m}m`;
 }
 
+function fmtBytes(bytes) {
+  if (bytes == null) return "—";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let v = bytes;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
 function statusDot(ok, warn) {
   if (warn) return `<span class="dbg-dot warn"></span>`;
   return ok ? `<span class="dbg-dot ok"></span>` : `<span class="dbg-dot err"></span>`;
+}
+
+function detailToggle(key) {
+  const open = _openDetails.has(key);
+  return `<button class="dbg-detail-btn" data-detail-key="${key}">${open ? "生ログを隠す" : "生ログを表示"}</button>`;
+}
+
+function detailPre(key, data) {
+  if (!_openDetails.has(key)) return "";
+  return `<pre class="dbg-detail-pre">${escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
 }
 
 function renderWorkers(workers, workerCount) {
@@ -38,6 +71,7 @@ function renderWorkers(workers, workerCount) {
       ${statusDot(anyWorker)}
       <span class="dbg-section-title">Celery ワーカー</span>
       <span class="dbg-badge">${workerCount} online</span>
+      ${detailToggle("workers")}
     </div>`;
 
   if (workers.length === 0) {
@@ -52,20 +86,25 @@ function renderWorkers(workers, workerCount) {
         <div class="dbg-row">
           <div class="dbg-cell name">
             ${statusDot(true, busy)}
-            <span class="dbg-worker-name" title="${w.name}">${shortName}</span>
+            <span class="dbg-worker-name" title="${escapeHtml(w.name)}">${escapeHtml(shortName)}</span>
           </div>
           <div class="dbg-cell">
             <span class="dbg-label">実行中</span>
             <span class="dbg-val ${busy ? "highlight" : ""}">${w.active_tasks} / ${concurrency}</span>
           </div>
+          <div class="dbg-cell">
+            <span class="dbg-label">予約/スケジュール</span>
+            <span class="dbg-val muted">${w.reserved_tasks} / ${w.scheduled_tasks}</span>
+          </div>
           ${w.active_task_names.length ? `
           <div class="dbg-cell tasks">
-            ${w.active_task_names.map(t => `<span class="dbg-tag">${t.split(".").pop()}</span>`).join("")}
+            ${w.active_task_names.map(t => `<span class="dbg-tag">${escapeHtml(t.split(".").pop())}</span>`).join("")}
           </div>` : ""}
         </div>`;
     }
     html += `</div>`;
   }
+  html += detailPre("workers", workers);
   return html;
 }
 
@@ -76,6 +115,7 @@ function renderQueue(q) {
       ${statusDot(!hasStuck, false)}${hasStuck ? statusDot(false, false) : ""}
       <span class="dbg-section-title">ダウンロードキュー</span>
       <span class="dbg-badge">計 ${q.total}</span>
+      ${detailToggle("queue")}
     </div>
     <div class="dbg-stat-grid">
       <div class="dbg-stat">
@@ -103,6 +143,7 @@ function renderQueue(q) {
         <div class="dbg-stat-label">スタック</div>
       </div>
     </div>`;
+  html += detailPre("queue", q.recent_jobs);
   return html;
 }
 
@@ -116,10 +157,12 @@ function renderOAuth(oauth) {
       ${oauth.authenticated ? expiryDot : statusDot(false)}
       <span class="dbg-section-title">YouTube OAuth</span>
       ${oauth.authenticated ? `<span class="dbg-badge ${expiryColor}">${expiryLabel}</span>` : `<span class="dbg-badge err">未認証</span>`}
+      ${detailToggle("oauth")}
     </div>`;
 
   if (!oauth.authenticated) {
     html += `<div class="dbg-empty">トークンが登録されていません</div>`;
+    html += detailPre("oauth", oauth);
     return html;
   }
 
@@ -137,10 +180,15 @@ function renderOAuth(oauth) {
         <div class="dbg-cell"><span class="dbg-val ${expiryColor}">${fmtDuration(oauth.expires_in_seconds)}</span></div>
       </div>
       <div class="dbg-row">
+        <div class="dbg-cell"><span class="dbg-label">トークン</span></div>
+        <div class="dbg-cell"><span class="dbg-val muted">${escapeHtml(oauth.access_token_preview)} ${oauth.refresh_token_set ? "(refresh あり)" : "(refresh なし)"}</span></div>
+      </div>
+      <div class="dbg-row">
         <div class="dbg-cell"><span class="dbg-label">スコープ</span></div>
-        <div class="dbg-cell"><span class="dbg-val scope-val">${oauth.scope || "—"}</span></div>
+        <div class="dbg-cell"><span class="dbg-val scope-val">${escapeHtml(oauth.scope) || "—"}</span></div>
       </div>
     </div>`;
+  html += detailPre("oauth", oauth);
   return html;
 }
 
@@ -150,6 +198,7 @@ function renderRedis(redis) {
       ${statusDot(redis.connected)}
       <span class="dbg-section-title">Redis</span>
       <span class="dbg-badge ${redis.connected ? "ok" : "err"}">${redis.connected ? "接続中" : "切断"}</span>
+      ${redis.connected ? detailToggle("redis") : ""}
     </div>`;
 
   if (!redis.connected) {
@@ -161,7 +210,7 @@ function renderRedis(redis) {
     <div class="dbg-table">
       <div class="dbg-row">
         <div class="dbg-cell"><span class="dbg-label">メモリ使用量</span></div>
-        <div class="dbg-cell"><span class="dbg-val">${redis.used_memory_human || "—"}</span></div>
+        <div class="dbg-cell"><span class="dbg-val">${escapeHtml(redis.used_memory_human) || "—"}</span></div>
       </div>
       <div class="dbg-row">
         <div class="dbg-cell"><span class="dbg-label">クライアント数</span></div>
@@ -176,6 +225,7 @@ function renderRedis(redis) {
         <div class="dbg-cell"><span class="dbg-val">${redis.total_commands_processed?.toLocaleString() ?? "—"}</span></div>
       </div>
     </div>`;
+  html += detailPre("redis", redis.raw);
   return html;
 }
 
@@ -215,10 +265,12 @@ function renderBeat(schedule) {
     <div class="dbg-section-header">
       ${statusDot(true)}
       <span class="dbg-section-title">Celery Beat スケジュール</span>
+      ${detailToggle("beat")}
     </div>`;
 
   if (!schedule.length) {
     html += `<div class="dbg-empty">スケジュールなし</div>`;
+    html += detailPre("beat", schedule);
     return html;
   }
 
@@ -227,21 +279,117 @@ function renderBeat(schedule) {
     const shortTask = t.name.split(".").pop();
     html += `
       <div class="dbg-row">
-        <div class="dbg-cell"><span class="dbg-tag">${shortTask}</span></div>
-        <div class="dbg-cell"><span class="dbg-val muted">${t.schedule}</span></div>
+        <div class="dbg-cell"><span class="dbg-tag">${escapeHtml(shortTask)}</span></div>
+        <div class="dbg-cell"><span class="dbg-val muted">${escapeHtml(t.schedule)}</span></div>
+      </div>`;
+  }
+  html += `</div>`;
+  html += detailPre("beat", schedule);
+  return html;
+}
+
+function renderDisk(diskUsage) {
+  let html = `
+    <div class="dbg-section-header">
+      ${statusDot(true)}
+      <span class="dbg-section-title">ディスク使用量</span>
+    </div>`;
+
+  if (!diskUsage.length) {
+    html += `<div class="dbg-empty">取得できません</div>`;
+    return html;
+  }
+
+  html += `<div class="dbg-table">`;
+  for (const d of diskUsage) {
+    const pct = d.total_bytes > 0 ? Math.round((d.used_bytes / d.total_bytes) * 100) : 0;
+    const low = d.free_bytes < 1024 ** 3; // < 1GB free
+    html += `
+      <div class="dbg-row">
+        <div class="dbg-cell name">
+          ${statusDot(!low, low)}
+          <span class="dbg-worker-name" title="${escapeHtml(d.path)}">${escapeHtml(d.label)}</span>
+        </div>
+        <div class="dbg-cell">
+          <span class="dbg-label">使用率</span>
+          <span class="dbg-val ${low ? "warn" : ""}">${pct}%</span>
+        </div>
+        <div class="dbg-cell">
+          <span class="dbg-label">空き</span>
+          <span class="dbg-val muted">${fmtBytes(d.free_bytes)} / ${fmtBytes(d.total_bytes)}</span>
+        </div>
       </div>`;
   }
   html += `</div>`;
   return html;
 }
 
+function renderSyncErrors(syncErrors) {
+  let html = `
+    <div class="dbg-section-header">
+      ${statusDot(syncErrors.length === 0)}
+      <span class="dbg-section-title">YouTube同期エラー</span>
+      <span class="dbg-badge ${syncErrors.length ? "err" : "ok"}">${syncErrors.length}</span>
+    </div>`;
+
+  if (!syncErrors.length) {
+    html += `<div class="dbg-empty">エラーはありません</div>`;
+    return html;
+  }
+
+  html += `<div class="dbg-table">`;
+  for (const s of syncErrors) {
+    const lastSynced = s.last_synced ? new Date(s.last_synced + "Z").toLocaleString("ja-JP") : "—";
+    html += `
+      <div class="dbg-row">
+        <div class="dbg-cell name">
+          ${statusDot(false)}
+          <span class="dbg-worker-name" title="${escapeHtml(s.playlist_name)}">${escapeHtml(s.playlist_name)}</span>
+        </div>
+        <div class="dbg-cell">
+          <span class="dbg-label">最終同期</span>
+          <span class="dbg-val muted">${lastSynced}</span>
+        </div>
+        <div class="dbg-cell tasks">
+          <span class="dbg-val err" style="font-size:0.72rem;word-break:break-all;">${escapeHtml(s.last_error)}</span>
+        </div>
+      </div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function renderAppInfo(appInfo) {
+  const startedAt = new Date(appInfo.started_at + "Z").toLocaleString("ja-JP");
+  return `
+    <div class="dbg-section-header">
+      ${statusDot(true)}
+      <span class="dbg-section-title">アプリ情報</span>
+    </div>
+    <div class="dbg-table">
+      <div class="dbg-row">
+        <div class="dbg-cell"><span class="dbg-label">バージョン</span></div>
+        <div class="dbg-cell"><span class="dbg-val">${escapeHtml(appInfo.version)}</span></div>
+      </div>
+      <div class="dbg-row">
+        <div class="dbg-cell"><span class="dbg-label">起動時刻</span></div>
+        <div class="dbg-cell"><span class="dbg-val">${startedAt}</span></div>
+      </div>
+      <div class="dbg-row">
+        <div class="dbg-cell"><span class="dbg-label">稼働時間</span></div>
+        <div class="dbg-cell"><span class="dbg-val">${fmtUptime(appInfo.uptime_seconds)}</span></div>
+      </div>
+    </div>`;
+}
+
 function render(data) {
+  _lastData = data;
   const serverTime = new Date(data.server_time).toLocaleString("ja-JP");
   const el = document.getElementById("debug-modal-body");
   if (!el) return;
 
   el.innerHTML = `
-    <div class="dbg-timestamp">最終更新: ${serverTime} <span class="dbg-refresh-info">（30秒ごとに自動更新）</span></div>
+    <div class="dbg-timestamp">最終更新: ${serverTime} <span class="dbg-refresh-info">（15秒ごとに自動更新）</span></div>
     <div class="dbg-grid">
       <div class="dbg-card">${renderWorkers(data.workers, data.worker_count)}</div>
       <div class="dbg-card">${renderQueue(data.queue)}</div>
@@ -249,6 +397,9 @@ function render(data) {
       <div class="dbg-card">${renderRedis(data.redis)}</div>
       <div class="dbg-card">${renderDB(data.db)}</div>
       <div class="dbg-card">${renderBeat(data.beat_schedule)}</div>
+      <div class="dbg-card">${renderDisk(data.disk_usage)}</div>
+      <div class="dbg-card">${renderSyncErrors(data.sync_errors)}</div>
+      <div class="dbg-card">${renderAppInfo(data.app_info)}</div>
     </div>`;
 }
 
@@ -282,6 +433,21 @@ export function initDebug() {
   const btn = document.getElementById("debug-badge");
   const modal = document.getElementById("debug-modal");
   if (!btn || !modal) return;
+
+  const modalBody = document.getElementById("debug-modal-body");
+  if (modalBody) {
+    modalBody.addEventListener("click", (e) => {
+      const toggleBtn = e.target.closest(".dbg-detail-btn");
+      if (!toggleBtn) return;
+      const key = toggleBtn.dataset.detailKey;
+      if (_openDetails.has(key)) {
+        _openDetails.delete(key);
+      } else {
+        _openDetails.add(key);
+      }
+      if (_lastData) render(_lastData);
+    });
+  }
 
   btn.addEventListener("click", () => {
     modal.classList.remove("hidden");

@@ -109,11 +109,36 @@ class HealthResponse(BaseModel):
 
 # ── Debug / Monitoring ─────────────────────────────────────────────────────────
 
+class ActiveTaskDetail(BaseModel):
+    task_id: str
+    name: str
+    args: str
+    kwargs: str
+    time_start: float | None = None
+
+
 class WorkerInfo(BaseModel):
     name: str
     active_tasks: int
     concurrency: int | None = None
     active_task_names: list[str] = []
+    active_tasks_detail: list[ActiveTaskDetail] = []
+    reserved_tasks: int = 0
+    scheduled_tasks: int = 0
+
+
+class RecentJobInfo(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    youtube_id: str
+    title: str | None
+    status: str
+    error_message: str | None
+    celery_task_id: str | None
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
 
 
 class QueueStats(BaseModel):
@@ -124,6 +149,7 @@ class QueueStats(BaseModel):
     skipped: int
     total: int
     stuck: int
+    recent_jobs: list[RecentJobInfo] = []
 
 
 class OAuthDebugInfo(BaseModel):
@@ -133,6 +159,10 @@ class OAuthDebugInfo(BaseModel):
     scope: str | None = None
     is_expired: bool = False
     needs_refresh: bool = False
+    access_token_preview: str | None = None
+    refresh_token_set: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class RedisInfo(BaseModel):
@@ -141,6 +171,7 @@ class RedisInfo(BaseModel):
     connected_clients: int | None = None
     uptime_in_seconds: int | None = None
     total_commands_processed: int | None = None
+    raw: dict[str, object] | None = None
 
 
 class DBStats(BaseModel):
@@ -156,6 +187,27 @@ class BeatTaskInfo(BaseModel):
     schedule: str
 
 
+class DiskUsageInfo(BaseModel):
+    label: str
+    path: str
+    total_bytes: int
+    used_bytes: int
+    free_bytes: int
+
+
+class SyncErrorInfo(BaseModel):
+    id: int
+    playlist_name: str
+    last_error: str
+    last_synced: datetime | None
+
+
+class AppInfo(BaseModel):
+    version: str
+    started_at: datetime
+    uptime_seconds: float
+
+
 class DebugResponse(BaseModel):
     server_time: datetime
     workers: list[WorkerInfo]
@@ -165,6 +217,9 @@ class DebugResponse(BaseModel):
     redis: RedisInfo
     db: DBStats
     beat_schedule: list[BeatTaskInfo]
+    disk_usage: list[DiskUsageInfo]
+    sync_errors: list[SyncErrorInfo]
+    app_info: AppInfo
 
 
 # ── YouTube Playlist Sync ──────────────────────────────────────────────────────
