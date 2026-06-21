@@ -1,13 +1,18 @@
 """Tests for ytdlp_service format handling (audio extraction vs video download)."""
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from app.services.ytdlp_service import (
     AUDIO_FORMATS,
     VIDEO_FORMATS,
+    _codec_args_for,
     _format_selector,
     _postprocessors_for,
     _silence_trim_filter,
     is_video_format,
+    retrim_audio_file,
 )
 
 
@@ -66,6 +71,72 @@ class TestSilenceTrimFilter:
         assert parts[1] == "areverse"
         assert parts[2].startswith("silenceremove=start_periods=1:start_duration=3.0")
         assert parts[3] == "areverse"
+
+
+class TestCodecArgsFor:
+    def test_mp3_uses_libmp3lame(self):
+        assert _codec_args_for("mp3") == ["-codec:a", "libmp3lame", "-q:a", "2"]
+
+    def test_flac_is_lossless(self):
+        assert _codec_args_for("flac") == ["-codec:a", "flac"]
+
+    def test_aac_and_m4a_share_codec(self):
+        assert _codec_args_for("aac") == _codec_args_for("m4a")
+
+    def test_ogg_uses_libvorbis(self):
+        assert _codec_args_for("ogg")[0:2] == ["-codec:a", "libvorbis"]
+
+
+class TestRetrimAudioFile:
+    def test_returns_none_when_no_trim_configured(self, tmp_path):
+        f = tmp_path / "song.mp3"
+        f.write_bytes(b"fake audio")
+        assert retrim_audio_file(str(f), "mp3", 0, 0) is None
+
+    def test_returns_none_for_video_format(self, tmp_path):
+        f = tmp_path / "song.mp4"
+        f.write_bytes(b"fake video")
+        assert retrim_audio_file(str(f), "mp4", 1.0, 1.0) is None
+
+    def test_returns_none_when_file_missing(self, tmp_path):
+        missing = tmp_path / "missing.mp3"
+        assert retrim_audio_file(str(missing), "mp3", 1.0, 1.0) is None
+
+    def test_runs_ffmpeg_and_replaces_file_in_place(self, tmp_path):
+        f = tmp_path / "song.mp3"
+        f.write_bytes(b"original audio bytes")
+
+        def fake_run(cmd, check, capture_output):
+            out_path = Path(cmd[-1])
+            out_path.write_bytes(b"shorter retrimmed audio")
+            return MagicMock()
+
+        with patch("app.services.ytdlp_service.subprocess.run", side_effect=fake_run) as mock_run:
+            new_size = retrim_audio_file(str(f), "mp3", 1.0, 1.0)
+
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0] == "ffmpeg"
+        assert "-af" in cmd
+        assert f.read_bytes() == b"shorter retrimmed audio"
+        assert new_size == len(b"shorter retrimmed audio")
+
+    def test_raises_and_cleans_up_tmp_file_on_ffmpeg_failure(self, tmp_path):
+        import subprocess
+        f = tmp_path / "song.mp3"
+        f.write_bytes(b"original audio bytes")
+
+        def fake_run(cmd, check, capture_output):
+            Path(cmd[-1]).write_bytes(b"partial")
+            raise subprocess.CalledProcessError(1, cmd)
+
+        with patch("app.services.ytdlp_service.subprocess.run", side_effect=fake_run) as mock_run:
+            with pytest.raises(subprocess.CalledProcessError):
+                retrim_audio_file(str(f), "mp3", 1.0, 1.0)
+
+        assert f.read_bytes() == b"original audio bytes"
+        assert not (tmp_path / "song.trim.mp3").exists()
+        assert mock_run.call_count == 1
 
 
 class TestDownloadTrackOptions:

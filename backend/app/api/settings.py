@@ -28,6 +28,7 @@ class SyncSettings(BaseModel):
     notify_on_oauth_expiry_warning: bool
     oauth_expiry_warning_minutes: int
     silence_trim_requeued: bool = False
+    silence_trim_retrimmed_locally: bool = False
 
     @field_validator("url_sync_interval_minutes", "youtube_sync_interval_minutes")
     @classmethod
@@ -120,14 +121,25 @@ def get_settings(db: Session = Depends(get_db)):
 def update_settings(payload: SyncSettingsUpdate, db: Session = Depends(get_db)):
     updates = payload.model_dump(exclude_none=True)
 
-    silence_trim_changed = False
+    # Increasing a trim threshold makes trimming less aggressive: audio that was
+    # already removed under the old (smaller) setting is gone for good locally,
+    # so a full redownload from YouTube is required. Decreasing it makes trimming
+    # more aggressive, but the now-qualifying short silence is still physically
+    # present in the local file (the old, larger setting never removed it), so it
+    # can be trimmed in place with ffmpeg. If both happen at once (one key up, the
+    # other down), the redownload path wins since it also re-applies the decrease.
+    silence_trim_increased = False
+    silence_trim_decreased = False
     for key in SILENCE_TRIM_KEYS:
         if key not in updates:
             continue
         row = db.get(AppSetting, key)
         current = float(row.value if row else DEFAULTS[key])
-        if current != float(updates[key]):
-            silence_trim_changed = True
+        new = float(updates[key])
+        if new > current:
+            silence_trim_increased = True
+        elif new < current:
+            silence_trim_decreased = True
 
     for key, value in updates.items():
         str_value = ("true" if value else "false") if isinstance(value, bool) else str(value)
@@ -138,10 +150,16 @@ def update_settings(payload: SyncSettingsUpdate, db: Session = Depends(get_db)):
             db.add(AppSetting(key=key, value=str_value))
     db.commit()
 
-    if silence_trim_changed:
+    retrim_locally = False
+    if silence_trim_increased:
         from app.tasks.maintenance import requeue_silence_trim_changed
         requeue_silence_trim_changed.apply_async()
+    elif silence_trim_decreased:
+        from app.tasks.maintenance import retrim_existing_silence_locally
+        retrim_existing_silence_locally.apply_async()
+        retrim_locally = True
 
     result = _read(db)
-    result.silence_trim_requeued = silence_trim_changed
+    result.silence_trim_requeued = silence_trim_increased
+    result.silence_trim_retrimmed_locally = retrim_locally
     return result

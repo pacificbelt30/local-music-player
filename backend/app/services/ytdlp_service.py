@@ -54,6 +54,53 @@ def _silence_trim_filter(start_secs: float, end_secs: float, threshold_db: str =
     return ",".join(parts) if parts else None
 
 
+def _codec_args_for(audio_format: str) -> list[str]:
+    if audio_format == "flac":
+        return ["-codec:a", "flac"]
+    if audio_format in ("aac", "m4a"):
+        return ["-codec:a", "aac", "-b:a", "192k"]
+    if audio_format == "ogg":
+        return ["-codec:a", "libvorbis", "-q:a", "5"]
+    return ["-codec:a", "libmp3lame", "-q:a", "2"]
+
+
+def retrim_audio_file(
+    file_path: str,
+    audio_format: str,
+    silence_trim_start_secs: float,
+    silence_trim_end_secs: float,
+) -> int | None:
+    """Re-apply the silence-trim filter directly to an already-downloaded audio
+    file in place, without redownloading from YouTube. Only safe when the trim
+    seconds were decreased: the now-qualifying short silence is still physically
+    present at the edges of the local file, since the previous (larger) setting
+    never removed it. Returns the new file size, or None if nothing was done.
+    """
+    trim_filter = _silence_trim_filter(silence_trim_start_secs, silence_trim_end_secs)
+    if not trim_filter or audio_format in VIDEO_FORMATS:
+        return None
+
+    path = Path(file_path)
+    if not path.exists():
+        return None
+
+    tmp_path = path.with_suffix(f".trim{path.suffix}")
+    cmd = [
+        "ffmpeg", "-y", "-i", str(path),
+        "-threads", str(settings.ffmpeg_threads if settings.ffmpeg_threads >= 0 else 0),
+        "-af", trim_filter,
+        *_codec_args_for(audio_format),
+        str(tmp_path),
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    tmp_path.replace(path)
+    return path.stat().st_size
+
+
 def _format_selector(audio_format: str) -> str:
     if audio_format in VIDEO_FORMATS:
         return f"bestvideo[ext={audio_format}]+bestaudio/bestvideo+bestaudio/best"

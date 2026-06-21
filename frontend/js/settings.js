@@ -38,9 +38,13 @@ export function initSettings() {
 
     try {
       const result = await api.updateSettings(payload);
-      ok.textContent = result.silence_trim_requeued
-        ? "保存しました（無音トリミング設定の変更を検知し、既存トラックの再ダウンロードをキューに追加しました）"
-        : "保存しました";
+      if (result.silence_trim_requeued) {
+        ok.textContent = "保存しました（無音トリミングの秒数を増やしたため、既存トラックの再ダウンロードをキューに追加しました）";
+      } else if (result.silence_trim_retrimmed_locally) {
+        ok.textContent = "保存しました（無音トリミングの秒数を減らしたため、既存トラックに直接トリミングを再適用しました）";
+      } else {
+        ok.textContent = "保存しました";
+      }
     } catch (e2) {
       err.textContent = e2.message;
     }
