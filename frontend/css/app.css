@@ -709,6 +709,18 @@ header h1 {
 .yt-sync-title .status-badge { flex-shrink: 0; }
 .yt-sync-meta { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; line-height: 1.5; }
 
+/* Debug ID badge shown on sync cards and tracks so DB errors (e.g. id=6) are easy to match */
+.yt-id-badge {
+  flex-shrink: 0;
+  font-family: monospace;
+  font-size: 0.7em;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-elevated, rgba(127, 127, 127, 0.15));
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
 .yt-sync-actions {
   display: flex;
   gap: 5px;

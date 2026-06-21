@@ -96,6 +96,10 @@ def sync_youtube_playlist(self, playlist_sync_id: int) -> None:
             )
             db.add(track)
             db.flush()
+            # Register so a duplicate youtube_id later in the same playlist is
+            # treated as an existing track instead of a second INSERT, which
+            # would violate the UNIQUE(playlist_sync_id, youtube_id) constraint.
+            existing[vid] = track
             tracks_to_download.append(track.id)
 
         # Remove tracks no longer in the playlist

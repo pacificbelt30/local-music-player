@@ -422,6 +422,7 @@ function syncCardHTML(sync) {
     <div class="yt-sync-header">
       <div class="yt-sync-info">
         <div class="yt-sync-title">
+          <span class="yt-id-badge" title="同期ID（DB障害メッセージの id= と一致）">ID:${sync.id}</span>
           <span class="yt-sync-name">${escHtml(sync.playlist_name)}</span>
           <span class="${sourceBadgeClass}" style="font-size:0.7em">${sourceLabel}</span>
         </div>
@@ -537,7 +538,10 @@ async function renderSyncTracks(syncId, container) {
           ? `<img class="track-thumb" src="${escHtml(t.thumbnail_url)}" alt="" loading="lazy">`
           : '<div class="track-thumb-placeholder">♪</div>'}
         <div class="track-info">
-          <div class="track-title">${escHtml(t.title)}</div>
+          <div class="track-title">
+            <span class="yt-id-badge" title="トラックID（DB障害メッセージの track_id= と一致）">#${t.id}</span>
+            ${escHtml(t.title)}
+          </div>
           <div class="track-artist">${escHtml(t.artist || "")}</div>
           ${errorSection}
         </div>
