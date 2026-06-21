@@ -77,6 +77,10 @@ class UrlSource(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     url: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    # Dedupe key from normalize_youtube_url() — catches youtu.be/youtube.com,
+    # www/m/music subdomains, tracking params, etc. that "url" (exact match)
+    # treats as different URLs even though they point at the same resource.
+    canonical_url: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     url_type: Mapped[str] = mapped_column(String(20), nullable=False)  # video/playlist/channel
     audio_format: Mapped[str] = mapped_column(String(10), default="mp3")  # audio: mp3/flac/aac/ogg/m4a, video: mp4/webm
     audio_quality: Mapped[str] = mapped_column(String(10), default="192")  # best/192/320

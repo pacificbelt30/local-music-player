@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import DownloadJob, Track, UrlSource
-from app.schemas import UrlSourceCreate, UrlSourceResponse
+from app.schemas import UrlSourceCreate, UrlSourceResponse, normalize_youtube_url
 from app.tasks.download import resolve_url as resolve_url_task
 
 router = APIRouter(prefix="/urls", tags=["urls"])
@@ -11,19 +12,25 @@ router = APIRouter(prefix="/urls", tags=["urls"])
 
 @router.post("", response_model=UrlSourceResponse, status_code=201)
 def add_url(payload: UrlSourceCreate, db: Session = Depends(get_db)):
-    existing = db.query(UrlSource).filter_by(url=payload.url).first()
+    canonical_url = normalize_youtube_url(payload.url)
+    existing = db.query(UrlSource).filter_by(canonical_url=canonical_url).first()
     if existing:
         raise HTTPException(status_code=409, detail="URL already registered")
 
     source = UrlSource(
         url=payload.url,
+        canonical_url=canonical_url,
         url_type="video",  # resolved by worker
         audio_format=payload.audio_format,
         audio_quality=payload.audio_quality,
         sync_enabled=payload.sync_enabled,
     )
     db.add(source)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="URL already registered")
     db.refresh(source)
 
     resolve_url_task.apply_async(args=[source.id])

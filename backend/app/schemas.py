@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Literal
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse
 from pydantic import BaseModel, HttpUrl, field_validator, model_validator
 
 
@@ -29,6 +29,53 @@ def _is_youtube_url(v: str) -> bool:
     if not host:
         return False
     return host in _YOUTUBE_HOSTS or host.endswith(".youtube.com")
+
+
+# Query params that don't affect which video/playlist/channel a URL points
+# at (share-link tracking, timestamps, etc.) — ignored when deduping.
+_TRACKING_PARAMS = {"si", "feature", "pp", "ab_channel", "t", "time_continue", "app"}
+
+
+def normalize_youtube_url(v: str) -> str:
+    """Canonical dedupe key for a YouTube URL.
+
+    Treats scheme, host casing/subdomain (www./m./music.), trailing slashes,
+    query-param order, and tracking params as insignificant, and resolves
+    youtu.be / shorts / embed / live links to the same key as the equivalent
+    watch?v= URL so that visually different URLs pointing at the same video,
+    playlist, or channel collide.
+    """
+    parsed = urlparse(v)
+    host = (parsed.hostname or "").lower().rstrip(".")
+    path = parsed.path.rstrip("/")
+    query = dict(parse_qsl(parsed.query))
+
+    if host == "youtu.be":
+        video_id = path.lstrip("/").split("/")[0]
+        if video_id:
+            return f"video:{video_id}"
+    else:
+        segments = [s for s in path.split("/") if s]
+        segments_lower = [s.lower() for s in segments]
+        if segments_lower and segments_lower[0] in ("shorts", "embed", "live") and len(segments) > 1:
+            return f"video:{segments[1]}"
+        if segments_lower and segments_lower[0] == "watch" and query.get("v"):
+            return f"video:{query['v']}"
+        if segments_lower and segments_lower[0] == "playlist" and query.get("list"):
+            return f"playlist:{query['list']}"
+        if segments_lower and segments_lower[0] == "channel" and len(segments) > 1:
+            return f"channel:{segments[1]}"
+        if segments_lower and segments_lower[0] in ("c", "user") and len(segments) > 1:
+            return f"channel:{segments_lower[0]}/{segments[1]}"
+        if segments and segments[0].startswith("@"):
+            return f"channel:{segments[0].lower()}"
+
+    # Fallback for anything not recognized above: normalize host/path and
+    # drop tracking params, but otherwise compare the full URL.
+    normalized_host = host[4:] if host.startswith("www.") else host
+    kept_query = sorted((k, val) for k, val in parse_qsl(parsed.query) if k not in _TRACKING_PARAMS)
+    query_str = urlencode(kept_query)
+    return f"url:{normalized_host}{path}?{query_str}" if query_str else f"url:{normalized_host}{path}"
 
 
 class UrlSourceCreate(BaseModel):

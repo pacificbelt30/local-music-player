@@ -14,7 +14,10 @@ def test_download_base_path_uses_manual_dir_for_missing_source(monkeypatch, tmp_
 
 def test_download_base_path_sanitizes_playlist_name(monkeypatch, tmp_path):
     monkeypatch.setattr("app.tasks.download.settings.downloads_path", tmp_path)
-    source = UrlSource(id=1, url="https://example.com", url_type="playlist", title="My/Playlist:2026")
+    source = UrlSource(
+        id=1, url="https://example.com", canonical_url="url:example.com",
+        url_type="playlist", title="My/Playlist:2026",
+    )
 
     path = _download_base_path(source)
 

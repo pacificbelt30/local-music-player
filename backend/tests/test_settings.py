@@ -155,7 +155,12 @@ class TestPeriodicPlaylistRefresh:
         db.add(AppSetting(key="url_sync_interval_minutes", value="60"))
         db.add(AppSetting(key="url_sync_last_run",
                           value=(datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()))
-        db.add(UrlSource(url="https://youtube.com/playlist?list=PL1", url_type="playlist", sync_enabled=True))
+        db.add(UrlSource(
+            url="https://youtube.com/playlist?list=PL1",
+            canonical_url="playlist:PL1",
+            url_type="playlist",
+            sync_enabled=True,
+        ))
         db.commit()
 
         with patch("app.tasks.scheduler.SessionLocal", return_value=db):
