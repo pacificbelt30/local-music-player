@@ -107,6 +107,10 @@ def download_track(self, job_id: int) -> None:
         audio_quality = source.audio_quality if source else "192"
         gain_row = db.get(AppSetting, "download_gain_percent")
         gain_percent = float(gain_row.value if gain_row else DEFAULTS["download_gain_percent"])
+        start_row = db.get(AppSetting, "silence_trim_start_secs")
+        silence_trim_start_secs = float(start_row.value if start_row else DEFAULTS["silence_trim_start_secs"])
+        end_row = db.get(AppSetting, "silence_trim_end_secs")
+        silence_trim_end_secs = float(end_row.value if end_row else DEFAULTS["silence_trim_end_secs"])
 
         job.status = "downloading"
         job.started_at = datetime.now(timezone.utc)
@@ -124,6 +128,8 @@ def download_track(self, job_id: int) -> None:
             audio_format=audio_format,
             audio_quality=audio_quality,
             gain_percent=gain_percent,
+            silence_trim_start_secs=silence_trim_start_secs,
+            silence_trim_end_secs=silence_trim_end_secs,
             progress_hook=progress_hook,
             base_path=_download_base_path(source),
         )

@@ -34,6 +34,73 @@ def _postprocessors_for(audio_format: str, audio_quality: str) -> list[dict]:
     return [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}]
 
 
+def _silence_trim_filter(start_secs: float, end_secs: float, threshold_db: str = "-50dB") -> str | None:
+    # start_periods=1 only ever matches the very first silence run, so reversing
+    # the audio lets the same trick trim trailing silence without touching
+    # silence elsewhere in the track.
+    parts: list[str] = []
+    if start_secs > 0:
+        parts.append(
+            f"silenceremove=start_periods=1:start_duration={start_secs}:"
+            f"start_threshold={threshold_db}:detection=peak"
+        )
+    if end_secs > 0:
+        parts.append("areverse")
+        parts.append(
+            f"silenceremove=start_periods=1:start_duration={end_secs}:"
+            f"start_threshold={threshold_db}:detection=peak"
+        )
+        parts.append("areverse")
+    return ",".join(parts) if parts else None
+
+
+def _codec_args_for(audio_format: str) -> list[str]:
+    if audio_format == "flac":
+        return ["-codec:a", "flac"]
+    if audio_format in ("aac", "m4a"):
+        return ["-codec:a", "aac", "-b:a", "192k"]
+    if audio_format == "ogg":
+        return ["-codec:a", "libvorbis", "-q:a", "5"]
+    return ["-codec:a", "libmp3lame", "-q:a", "2"]
+
+
+def retrim_audio_file(
+    file_path: str,
+    audio_format: str,
+    silence_trim_start_secs: float,
+    silence_trim_end_secs: float,
+) -> int | None:
+    """Re-apply the silence-trim filter directly to an already-downloaded audio
+    file in place, without redownloading from YouTube. Only safe when the trim
+    seconds were decreased: the now-qualifying short silence is still physically
+    present at the edges of the local file, since the previous (larger) setting
+    never removed it. Returns the new file size, or None if nothing was done.
+    """
+    trim_filter = _silence_trim_filter(silence_trim_start_secs, silence_trim_end_secs)
+    if not trim_filter or audio_format in VIDEO_FORMATS:
+        return None
+
+    path = Path(file_path)
+    if not path.exists():
+        return None
+
+    tmp_path = path.with_suffix(f".trim{path.suffix}")
+    cmd = [
+        "ffmpeg", "-y", "-i", str(path),
+        "-threads", str(settings.ffmpeg_threads if settings.ffmpeg_threads >= 0 else 0),
+        "-af", trim_filter,
+        *_codec_args_for(audio_format),
+        str(tmp_path),
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    tmp_path.replace(path)
+    return path.stat().st_size
+
+
 def _format_selector(audio_format: str) -> str:
     if audio_format in VIDEO_FORMATS:
         return f"bestvideo[ext={audio_format}]+bestaudio/bestvideo+bestaudio/best"
@@ -116,6 +183,8 @@ def download_track(
     audio_format: str,
     audio_quality: str,
     gain_percent: float,
+    silence_trim_start_secs: float = 0.0,
+    silence_trim_end_secs: float = 0.0,
     progress_hook: Callable[[dict], None] | None = None,
     base_path: Path | None = None,
 ) -> dict[str, Any]:
@@ -142,10 +211,18 @@ def download_track(
     if settings.ffmpeg_threads >= 0:
         ffmpeg_args.extend(["-threads", str(settings.ffmpeg_threads)])
 
-    # Video downloads are stream-copied (no re-encode), so an audio filter
+    # Video downloads are stream-copied (no re-encode), so audio filters
     # cannot be applied there.
-    if gain_percent > 0 and not is_video:
-        ffmpeg_args.extend(["-af", f"volume={1 + (gain_percent / 100):.4f}"])
+    audio_filters: list[str] = []
+    if not is_video:
+        if gain_percent > 0:
+            audio_filters.append(f"volume={1 + (gain_percent / 100):.4f}")
+        trim_filter = _silence_trim_filter(silence_trim_start_secs, silence_trim_end_secs)
+        if trim_filter:
+            audio_filters.append(trim_filter)
+
+    if audio_filters:
+        ffmpeg_args.extend(["-af", ",".join(audio_filters)])
 
     if ffmpeg_args:
         ydl_opts["postprocessor_args"] = ffmpeg_args

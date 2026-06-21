@@ -14,6 +14,8 @@ def test_get_settings_returns_defaults(client):
     assert data["url_sync_interval_minutes"] == 60
     assert data["youtube_sync_interval_minutes"] == 60
     assert data["download_gain_percent"] == 0.0
+    assert data["silence_trim_start_secs"] == 2.5
+    assert data["silence_trim_end_secs"] == 2.5
     assert data["ffmpeg_threads"] == 1
 
 
@@ -236,6 +238,98 @@ def test_update_download_gain_percent(client):
 def test_negative_gain_rejected(client):
     resp = client.patch("/api/v1/settings", json={"download_gain_percent": -1})
     assert resp.status_code == 422
+
+
+def test_update_silence_trim_secs(client):
+    with patch("app.tasks.maintenance.requeue_silence_trim_changed.apply_async"):
+        resp = client.patch("/api/v1/settings", json={
+            "silence_trim_start_secs": 3.0,
+            "silence_trim_end_secs": 1.5,
+        })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["silence_trim_start_secs"] == 3.0
+    assert data["silence_trim_end_secs"] == 1.5
+
+
+def test_silence_trim_zero_disables(client):
+    with patch("app.tasks.maintenance.retrim_existing_silence_locally.apply_async"):
+        resp = client.patch("/api/v1/settings", json={
+            "silence_trim_start_secs": 0,
+            "silence_trim_end_secs": 0,
+        })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["silence_trim_start_secs"] == 0.0
+    assert data["silence_trim_end_secs"] == 0.0
+
+
+def test_negative_silence_trim_rejected(client):
+    resp = client.patch("/api/v1/settings", json={"silence_trim_start_secs": -1})
+    assert resp.status_code == 422
+    resp = client.patch("/api/v1/settings", json={"silence_trim_end_secs": -1})
+    assert resp.status_code == 422
+
+
+# ── Hybrid re-processing trigger on silence-trim setting change ───────────────
+# Increasing the threshold loses previously-removed audio for good, so it needs
+# a full redownload. Decreasing it leaves the residual silence physically intact
+# locally, so it can be retrimmed in place without contacting YouTube.
+
+def test_silence_trim_increase_triggers_requeue(client):
+    with patch("app.tasks.maintenance.requeue_silence_trim_changed.apply_async") as mock_requeue:
+        with patch("app.tasks.maintenance.retrim_existing_silence_locally.apply_async") as mock_retrim:
+            resp = client.patch("/api/v1/settings", json={"silence_trim_start_secs": 4.0})
+    assert resp.status_code == 200
+    mock_requeue.assert_called_once()
+    mock_retrim.assert_not_called()
+    assert resp.json()["silence_trim_requeued"] is True
+    assert resp.json()["silence_trim_retrimmed_locally"] is False
+
+
+def test_silence_trim_decrease_triggers_local_retrim(client):
+    with patch("app.tasks.maintenance.requeue_silence_trim_changed.apply_async") as mock_requeue:
+        with patch("app.tasks.maintenance.retrim_existing_silence_locally.apply_async") as mock_retrim:
+            resp = client.patch("/api/v1/settings", json={"silence_trim_start_secs": 1.0})
+    assert resp.status_code == 200
+    mock_requeue.assert_not_called()
+    mock_retrim.assert_called_once()
+    assert resp.json()["silence_trim_requeued"] is False
+    assert resp.json()["silence_trim_retrimmed_locally"] is True
+
+
+def test_silence_trim_mixed_increase_and_decrease_prefers_requeue(client):
+    # start increases (2.5 -> 3.0), end decreases (2.5 -> 1.5): the redownload
+    # path wins since it also re-applies the decrease using the latest settings.
+    with patch("app.tasks.maintenance.requeue_silence_trim_changed.apply_async") as mock_requeue:
+        with patch("app.tasks.maintenance.retrim_existing_silence_locally.apply_async") as mock_retrim:
+            resp = client.patch("/api/v1/settings", json={
+                "silence_trim_start_secs": 3.0,
+                "silence_trim_end_secs": 1.5,
+            })
+    assert resp.status_code == 200
+    mock_requeue.assert_called_once()
+    mock_retrim.assert_not_called()
+    assert resp.json()["silence_trim_requeued"] is True
+    assert resp.json()["silence_trim_retrimmed_locally"] is False
+
+
+def test_silence_trim_unchanged_value_triggers_nothing(client):
+    with patch("app.tasks.maintenance.requeue_silence_trim_changed.apply_async") as mock_requeue:
+        with patch("app.tasks.maintenance.retrim_existing_silence_locally.apply_async") as mock_retrim:
+            resp = client.patch("/api/v1/settings", json={"silence_trim_start_secs": 2.5})
+    mock_requeue.assert_not_called()
+    mock_retrim.assert_not_called()
+    assert resp.json()["silence_trim_requeued"] is False
+    assert resp.json()["silence_trim_retrimmed_locally"] is False
+
+
+def test_unrelated_setting_change_triggers_nothing(client):
+    with patch("app.tasks.maintenance.requeue_silence_trim_changed.apply_async") as mock_requeue:
+        with patch("app.tasks.maintenance.retrim_existing_silence_locally.apply_async") as mock_retrim:
+            client.patch("/api/v1/settings", json={"download_gain_percent": 15})
+    mock_requeue.assert_not_called()
+    mock_retrim.assert_not_called()
 
 
 def test_update_ffmpeg_threads(client):
