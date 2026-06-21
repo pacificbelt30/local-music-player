@@ -6,6 +6,7 @@ from app.services.ytdlp_service import (
     VIDEO_FORMATS,
     _format_selector,
     _postprocessors_for,
+    _silence_trim_filter,
     is_video_format,
 )
 
@@ -45,8 +46,31 @@ class TestFormatSelector:
         assert "bestvideo+bestaudio" in sel
 
 
+class TestSilenceTrimFilter:
+    def test_no_trim_returns_none(self):
+        assert _silence_trim_filter(0, 0) is None
+
+    def test_start_only(self):
+        f = _silence_trim_filter(2.5, 0)
+        assert f == "silenceremove=start_periods=1:start_duration=2.5:start_threshold=-50dB:detection=peak"
+
+    def test_end_only_uses_reverse_trick(self):
+        f = _silence_trim_filter(0, 2.5)
+        assert f.startswith("areverse,silenceremove=")
+        assert f.endswith(",areverse")
+
+    def test_both_sides(self):
+        f = _silence_trim_filter(2.0, 3.0)
+        parts = f.split(",")
+        assert parts[0].startswith("silenceremove=start_periods=1:start_duration=2.0")
+        assert parts[1] == "areverse"
+        assert parts[2].startswith("silenceremove=start_periods=1:start_duration=3.0")
+        assert parts[3] == "areverse"
+
+
 class TestDownloadTrackOptions:
-    def _capture_opts(self, audio_format, gain_percent=0.0, tmp_path=None):
+    def _capture_opts(self, audio_format, gain_percent=0.0, silence_trim_start_secs=0.0,
+                       silence_trim_end_secs=0.0, tmp_path=None):
         from app.services import ytdlp_service
 
         captured = {}
@@ -67,6 +91,8 @@ class TestDownloadTrackOptions:
                 audio_format=audio_format,
                 audio_quality="192",
                 gain_percent=gain_percent,
+                silence_trim_start_secs=silence_trim_start_secs,
+                silence_trim_end_secs=silence_trim_end_secs,
                 base_path=tmp_path,
             )
         return captured, meta
@@ -96,3 +122,32 @@ class TestDownloadTrackOptions:
         _, meta = self._capture_opts("m4a", tmp_path=tmp_path)
         assert meta["file_format"] == "m4a"
         assert meta["file_path"].endswith(".m4a")
+
+    def test_silence_trim_skipped_for_video(self, tmp_path):
+        opts, _ = self._capture_opts(
+            "mp4", silence_trim_start_secs=2.5, silence_trim_end_secs=2.5, tmp_path=tmp_path
+        )
+        assert "-af" not in opts.get("postprocessor_args", [])
+
+    def test_silence_trim_applied_for_audio(self, tmp_path):
+        opts, _ = self._capture_opts(
+            "mp3", silence_trim_start_secs=2.5, silence_trim_end_secs=2.5, tmp_path=tmp_path
+        )
+        af_args = opts["postprocessor_args"]
+        assert "-af" in af_args
+        filter_str = af_args[af_args.index("-af") + 1]
+        assert "silenceremove" in filter_str
+
+    def test_gain_and_silence_trim_combined(self, tmp_path):
+        opts, _ = self._capture_opts(
+            "mp3", gain_percent=10.0, silence_trim_start_secs=2.5,
+            silence_trim_end_secs=2.5, tmp_path=tmp_path,
+        )
+        af_args = opts["postprocessor_args"]
+        filter_str = af_args[af_args.index("-af") + 1]
+        assert filter_str.startswith("volume=")
+        assert "silenceremove" in filter_str
+
+    def test_no_silence_trim_when_secs_zero(self, tmp_path):
+        opts, _ = self._capture_opts("mp3", tmp_path=tmp_path)
+        assert "-af" not in opts.get("postprocessor_args", [])

@@ -34,6 +34,26 @@ def _postprocessors_for(audio_format: str, audio_quality: str) -> list[dict]:
     return [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}]
 
 
+def _silence_trim_filter(start_secs: float, end_secs: float, threshold_db: str = "-50dB") -> str | None:
+    # start_periods=1 only ever matches the very first silence run, so reversing
+    # the audio lets the same trick trim trailing silence without touching
+    # silence elsewhere in the track.
+    parts: list[str] = []
+    if start_secs > 0:
+        parts.append(
+            f"silenceremove=start_periods=1:start_duration={start_secs}:"
+            f"start_threshold={threshold_db}:detection=peak"
+        )
+    if end_secs > 0:
+        parts.append("areverse")
+        parts.append(
+            f"silenceremove=start_periods=1:start_duration={end_secs}:"
+            f"start_threshold={threshold_db}:detection=peak"
+        )
+        parts.append("areverse")
+    return ",".join(parts) if parts else None
+
+
 def _format_selector(audio_format: str) -> str:
     if audio_format in VIDEO_FORMATS:
         return f"bestvideo[ext={audio_format}]+bestaudio/bestvideo+bestaudio/best"
@@ -116,6 +136,8 @@ def download_track(
     audio_format: str,
     audio_quality: str,
     gain_percent: float,
+    silence_trim_start_secs: float = 0.0,
+    silence_trim_end_secs: float = 0.0,
     progress_hook: Callable[[dict], None] | None = None,
     base_path: Path | None = None,
 ) -> dict[str, Any]:
@@ -142,10 +164,18 @@ def download_track(
     if settings.ffmpeg_threads >= 0:
         ffmpeg_args.extend(["-threads", str(settings.ffmpeg_threads)])
 
-    # Video downloads are stream-copied (no re-encode), so an audio filter
+    # Video downloads are stream-copied (no re-encode), so audio filters
     # cannot be applied there.
-    if gain_percent > 0 and not is_video:
-        ffmpeg_args.extend(["-af", f"volume={1 + (gain_percent / 100):.4f}"])
+    audio_filters: list[str] = []
+    if not is_video:
+        if gain_percent > 0:
+            audio_filters.append(f"volume={1 + (gain_percent / 100):.4f}")
+        trim_filter = _silence_trim_filter(silence_trim_start_secs, silence_trim_end_secs)
+        if trim_filter:
+            audio_filters.append(trim_filter)
+
+    if audio_filters:
+        ffmpeg_args.extend(["-af", ",".join(audio_filters)])
 
     if ffmpeg_args:
         ydl_opts["postprocessor_args"] = ffmpeg_args

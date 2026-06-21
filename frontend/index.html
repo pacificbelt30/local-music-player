@@ -142,6 +142,14 @@
           <input type="number" min="0" step="0.1" name="download_gain_percent" placeholder="例: 20">
         </label>
         <label class="syncthing-field">
+          <span>冒頭の無音トリミング（秒、0で無効）</span>
+          <input type="number" min="0" step="0.1" name="silence_trim_start_secs" placeholder="例: 2.5">
+        </label>
+        <label class="syncthing-field">
+          <span>末尾の無音トリミング（秒、0で無効）</span>
+          <input type="number" min="0" step="0.1" name="silence_trim_end_secs" placeholder="例: 2.5">
+        </label>
+        <label class="syncthing-field">
           <span>ffmpeg スレッド数（0で自動）</span>
           <input type="number" min="0" step="1" name="ffmpeg_threads" placeholder="例: 1">
         </label>

@@ -16,6 +16,8 @@ from app.tasks.celery_app import celery_app
 
 _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
 _DEFAULT_GAIN_PERCENT = "0"
+_DEFAULT_SILENCE_TRIM_START_SECS = "2.5"
+_DEFAULT_SILENCE_TRIM_END_SECS = "2.5"
 
 
 def _sync_dir_name(db, sync: YoutubePlaylistSync | None, audio_format: str) -> str:
@@ -171,6 +173,10 @@ def download_playlist_sync_track(self, track_id: int) -> None:
         audio_quality = sync.audio_quality if sync else "192"
         gain_row = db.get(AppSetting, "download_gain_percent")
         gain_percent = float(gain_row.value if gain_row else _DEFAULT_GAIN_PERCENT)
+        start_row = db.get(AppSetting, "silence_trim_start_secs")
+        silence_trim_start_secs = float(start_row.value if start_row else _DEFAULT_SILENCE_TRIM_START_SECS)
+        end_row = db.get(AppSetting, "silence_trim_end_secs")
+        silence_trim_end_secs = float(end_row.value if end_row else _DEFAULT_SILENCE_TRIM_END_SECS)
 
         # Store in downloads/{dir_name}/, fixed at sync creation
         playlist_name = sync.playlist_name if sync else "unknown"
@@ -193,6 +199,8 @@ def download_playlist_sync_track(self, track_id: int) -> None:
             audio_format=audio_format,
             audio_quality=audio_quality,
             gain_percent=gain_percent,
+            silence_trim_start_secs=silence_trim_start_secs,
+            silence_trim_end_secs=silence_trim_end_secs,
             progress_hook=progress_hook,
             base_path=base_path,
         )

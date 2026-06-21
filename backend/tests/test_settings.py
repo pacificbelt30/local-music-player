@@ -14,6 +14,8 @@ def test_get_settings_returns_defaults(client):
     assert data["url_sync_interval_minutes"] == 60
     assert data["youtube_sync_interval_minutes"] == 60
     assert data["download_gain_percent"] == 0.0
+    assert data["silence_trim_start_secs"] == 2.5
+    assert data["silence_trim_end_secs"] == 2.5
     assert data["ffmpeg_threads"] == 1
 
 
@@ -235,6 +237,35 @@ def test_update_download_gain_percent(client):
 
 def test_negative_gain_rejected(client):
     resp = client.patch("/api/v1/settings", json={"download_gain_percent": -1})
+    assert resp.status_code == 422
+
+
+def test_update_silence_trim_secs(client):
+    resp = client.patch("/api/v1/settings", json={
+        "silence_trim_start_secs": 3.0,
+        "silence_trim_end_secs": 1.5,
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["silence_trim_start_secs"] == 3.0
+    assert data["silence_trim_end_secs"] == 1.5
+
+
+def test_silence_trim_zero_disables(client):
+    resp = client.patch("/api/v1/settings", json={
+        "silence_trim_start_secs": 0,
+        "silence_trim_end_secs": 0,
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["silence_trim_start_secs"] == 0.0
+    assert data["silence_trim_end_secs"] == 0.0
+
+
+def test_negative_silence_trim_rejected(client):
+    resp = client.patch("/api/v1/settings", json={"silence_trim_start_secs": -1})
+    assert resp.status_code == 422
+    resp = client.patch("/api/v1/settings", json={"silence_trim_end_secs": -1})
     assert resp.status_code == 422
 
 

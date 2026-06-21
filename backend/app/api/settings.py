@@ -15,6 +15,8 @@ class SyncSettings(BaseModel):
     url_sync_interval_minutes: int
     youtube_sync_interval_minutes: int
     download_gain_percent: float
+    silence_trim_start_secs: float
+    silence_trim_end_secs: float
     ffmpeg_threads: int
     celery_worker_concurrency: int
     discord_webhook_url: str
@@ -37,6 +39,8 @@ class SyncSettingsUpdate(BaseModel):
     url_sync_interval_minutes: int | None = None
     youtube_sync_interval_minutes: int | None = None
     download_gain_percent: float | None = None
+    silence_trim_start_secs: float | None = None
+    silence_trim_end_secs: float | None = None
     ffmpeg_threads: int | None = None
     celery_worker_concurrency: int | None = None
     discord_webhook_url: str | None = None
@@ -54,7 +58,7 @@ class SyncSettingsUpdate(BaseModel):
             raise ValueError(f"Must be one of {sorted(VALID_INTERVALS)}")
         return v
 
-    @field_validator("download_gain_percent")
+    @field_validator("download_gain_percent", "silence_trim_start_secs", "silence_trim_end_secs")
     @classmethod
     def gain_must_be_non_negative(cls, v: float | None) -> float | None:
         if v is not None and v < 0:
@@ -91,6 +95,8 @@ def _read(db: Session) -> SyncSettings:
         url_sync_interval_minutes=int(get("url_sync_interval_minutes")),
         youtube_sync_interval_minutes=int(get("youtube_sync_interval_minutes")),
         download_gain_percent=float(get("download_gain_percent")),
+        silence_trim_start_secs=float(get("silence_trim_start_secs")),
+        silence_trim_end_secs=float(get("silence_trim_end_secs")),
         ffmpeg_threads=int(get("ffmpeg_threads")),
         celery_worker_concurrency=int(get("celery_worker_concurrency")),
         discord_webhook_url=get("discord_webhook_url"),
