@@ -159,9 +159,11 @@ SyncTuneHub の中核価値は「YouTube からのコンテンツ取り込み・
   バリデーションを緩めるだけでは他サイト対応にならない。元 URL を保持して
   ダウンロード時に使う構造に変更する必要がある。
 - **重複検出が部分的**。`DownloadJob` は `youtube_id` 単位で重複登録を防いでいる
-  （`backend/app/tasks/download.py:56-58`）が、`UrlSource` 登録は完全一致の URL 文字列比較
-  （`backend/app/api/urls.py:14-16`）のため、クエリパラメータ違いや `youtu.be` / `youtube.com`
-  表記違いの同一動画は別物として扱われる。さらに `UrlSource` 経由の `Track` と
+  （`backend/app/tasks/download.py:56-58`）。`UrlSource` 登録はクエリパラメータ違いや
+  `youtu.be` / `youtube.com` 表記違い・トラッキングパラメータ付きの URL でも同一動画として
+  検出できるよう、`normalize_youtube_url()`（`backend/app/schemas.py`）で正規化したキーを
+  `canonical_url` カラム（一意制約）に保持して比較する方式に変更済み
+  （`backend/app/api/urls.py`）。**未解決**: `UrlSource` 経由の `Track` と
   YouTube プレイリスト同期の `PlaylistSyncTrack` は別テーブル管理で、テーブル間の重複は検出されない
   （既存課題、上記「ダウンロード済みトラックの重複管理」参照）。
 - **フォーマット選択肢がプリセットのみ**（`backend/app/services/ytdlp_service.py:11-12` の
@@ -185,8 +187,9 @@ SyncTuneHub の中核価値は「YouTube からのコンテンツ取り込み・
    ニコニコ動画等）にも広げる。`UrlSource` に元 URL を保持し、`download_track` で
    YouTube watch URL の再構築ではなく元 URL を使うように変更する。
 2. バッチ URL 一括登録 — 複数行の URL をまとめて貼り付けて登録できる UI/API。
-3. 重複検出の強化 — `youtube_id` 抽出によるURL正規化比較、または
-   yt-dlp の `--download-archive` 方式の採用で `UrlSource`/`PlaylistSyncTrack` 間の重複も解消。
+3. 重複検出の強化 — `UrlSource` 登録時の URL 正規化比較は実装済み（`normalize_youtube_url()`）。
+   残るは yt-dlp の `--download-archive` 方式の採用等による `UrlSource`/`PlaylistSyncTrack` 間の
+   テーブル間重複の解消。
 4. 詳細フォーマット選択 UI — 動画ごとに利用可能なフォーマット一覧を API で返し、
    プリセット以外も選べるようにする。
 5. 失敗理由別のリトライ制御 — エラーメッセージを分類（ネットワーク/認証/動画削除済み等）し、
