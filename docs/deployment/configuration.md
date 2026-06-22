@@ -66,6 +66,7 @@ Docker 環境では通常 `/downloads`・`/data`・`/playlists` にマウント�
 | 変数名 | デフォルト | 説明 |
 |--------|-----------|------|
 | `FFMPEG_THREADS` | `1` | ffmpeg の `-threads` 値。`0` で ffmpeg 既定動作 |
+| `FFMPEG_MEMORY_LIMIT_MB` | `0` | ffmpeg 子プロセスの仮想メモリ上限（MB）。`0` で無制限 |
 
 ## アプリケーション設定（DB 管理）
 
@@ -73,6 +74,7 @@ Docker 環境では通常 `/downloads`・`/data`・`/playlists` にマウント�
 
 | キー | デフォルト | 説明 |
 |------|-----------|------|
+| `ffmpeg_memory_limit_mb` | `0` | ffmpeg 子プロセスの仮想メモリ上限（MB）。`0` で無制限 |
 | `url_sync_interval_minutes` | `60` | URL ソース自動同期間隔（分）、`0` で無効 |
 | `youtube_sync_interval_minutes` | `60` | YouTube プレイリスト自動同期間隔（分）、`0` で無効 |
 

@@ -11,6 +11,7 @@ DEFAULTS = {
     "silence_trim_start_secs": "2.5",
     "silence_trim_end_secs": "2.5",
     "ffmpeg_threads": "1",
+    "ffmpeg_memory_limit_mb": "0",
     "celery_worker_concurrency": "0",
     "discord_webhook_url": "",
     "notify_on_download_complete": "false",

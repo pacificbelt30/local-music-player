@@ -1,7 +1,12 @@
 import json
+import shlex
+import shutil
+import stat
 import subprocess
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 import yt_dlp
 
@@ -10,6 +15,48 @@ from app.config import settings
 
 AUDIO_FORMATS = ("mp3", "flac", "aac", "ogg", "m4a")
 VIDEO_FORMATS = ("mp4", "webm")
+
+
+def _effective_ffmpeg_threads(ffmpeg_threads: int | None = None) -> int:
+    return settings.ffmpeg_threads if ffmpeg_threads is None else ffmpeg_threads
+
+
+def _ffmpeg_memory_preexec(memory_limit_mb: int | None = None):
+    limit_mb = settings.ffmpeg_memory_limit_mb if memory_limit_mb is None else memory_limit_mb
+    if limit_mb <= 0:
+        return None
+
+    def apply_limit() -> None:
+        import resource
+
+        limit_bytes = limit_mb * 1024 * 1024
+        resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, limit_bytes))
+
+    return apply_limit
+
+
+@contextmanager
+def _limited_ffmpeg_location(memory_limit_mb: int | None = None) -> Iterator[str | None]:
+    limit_mb = settings.ffmpeg_memory_limit_mb if memory_limit_mb is None else memory_limit_mb
+    if limit_mb <= 0:
+        yield None
+        return
+
+    real_ffmpeg = shutil.which("ffmpeg")
+    if not real_ffmpeg:
+        yield None
+        return
+
+    with tempfile.TemporaryDirectory(prefix="limited-ffmpeg-") as tmpdir:
+        wrapper = Path(tmpdir) / "ffmpeg"
+        wrapper.write_text(
+            "#!/bin/sh\n"
+            f"ulimit -v {limit_mb * 1024} || exit 125\n"
+            f"exec {shlex.quote(real_ffmpeg)} \"$@\"\n",
+            encoding="utf-8",
+        )
+        wrapper.chmod(wrapper.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        yield str(wrapper)
 
 
 def is_video_format(audio_format: str) -> bool:
@@ -69,6 +116,8 @@ def retrim_audio_file(
     audio_format: str,
     silence_trim_start_secs: float,
     silence_trim_end_secs: float,
+    ffmpeg_threads: int | None = None,
+    ffmpeg_memory_limit_mb: int | None = None,
 ) -> int | None:
     """Re-apply the silence-trim filter directly to an already-downloaded audio
     file in place, without redownloading from YouTube. Only safe when the trim
@@ -85,15 +134,16 @@ def retrim_audio_file(
         return None
 
     tmp_path = path.with_suffix(f".trim{path.suffix}")
+    effective_threads = _effective_ffmpeg_threads(ffmpeg_threads)
     cmd = [
         "ffmpeg", "-y", "-i", str(path),
-        "-threads", str(settings.ffmpeg_threads if settings.ffmpeg_threads >= 0 else 0),
+        "-threads", str(effective_threads if effective_threads >= 0 else 0),
         "-af", trim_filter,
         *_codec_args_for(audio_format),
         str(tmp_path),
     ]
     try:
-        subprocess.run(cmd, check=True, capture_output=True)
+        subprocess.run(cmd, check=True, capture_output=True, preexec_fn=_ffmpeg_memory_preexec(ffmpeg_memory_limit_mb))
     except subprocess.CalledProcessError:
         tmp_path.unlink(missing_ok=True)
         raise
@@ -187,6 +237,8 @@ def download_track(
     silence_trim_end_secs: float = 0.0,
     progress_hook: Callable[[dict], None] | None = None,
     base_path: Path | None = None,
+    ffmpeg_threads: int | None = None,
+    ffmpeg_memory_limit_mb: int | None = None,
 ) -> dict[str, Any]:
     """Download a single track. Returns metadata dict on success."""
     dest = base_path or settings.downloads_path
@@ -208,8 +260,9 @@ def download_track(
         ydl_opts["merge_output_format"] = audio_format
 
     ffmpeg_args: list[str] = []
-    if settings.ffmpeg_threads >= 0:
-        ffmpeg_args.extend(["-threads", str(settings.ffmpeg_threads)])
+    effective_threads = _effective_ffmpeg_threads(ffmpeg_threads)
+    if effective_threads >= 0:
+        ffmpeg_args.extend(["-threads", str(effective_threads)])
 
     # Video downloads are stream-copied (no re-encode), so audio filters
     # cannot be applied there.
@@ -231,8 +284,11 @@ def download_track(
     if progress_hook:
         ydl_opts["progress_hooks"] = [progress_hook]
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(f"https://www.youtube.com/watch?v={youtube_id}", download=True)
+    with _limited_ffmpeg_location(ffmpeg_memory_limit_mb) as ffmpeg_location:
+        if ffmpeg_location:
+            ydl_opts["ffmpeg_location"] = ffmpeg_location
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={youtube_id}", download=True)
 
     # Determine the actual downloaded file path
     ext = audio_format if audio_format in AUDIO_FORMATS + VIDEO_FORMATS else "mp3"

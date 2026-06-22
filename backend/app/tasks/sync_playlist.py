@@ -13,6 +13,7 @@ from app.models import AppSetting, PlaylistSyncTrack, YoutubePlaylistSync
 from app.services import sync_dirs, youtube_api_service, ytdlp_service
 from app.services.notification import notify
 from app.tasks.celery_app import celery_app
+from app.tasks.scheduler import DEFAULTS
 
 _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
 _DEFAULT_GAIN_PERCENT = "0"
@@ -177,6 +178,10 @@ def download_playlist_sync_track(self, track_id: int) -> None:
         silence_trim_start_secs = float(start_row.value if start_row else _DEFAULT_SILENCE_TRIM_START_SECS)
         end_row = db.get(AppSetting, "silence_trim_end_secs")
         silence_trim_end_secs = float(end_row.value if end_row else _DEFAULT_SILENCE_TRIM_END_SECS)
+        ffmpeg_threads_row = db.get(AppSetting, "ffmpeg_threads")
+        ffmpeg_threads = int(ffmpeg_threads_row.value if ffmpeg_threads_row else DEFAULTS["ffmpeg_threads"])
+        ffmpeg_memory_row = db.get(AppSetting, "ffmpeg_memory_limit_mb")
+        ffmpeg_memory_limit_mb = int(ffmpeg_memory_row.value if ffmpeg_memory_row else DEFAULTS["ffmpeg_memory_limit_mb"])
 
         # Store in downloads/{dir_name}/, fixed at sync creation
         playlist_name = sync.playlist_name if sync else "unknown"
@@ -203,6 +208,8 @@ def download_playlist_sync_track(self, track_id: int) -> None:
             silence_trim_end_secs=silence_trim_end_secs,
             progress_hook=progress_hook,
             base_path=base_path,
+            ffmpeg_threads=ffmpeg_threads,
+            ffmpeg_memory_limit_mb=ffmpeg_memory_limit_mb,
         )
 
         track.title = metadata["title"]
