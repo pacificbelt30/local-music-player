@@ -102,7 +102,12 @@ def _postprocessors_for(audio_format: str, audio_quality: str) -> list[dict]:
     return [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}]
 
 
-def _silence_trim_filter(start_secs: float, end_secs: float, threshold_db: str = "-50dB") -> str | None:
+def _silence_trim_filter(
+    start_secs: float,
+    end_secs: float,
+    threshold_db: str = "-50dB",
+    include_end_trim: bool = True,
+) -> str | None:
     # start_periods=1 only ever matches the very first silence run, so reversing
     # the audio lets the same trick trim trailing silence without touching
     # silence elsewhere in the track.
@@ -112,7 +117,7 @@ def _silence_trim_filter(start_secs: float, end_secs: float, threshold_db: str =
             f"silenceremove=start_periods=1:start_duration={start_secs}:"
             f"start_threshold={threshold_db}:detection=peak"
         )
-    if end_secs > 0:
+    if include_end_trim and end_secs > 0:
         parts.append("areverse")
         parts.append(
             f"silenceremove=start_periods=1:start_duration={end_secs}:"
@@ -182,6 +187,47 @@ def _format_selector(audio_format: str) -> str:
     if audio_format in VIDEO_FORMATS:
         return f"bestvideo[ext={audio_format}]+bestaudio/bestvideo+bestaudio/best"
     return "bestaudio/best"
+
+
+def _download_postprocessor_args(
+    is_video: bool,
+    gain_percent: float,
+    silence_trim_start_secs: float,
+    silence_trim_end_secs: float,
+    ffmpeg_threads: int | None = None,
+    include_end_trim: bool = True,
+) -> list[str]:
+    ffmpeg_args: list[str] = []
+    effective_threads = _effective_ffmpeg_threads(ffmpeg_threads)
+    if effective_threads >= 0:
+        ffmpeg_args.extend(["-threads", str(effective_threads)])
+
+    # Video downloads are stream-copied (no re-encode), so audio filters
+    # cannot be applied there.
+    audio_filters: list[str] = []
+    if not is_video:
+        if gain_percent > 0:
+            audio_filters.append(f"volume={1 + (gain_percent / 100):.4f}")
+        trim_filter = _silence_trim_filter(
+            silence_trim_start_secs,
+            silence_trim_end_secs,
+            include_end_trim=include_end_trim,
+        )
+        if trim_filter:
+            audio_filters.append(trim_filter)
+
+    if audio_filters:
+        ffmpeg_args.extend(["-af", ",".join(audio_filters)])
+    return ffmpeg_args
+
+
+def _is_audio_postprocessing_error(exc: Exception) -> bool:
+    if isinstance(exc, yt_dlp.utils.PostProcessingError):
+        return True
+    if isinstance(exc, yt_dlp.utils.DownloadError):
+        message = str(exc).lower()
+        return "postprocessing" in message and "conversion failed" in message
+    return False
 
 
 def get_playlist_info(url: str) -> dict:
@@ -287,24 +333,13 @@ def download_track(
     if is_video:
         ydl_opts["merge_output_format"] = audio_format
 
-    ffmpeg_args: list[str] = []
-    effective_threads = _effective_ffmpeg_threads(ffmpeg_threads)
-    if effective_threads >= 0:
-        ffmpeg_args.extend(["-threads", str(effective_threads)])
-
-    # Video downloads are stream-copied (no re-encode), so audio filters
-    # cannot be applied there.
-    audio_filters: list[str] = []
-    if not is_video:
-        if gain_percent > 0:
-            audio_filters.append(f"volume={1 + (gain_percent / 100):.4f}")
-        trim_filter = _silence_trim_filter(silence_trim_start_secs, silence_trim_end_secs)
-        if trim_filter:
-            audio_filters.append(trim_filter)
-
-    if audio_filters:
-        ffmpeg_args.extend(["-af", ",".join(audio_filters)])
-
+    ffmpeg_args = _download_postprocessor_args(
+        is_video,
+        gain_percent,
+        silence_trim_start_secs,
+        silence_trim_end_secs,
+        ffmpeg_threads,
+    )
     if ffmpeg_args:
         ydl_opts["postprocessor_args"] = ffmpeg_args
 
@@ -315,8 +350,32 @@ def download_track(
     with _limited_ffmpeg_location(ffmpeg_memory_limit_mb, ffmpeg_concurrent_processes) as ffmpeg_location:
         if ffmpeg_location:
             ydl_opts["ffmpeg_location"] = ffmpeg_location
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"https://www.youtube.com/watch?v={youtube_id}", download=True)
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(f"https://www.youtube.com/watch?v={youtube_id}", download=True)
+        except (yt_dlp.utils.PostProcessingError, yt_dlp.utils.DownloadError) as exc:
+            if is_video or silence_trim_end_secs <= 0 or not _is_audio_postprocessing_error(exc):
+                raise
+
+            # Trimming the tail uses an areverse filter, which can require
+            # buffering the whole audio stream.  Very long videos may exhaust
+            # ffmpeg resources and fail conversion.  Retry once without only
+            # the trailing-silence trim so the download still completes; start
+            # trimming and gain are preserved.
+            retry_args = _download_postprocessor_args(
+                is_video,
+                gain_percent,
+                silence_trim_start_secs,
+                0.0,
+                ffmpeg_threads,
+                include_end_trim=False,
+            )
+            if retry_args:
+                ydl_opts["postprocessor_args"] = retry_args
+            else:
+                ydl_opts.pop("postprocessor_args", None)
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(f"https://www.youtube.com/watch?v={youtube_id}", download=True)
 
     # Determine the actual downloaded file path
     ext = audio_format if audio_format in AUDIO_FORMATS + VIDEO_FORMATS else "mp3"

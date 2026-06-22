@@ -8,6 +8,7 @@ from app.services.ytdlp_service import (
     AUDIO_FORMATS,
     VIDEO_FORMATS,
     _codec_args_for,
+    _download_postprocessor_args,
     _format_selector,
     _postprocessors_for,
     _effective_ffmpeg_memory_limit_mb,
@@ -86,6 +87,23 @@ class TestCodecArgsFor:
 
     def test_ogg_uses_libvorbis(self):
         assert _codec_args_for("ogg")[0:2] == ["-codec:a", "libvorbis"]
+
+
+class TestDownloadPostprocessorArgs:
+    def test_can_skip_trailing_trim_for_retry(self):
+        args = _download_postprocessor_args(
+            is_video=False,
+            gain_percent=10.0,
+            silence_trim_start_secs=2.0,
+            silence_trim_end_secs=3.0,
+            include_end_trim=False,
+        )
+
+        filter_str = args[args.index("-af") + 1]
+        assert filter_str.startswith("volume=")
+        assert "start_duration=2.0" in filter_str
+        assert "start_duration=3.0" not in filter_str
+        assert "areverse" not in filter_str
 
 
 class TestRetrimAudioFile:
@@ -267,3 +285,46 @@ class TestDownloadTrackOptions:
     def test_no_silence_trim_when_secs_zero(self, tmp_path):
         opts, _ = self._capture_opts("mp3", tmp_path=tmp_path)
         assert "-af" not in opts.get("postprocessor_args", [])
+
+    def test_retries_without_trailing_trim_on_postprocessing_conversion_failure(self, tmp_path):
+        from app.services import ytdlp_service
+
+        captured_opts = []
+        calls = {"count": 0}
+
+        def fake_ydl(opts):
+            captured_opts.append(dict(opts))
+            mock = MagicMock()
+            mock.__enter__ = MagicMock(return_value=mock)
+            mock.__exit__ = MagicMock(return_value=False)
+
+            def extract_info(url, download):
+                calls["count"] += 1
+                if calls["count"] == 1:
+                    raise ytdlp_service.yt_dlp.utils.DownloadError(
+                        "ERROR: Postprocessing: audio conversion failed: Conversion failed!"
+                    )
+                return {"id": "vid1", "title": "Title", "uploader": "Up", "duration": 10}
+
+            mock.extract_info = MagicMock(side_effect=extract_info)
+            return mock
+
+        with patch("app.services.ytdlp_service.yt_dlp.YoutubeDL", side_effect=fake_ydl):
+            meta = ytdlp_service.download_track(
+                youtube_id="vid1",
+                audio_format="mp3",
+                audio_quality="192",
+                gain_percent=0,
+                silence_trim_start_secs=2.0,
+                silence_trim_end_secs=3.0,
+                base_path=tmp_path,
+            )
+
+        assert meta["file_format"] == "mp3"
+        assert calls["count"] == 2
+        first_filter = captured_opts[0]["postprocessor_args"][captured_opts[0]["postprocessor_args"].index("-af") + 1]
+        retry_filter = captured_opts[1]["postprocessor_args"][captured_opts[1]["postprocessor_args"].index("-af") + 1]
+        assert "areverse" in first_filter
+        assert "areverse" not in retry_filter
+        assert "start_duration=2.0" in retry_filter
+        assert "start_duration=3.0" not in retry_filter
