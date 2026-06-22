@@ -111,6 +111,10 @@ def download_track(self, job_id: int) -> None:
         silence_trim_start_secs = float(start_row.value if start_row else DEFAULTS["silence_trim_start_secs"])
         end_row = db.get(AppSetting, "silence_trim_end_secs")
         silence_trim_end_secs = float(end_row.value if end_row else DEFAULTS["silence_trim_end_secs"])
+        ffmpeg_threads_row = db.get(AppSetting, "ffmpeg_threads")
+        ffmpeg_threads = int(ffmpeg_threads_row.value if ffmpeg_threads_row else DEFAULTS["ffmpeg_threads"])
+        ffmpeg_memory_row = db.get(AppSetting, "ffmpeg_memory_limit_mb")
+        ffmpeg_memory_limit_mb = int(ffmpeg_memory_row.value if ffmpeg_memory_row else DEFAULTS["ffmpeg_memory_limit_mb"])
 
         job.status = "downloading"
         job.started_at = datetime.now(timezone.utc)
@@ -132,6 +136,8 @@ def download_track(self, job_id: int) -> None:
             silence_trim_end_secs=silence_trim_end_secs,
             progress_hook=progress_hook,
             base_path=_download_base_path(source),
+            ffmpeg_threads=ffmpeg_threads,
+            ffmpeg_memory_limit_mb=ffmpeg_memory_limit_mb,
         )
 
         # Upsert track record

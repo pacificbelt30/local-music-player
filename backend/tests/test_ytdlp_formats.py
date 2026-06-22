@@ -106,7 +106,7 @@ class TestRetrimAudioFile:
         f = tmp_path / "song.mp3"
         f.write_bytes(b"original audio bytes")
 
-        def fake_run(cmd, check, capture_output):
+        def fake_run(cmd, check, capture_output, preexec_fn=None):
             out_path = Path(cmd[-1])
             out_path.write_bytes(b"shorter retrimmed audio")
             return MagicMock()
@@ -126,7 +126,7 @@ class TestRetrimAudioFile:
         f = tmp_path / "song.mp3"
         f.write_bytes(b"original audio bytes")
 
-        def fake_run(cmd, check, capture_output):
+        def fake_run(cmd, check, capture_output, preexec_fn=None):
             Path(cmd[-1]).write_bytes(b"partial")
             raise subprocess.CalledProcessError(1, cmd)
 
@@ -218,6 +218,39 @@ class TestDownloadTrackOptions:
         filter_str = af_args[af_args.index("-af") + 1]
         assert filter_str.startswith("volume=")
         assert "silenceremove" in filter_str
+
+
+    def test_custom_ffmpeg_threads_applied(self, tmp_path):
+        opts, _ = self._capture_opts("mp3", tmp_path=tmp_path)
+        assert opts["postprocessor_args"][0:2] == ["-threads", "1"]
+
+    def test_ffmpeg_memory_limit_uses_wrapper_location(self, tmp_path):
+        from app.services import ytdlp_service
+
+        captured = {}
+
+        def fake_ydl(opts):
+            captured.update(opts)
+            mock = MagicMock()
+            mock.__enter__ = MagicMock(return_value=mock)
+            mock.__exit__ = MagicMock(return_value=False)
+            mock.extract_info = MagicMock(return_value={
+                "id": "vid1", "title": "Title", "uploader": "Up", "duration": 10,
+            })
+            return mock
+
+        with patch("app.services.ytdlp_service.shutil.which", return_value="/usr/bin/ffmpeg"):
+            with patch("app.services.ytdlp_service.yt_dlp.YoutubeDL", side_effect=fake_ydl):
+                ytdlp_service.download_track(
+                    youtube_id="vid1",
+                    audio_format="mp3",
+                    audio_quality="192",
+                    gain_percent=0,
+                    base_path=tmp_path,
+                    ffmpeg_memory_limit_mb=512,
+                )
+
+        assert captured["ffmpeg_location"].endswith("ffmpeg")
 
     def test_no_silence_trim_when_secs_zero(self, tmp_path):
         opts, _ = self._capture_opts("mp3", tmp_path=tmp_path)

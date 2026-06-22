@@ -19,6 +19,7 @@ class SyncSettings(BaseModel):
     silence_trim_start_secs: float
     silence_trim_end_secs: float
     ffmpeg_threads: int
+    ffmpeg_memory_limit_mb: int
     celery_worker_concurrency: int
     discord_webhook_url: str
     notify_on_download_complete: bool
@@ -45,6 +46,7 @@ class SyncSettingsUpdate(BaseModel):
     silence_trim_start_secs: float | None = None
     silence_trim_end_secs: float | None = None
     ffmpeg_threads: int | None = None
+    ffmpeg_memory_limit_mb: int | None = None
     celery_worker_concurrency: int | None = None
     discord_webhook_url: str | None = None
     notify_on_download_complete: bool | None = None
@@ -68,7 +70,7 @@ class SyncSettingsUpdate(BaseModel):
             raise ValueError("Must be >= 0")
         return v
 
-    @field_validator("ffmpeg_threads", "celery_worker_concurrency")
+    @field_validator("ffmpeg_threads", "ffmpeg_memory_limit_mb", "celery_worker_concurrency")
     @classmethod
     def must_be_non_negative(cls, v: int | None) -> int | None:
         if v is not None and v < 0:
@@ -101,6 +103,7 @@ def _read(db: Session) -> SyncSettings:
         silence_trim_start_secs=float(get("silence_trim_start_secs")),
         silence_trim_end_secs=float(get("silence_trim_end_secs")),
         ffmpeg_threads=int(get("ffmpeg_threads")),
+        ffmpeg_memory_limit_mb=int(get("ffmpeg_memory_limit_mb")),
         celery_worker_concurrency=int(get("celery_worker_concurrency")),
         discord_webhook_url=get("discord_webhook_url"),
         notify_on_download_complete=_get_bool(db, "notify_on_download_complete"),

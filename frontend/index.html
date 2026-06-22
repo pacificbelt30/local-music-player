@@ -154,6 +154,10 @@
           <input type="number" min="0" step="1" name="ffmpeg_threads" placeholder="例: 1">
         </label>
         <label class="syncthing-field">
+          <span>ffmpeg メモリ上限（MB、0で無制限）</span>
+          <input type="number" min="0" step="1" name="ffmpeg_memory_limit_mb" placeholder="例: 512">
+        </label>
+        <label class="syncthing-field">
           <span>ワーカー同時実行数（0でCPU数に合わせて自動）</span>
           <input type="number" min="0" step="1" name="celery_worker_concurrency" placeholder="例: 4">
         </label>

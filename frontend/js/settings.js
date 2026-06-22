@@ -26,6 +26,7 @@ export function initSettings() {
       silence_trim_start_secs: Number(form.silence_trim_start_secs.value || 0),
       silence_trim_end_secs: Number(form.silence_trim_end_secs.value || 0),
       ffmpeg_threads: Number(form.ffmpeg_threads.value || 1),
+      ffmpeg_memory_limit_mb: Number(form.ffmpeg_memory_limit_mb.value || 0),
       celery_worker_concurrency: Number(form.celery_worker_concurrency.value || 0),
       discord_webhook_url: form.discord_webhook_url.value || "",
       notify_on_download_complete: form.notify_on_download_complete.checked,
@@ -60,6 +61,7 @@ async function loadSettings() {
   form.silence_trim_start_secs.value = String(s.silence_trim_start_secs ?? 2.5);
   form.silence_trim_end_secs.value = String(s.silence_trim_end_secs ?? 2.5);
   form.ffmpeg_threads.value = String(s.ffmpeg_threads ?? 1);
+  form.ffmpeg_memory_limit_mb.value = String(s.ffmpeg_memory_limit_mb ?? 0);
   form.celery_worker_concurrency.value = String(s.celery_worker_concurrency ?? 0);
   form.discord_webhook_url.value = s.discord_webhook_url ?? "";
   form.notify_on_download_complete.checked = s.notify_on_download_complete ?? false;

@@ -17,6 +17,7 @@ def test_get_settings_returns_defaults(client):
     assert data["silence_trim_start_secs"] == 2.5
     assert data["silence_trim_end_secs"] == 2.5
     assert data["ffmpeg_threads"] == 1
+    assert data["ffmpeg_memory_limit_mb"] == 0
 
 
 def test_get_settings_reflects_db_values(client, db):
@@ -24,6 +25,7 @@ def test_get_settings_reflects_db_values(client, db):
     db.add(AppSetting(key="youtube_sync_interval_minutes", value="180"))
     db.add(AppSetting(key="download_gain_percent", value="25"))
     db.add(AppSetting(key="ffmpeg_threads", value="2"))
+    db.add(AppSetting(key="ffmpeg_memory_limit_mb", value="512"))
     db.commit()
 
     data = client.get("/api/v1/settings").json()
@@ -31,6 +33,7 @@ def test_get_settings_reflects_db_values(client, db):
     assert data["youtube_sync_interval_minutes"] == 180
     assert data["download_gain_percent"] == 25.0
     assert data["ffmpeg_threads"] == 2
+    assert data["ffmpeg_memory_limit_mb"] == 512
 
 
 # ── PATCH /settings ───────────────────────────────────────────────────────────
@@ -345,6 +348,17 @@ def test_update_ffmpeg_threads(client):
 
 def test_negative_ffmpeg_threads_rejected(client):
     resp = client.patch("/api/v1/settings", json={"ffmpeg_threads": -1})
+    assert resp.status_code == 422
+
+
+def test_update_ffmpeg_memory_limit(client):
+    resp = client.patch("/api/v1/settings", json={"ffmpeg_memory_limit_mb": 512})
+    assert resp.status_code == 200
+    assert resp.json()["ffmpeg_memory_limit_mb"] == 512
+
+
+def test_negative_ffmpeg_memory_limit_rejected(client):
+    resp = client.patch("/api/v1/settings", json={"ffmpeg_memory_limit_mb": -1})
     assert resp.status_code == 422
 
 
