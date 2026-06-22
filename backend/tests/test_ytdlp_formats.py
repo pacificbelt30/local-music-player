@@ -10,6 +10,7 @@ from app.services.ytdlp_service import (
     _codec_args_for,
     _format_selector,
     _postprocessors_for,
+    _effective_ffmpeg_memory_limit_mb,
     _silence_trim_filter,
     is_video_format,
     retrim_audio_file,
@@ -148,6 +149,8 @@ class TestDownloadTrackOptions:
 
         def fake_ydl(opts):
             captured.update(opts)
+            if opts.get("ffmpeg_location"):
+                captured["wrapper_script"] = Path(opts["ffmpeg_location"]).read_text()
             mock = MagicMock()
             mock.__enter__ = MagicMock(return_value=mock)
             mock.__exit__ = MagicMock(return_value=False)
@@ -224,6 +227,11 @@ class TestDownloadTrackOptions:
         opts, _ = self._capture_opts("mp3", tmp_path=tmp_path)
         assert opts["postprocessor_args"][0:2] == ["-threads", "1"]
 
+    def test_ffmpeg_memory_limit_is_divided_by_concurrent_processes(self):
+        assert _effective_ffmpeg_memory_limit_mb(512, 3) == 170
+        assert _effective_ffmpeg_memory_limit_mb(512, 1) == 512
+        assert _effective_ffmpeg_memory_limit_mb(0, 3) == 0
+
     def test_ffmpeg_memory_limit_uses_wrapper_location(self, tmp_path):
         from app.services import ytdlp_service
 
@@ -231,6 +239,8 @@ class TestDownloadTrackOptions:
 
         def fake_ydl(opts):
             captured.update(opts)
+            if opts.get("ffmpeg_location"):
+                captured["wrapper_script"] = Path(opts["ffmpeg_location"]).read_text()
             mock = MagicMock()
             mock.__enter__ = MagicMock(return_value=mock)
             mock.__exit__ = MagicMock(return_value=False)
@@ -248,9 +258,11 @@ class TestDownloadTrackOptions:
                     gain_percent=0,
                     base_path=tmp_path,
                     ffmpeg_memory_limit_mb=512,
+                    ffmpeg_concurrent_processes=2,
                 )
 
         assert captured["ffmpeg_location"].endswith("ffmpeg")
+        assert "ulimit -v 262144" in captured["wrapper_script"]
 
     def test_no_silence_trim_when_secs_zero(self, tmp_path):
         opts, _ = self._capture_opts("mp3", tmp_path=tmp_path)

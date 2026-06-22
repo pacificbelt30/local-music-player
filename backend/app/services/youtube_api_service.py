@@ -224,16 +224,38 @@ def update_playlist_privacy(
     """Change a playlist's privacy status (e.g. private -> unlisted).
 
     Requires a token with write access (the full ``youtube`` scope); a
-    read-only token will get a 403 from the API.
+    read-only token will get a 403 from the API. YouTube's playlists.update
+    endpoint replaces the mutable playlist resource for the parts sent, so keep
+    the existing snippet in the update body to avoid 400 errors from partial
+    status-only updates.
     """
+    get_resp = httpx.get(
+        f"{YOUTUBE_API_BASE}/playlists",
+        params={"part": "snippet,status", "id": playlist_id, "maxResults": 1},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    get_resp.raise_for_status()
+    items = get_resp.json().get("items", [])
+    if not items:
+        raise ValueError("YouTube playlist not found")
+
+    item = items[0]
+    snippet = item.get("snippet") or {}
     resp = httpx.put(
         f"{YOUTUBE_API_BASE}/playlists",
-        params={"part": "status"},
+        params={"part": "snippet,status"},
         headers={
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
         },
-        json={"id": playlist_id, "status": {"privacyStatus": privacy_status}},
+        json={
+            "id": playlist_id,
+            "snippet": {
+                "title": snippet.get("title", "Untitled"),
+                "description": snippet.get("description", ""),
+            },
+            "status": {"privacyStatus": privacy_status},
+        },
     )
     resp.raise_for_status()
     return resp.json()

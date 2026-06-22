@@ -122,7 +122,7 @@ class TestRetrimExistingSilenceLocally:
             with patch("app.services.ytdlp_service.retrim_audio_file", return_value=999) as mock_retrim:
                 retrim_existing_silence_locally.apply()
 
-        mock_retrim.assert_called_once_with(file_path, "mp3", 1.0, 1.0, 1, 0)
+        mock_retrim.assert_called_once_with(file_path, "mp3", 1.0, 1.0, 1, 0, 0)
         refreshed = db.get(Track, track_id)
         assert refreshed.file_size_bytes == 999
 

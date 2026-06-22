@@ -639,19 +639,29 @@ class TestYouTubeApiService:
 
         captured = {}
 
+        def fake_get(url, params, headers):
+            captured["get_params"] = params
+            return MagicMock(
+                raise_for_status=lambda: None,
+                json=lambda: {"items": [{"id": "PL1", "snippet": {"title": "Mix", "description": "Desc"}}]},
+            )
+
         def fake_put(url, params, headers, json):
-            captured["params"] = params
+            captured["put_params"] = params
             captured["json"] = json
             return MagicMock(
                 raise_for_status=lambda: None,
                 json=lambda: {"id": "PL1", "status": {"privacyStatus": "unlisted"}},
             )
 
-        with patch("app.services.youtube_api_service.httpx.put", side_effect=fake_put):
-            result = update_playlist_privacy("PL1", "tok", "unlisted")
+        with patch("app.services.youtube_api_service.httpx.get", side_effect=fake_get):
+            with patch("app.services.youtube_api_service.httpx.put", side_effect=fake_put):
+                result = update_playlist_privacy("PL1", "tok", "unlisted")
 
-        assert captured["params"]["part"] == "status"
+        assert captured["get_params"]["part"] == "snippet,status"
+        assert captured["put_params"]["part"] == "snippet,status"
         assert captured["json"]["id"] == "PL1"
+        assert captured["json"]["snippet"]["title"] == "Mix"
         assert captured["json"]["status"]["privacyStatus"] == "unlisted"
         assert result["status"]["privacyStatus"] == "unlisted"
 

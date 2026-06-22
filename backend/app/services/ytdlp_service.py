@@ -1,4 +1,4 @@
-import json
+import math
 import shlex
 import shutil
 import stat
@@ -21,8 +21,26 @@ def _effective_ffmpeg_threads(ffmpeg_threads: int | None = None) -> int:
     return settings.ffmpeg_threads if ffmpeg_threads is None else ffmpeg_threads
 
 
-def _ffmpeg_memory_preexec(memory_limit_mb: int | None = None):
-    limit_mb = settings.ffmpeg_memory_limit_mb if memory_limit_mb is None else memory_limit_mb
+def _effective_ffmpeg_memory_limit_mb(
+    memory_limit_mb: int | None = None,
+    concurrent_processes: int | None = None,
+) -> int:
+    total_limit_mb = settings.ffmpeg_memory_limit_mb if memory_limit_mb is None else memory_limit_mb
+    if total_limit_mb <= 0:
+        return 0
+
+    process_count = settings.celery_worker_concurrency if concurrent_processes is None else concurrent_processes
+    if process_count <= 1:
+        return total_limit_mb
+
+    return max(1, math.floor(total_limit_mb / process_count))
+
+
+def _ffmpeg_memory_preexec(
+    memory_limit_mb: int | None = None,
+    concurrent_processes: int | None = None,
+):
+    limit_mb = _effective_ffmpeg_memory_limit_mb(memory_limit_mb, concurrent_processes)
     if limit_mb <= 0:
         return None
 
@@ -36,8 +54,11 @@ def _ffmpeg_memory_preexec(memory_limit_mb: int | None = None):
 
 
 @contextmanager
-def _limited_ffmpeg_location(memory_limit_mb: int | None = None) -> Iterator[str | None]:
-    limit_mb = settings.ffmpeg_memory_limit_mb if memory_limit_mb is None else memory_limit_mb
+def _limited_ffmpeg_location(
+    memory_limit_mb: int | None = None,
+    concurrent_processes: int | None = None,
+) -> Iterator[str | None]:
+    limit_mb = _effective_ffmpeg_memory_limit_mb(memory_limit_mb, concurrent_processes)
     if limit_mb <= 0:
         yield None
         return
@@ -118,6 +139,7 @@ def retrim_audio_file(
     silence_trim_end_secs: float,
     ffmpeg_threads: int | None = None,
     ffmpeg_memory_limit_mb: int | None = None,
+    ffmpeg_concurrent_processes: int | None = None,
 ) -> int | None:
     """Re-apply the silence-trim filter directly to an already-downloaded audio
     file in place, without redownloading from YouTube. Only safe when the trim
@@ -143,7 +165,12 @@ def retrim_audio_file(
         str(tmp_path),
     ]
     try:
-        subprocess.run(cmd, check=True, capture_output=True, preexec_fn=_ffmpeg_memory_preexec(ffmpeg_memory_limit_mb))
+        subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            preexec_fn=_ffmpeg_memory_preexec(ffmpeg_memory_limit_mb, ffmpeg_concurrent_processes),
+        )
     except subprocess.CalledProcessError:
         tmp_path.unlink(missing_ok=True)
         raise
@@ -239,6 +266,7 @@ def download_track(
     base_path: Path | None = None,
     ffmpeg_threads: int | None = None,
     ffmpeg_memory_limit_mb: int | None = None,
+    ffmpeg_concurrent_processes: int | None = None,
 ) -> dict[str, Any]:
     """Download a single track. Returns metadata dict on success."""
     dest = base_path or settings.downloads_path
@@ -284,7 +312,7 @@ def download_track(
     if progress_hook:
         ydl_opts["progress_hooks"] = [progress_hook]
 
-    with _limited_ffmpeg_location(ffmpeg_memory_limit_mb) as ffmpeg_location:
+    with _limited_ffmpeg_location(ffmpeg_memory_limit_mb, ffmpeg_concurrent_processes) as ffmpeg_location:
         if ffmpeg_location:
             ydl_opts["ffmpeg_location"] = ffmpeg_location
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

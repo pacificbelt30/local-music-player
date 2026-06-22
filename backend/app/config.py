@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     # ffmpeg/yt-dlp resource controls
     ffmpeg_threads: int = 1  # 1 keeps CPU usage predictable; set 0 for ffmpeg default(auto)
     ffmpeg_memory_limit_mb: int = 0  # 0 disables the ffmpeg address-space limit
+    celery_worker_concurrency: int = 0  # 0 lets Celery choose; >1 divides ffmpeg memory across workers
 
     app_version: str = "0.1.0"
 
