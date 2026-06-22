@@ -1,0 +1,3336 @@
+
+<!doctype html>
+<html lang="ja" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="YouTubeから音楽をダウンロードしてローカルで再生するシステムの仕様書">
+      
+      
+        <meta name="author" content="SyncTune Hub Team">
+      
+      
+      
+        <link rel="prev" href="../../getting-started/">
+      
+      
+        <link rel="next" href="../../usage/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>初期設定（外部サービス連携） - SyncTune Hub</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#_1" class="md-skip">
+          コンテンツにスキップ
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="ヘッダー">
+    <a href="../.." title="SyncTune Hub" class="md-header__button md-logo" aria-label="SyncTune Hub" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            SyncTune Hub
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              初期設定（外部サービス連携）
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="ダークモードに切り替え"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="ダークモードに切り替え" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="ライトモードに切り替え"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="ライトモードに切り替え" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="検索" placeholder="検索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="検索">
+        
+        <button type="reset" class="md-search__icon md-icon" title="クリア" aria-label="クリア" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            検索を初期化
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pacificbelt30/SyncTuneHub" title="リポジトリへ" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="タブ" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  ホーム
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  はじめに（クイックスタート）
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  初期設定（外部サービス連携）
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  使い方
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../syncthing-mobile/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  モバイル設定
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../future-work/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  今後の課題
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/overview/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  アーキテクチャ
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../backend/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  バックエンド
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../frontend/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  フロントエンド
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../deployment/linux-setup/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  デプロイ
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="ナビゲーション" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="SyncTune Hub" class="md-nav__button md-logo" aria-label="SyncTune Hub" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    SyncTune Hub
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pacificbelt30/SyncTuneHub" title="リポジトリへ" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ホーム
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    はじめに（クイックスタート）
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    初期設定（外部サービス連携）
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    初期設定（外部サービス連携）
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目次">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目次
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#syncthing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Syncthing 連携
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Syncthing 連携">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        必須 env
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        設定値と取得元
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        参照リンク
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#youtubegoogle-cloud-oauth2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YouTube（Google Cloud OAuth2）連携
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="YouTube（Google Cloud OAuth2）連携">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        前提条件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#google-cloud" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Google Cloud プロジェクトのセットアップ
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Google Cloud プロジェクトのセットアップ">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. プロジェクト作成
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-youtube-data-api-v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. YouTube Data API v3 を有効化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-oauth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. OAuth 同意画面を設定
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-oauth-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. OAuth クライアント ID を作成
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        本番環境への公開（任意・未テスト）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#envoauth2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        必須 env（OAuth2 フロー利用時）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        設定値と取得元
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#uri" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        リダイレクト URI の設定（環境別）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="リダイレクト URI の設定（環境別）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-localhost" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        パターン 1: localhost で動かす場合（デフォルト）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-lan-vm-lan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        パターン 2: LAN の VM にセルフホストする場合（同一 LAN からアクセス）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="パターン 2: LAN の VM にセルフホストする場合（同一 LAN からアクセス）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-nipio-dns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方法 A: nip.io ワイルドカード DNS（推奨）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b-ssh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方法 B: SSH ローカルポートフォワーディング
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        パターン 3: 公開ドメインで動かす場合（本番環境）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        参照リンク
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#youtube-api-401" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YouTube API 401 エラー チェックシート
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="YouTube API 401 エラー チェックシート">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        エラーの種類を特定する
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        チェックリスト
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="チェックリスト">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-db" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 1. トークンが DB に保存されているか
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 2.【最多】リフレッシュトークンが 7 日で失効していないか
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-google" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 3. Google アカウントのセキュリティ設定でアクセスを手動削除していないか
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-youtube_client_secret" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 4. YOUTUBE_CLIENT_SECRET が最新か
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-youtube-data-api-v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 5. YouTube Data API v3 が有効か
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-oauth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 6. OAuth クライアントが削除・無効化されていないか
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-youtube" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 7. 認証アカウントに YouTube チャンネルがあるか
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 8.【直接入力方式のみ】アクセストークンの有効期限が切れていないか
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        再認証の手順
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        補足: トークン直接入力方式
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        関連ドキュメント
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    使い方
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    モバイル設定
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    モバイル設定
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../syncthing-mobile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Syncthing モバイル設定（iPhone / Android）
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../android-client/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Android クライアント設定
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../future-work/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    今後の課題
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    アーキテクチャ
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    アーキテクチャ
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    システム概要
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/data-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    データフロー
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../backend/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    バックエンド
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_8" id="__nav_8_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    バックエンド
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backend/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    設定
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backend/database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    データベース
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../backend/api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_8_4" id="__nav_8_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_8_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backend/api/urls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    URL管理
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backend/api/queue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ダウンロードキュー
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backend/api/tracks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    トラックライブラリ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backend/api/stream/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ストリーミング
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backend/api/youtube/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    YouTube連携
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../backend/services/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    サービス層
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_8_5" id="__nav_8_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_8_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    サービス層
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backend/services/ytdlp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    yt-dlpサービス
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backend/services/youtube-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    YouTube APIサービス
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backend/services/syncthing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Syncthingサービス
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backend/services/file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ファイルサービス
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../backend/tasks/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    タスク
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_8_6" id="__nav_8_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_8_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    タスク
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backend/tasks/download/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ダウンロードタスク
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backend/tasks/sync-playlist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    プレイリスト同期タスク
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../frontend/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    フロントエンド
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_9" id="__nav_9_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    フロントエンド
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../frontend/queue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    キューパネル
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../frontend/library/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ライブラリパネル
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../frontend/playlists/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    プレイリストパネル
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../frontend/player/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    プレイヤー
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../frontend/pwa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PWAサポート
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    デプロイ
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    デプロイ
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../deployment/linux-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linuxセットアップ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../deployment/docker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../deployment/local-dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ローカル開発
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../deployment/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    環境設定
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目次">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目次
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#syncthing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Syncthing 連携
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Syncthing 連携">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        必須 env
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        設定値と取得元
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        参照リンク
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#youtubegoogle-cloud-oauth2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YouTube（Google Cloud OAuth2）連携
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="YouTube（Google Cloud OAuth2）連携">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        前提条件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#google-cloud" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Google Cloud プロジェクトのセットアップ
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Google Cloud プロジェクトのセットアップ">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. プロジェクト作成
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-youtube-data-api-v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. YouTube Data API v3 を有効化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-oauth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. OAuth 同意画面を設定
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-oauth-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. OAuth クライアント ID を作成
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        本番環境への公開（任意・未テスト）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#envoauth2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        必須 env（OAuth2 フロー利用時）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        設定値と取得元
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#uri" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        リダイレクト URI の設定（環境別）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="リダイレクト URI の設定（環境別）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-localhost" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        パターン 1: localhost で動かす場合（デフォルト）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-lan-vm-lan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        パターン 2: LAN の VM にセルフホストする場合（同一 LAN からアクセス）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="パターン 2: LAN の VM にセルフホストする場合（同一 LAN からアクセス）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-nipio-dns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方法 A: nip.io ワイルドカード DNS（推奨）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b-ssh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方法 B: SSH ローカルポートフォワーディング
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        パターン 3: 公開ドメインで動かす場合（本番環境）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        参照リンク
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#youtube-api-401" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YouTube API 401 エラー チェックシート
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="YouTube API 401 エラー チェックシート">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        エラーの種類を特定する
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        チェックリスト
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="チェックリスト">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-db" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 1. トークンが DB に保存されているか
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 2.【最多】リフレッシュトークンが 7 日で失効していないか
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-google" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 3. Google アカウントのセキュリティ設定でアクセスを手動削除していないか
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-youtube_client_secret" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 4. YOUTUBE_CLIENT_SECRET が最新か
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-youtube-data-api-v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 5. YouTube Data API v3 が有効か
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-oauth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 6. OAuth クライアントが削除・無効化されていないか
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-youtube" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 7. 認証アカウントに YouTube チャンネルがあるか
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        □ 8.【直接入力方式のみ】アクセストークンの有効期限が切れていないか
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        再認証の手順
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        補足: トークン直接入力方式
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        関連ドキュメント
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="_1">初期設定（外部サービス連携）<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<p>このページは、初期導入時に必要になりやすい外部サービス連携について「どの env に何を入れるか」と「その取得元」をまとめたものです。詳細な設定値の意味は公式ドキュメントを参照してください。</p>
+<h2 id="syncthing">Syncthing 連携<a class="headerlink" href="#syncthing" title="Permanent link">&para;</a></h2>
+<h3 id="env">必須 env<a class="headerlink" href="#env" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>SYNCTHING_URL</code></li>
+<li><code>SYNCTHING_API_KEY</code></li>
+</ul>
+<h3 id="_2">設定値と取得元<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>SYNCTHING_URL</code>: Syncthing GUI / API の URL（例: <code>http://localhost:8384</code>）</li>
+<li><code>SYNCTHING_API_KEY</code>: Syncthing の GUI から取得した API キー</li>
+</ul>
+<h3 id="_3">参照リンク<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Syncthing 公式: <a href="https://syncthing.net/">https://syncthing.net/</a></li>
+<li>Syncthing ユーザーガイド（設定全般）: <a href="https://docs.syncthing.net/users/index.html">https://docs.syncthing.net/users/index.html</a></li>
+<li>Syncthing GUI の設定項目（API キー含む）: <a href="https://docs.syncthing.net/users/config.html">https://docs.syncthing.net/users/config.html</a></li>
+</ul>
+<hr />
+<h2 id="youtubegoogle-cloud-oauth2">YouTube（Google Cloud OAuth2）連携<a class="headerlink" href="#youtubegoogle-cloud-oauth2" title="Permanent link">&para;</a></h2>
+<h3 id="_4">前提条件<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<div class="admonition warning">
+<p class="admonition-title">YouTube チャンネルの開設が必要</p>
+<p><strong>認証に使う Google アカウントに YouTube チャンネルが存在していること</strong>が必要です。<br />
+Google アカウントを持っていても、YouTube チャンネルを作成していないアカウントでは
+API 呼び出しがエラーになります。<br />
+チャンネルを持っていない場合は先に作成してください。<br />
+→ <a href="https://support.google.com/youtube/answer/1646861">YouTube チャンネルを作成する（Google サポート）</a></p>
+</div>
+<ul>
+<li>Google アカウント（YouTube チャンネル付き）</li>
+<li>Google Cloud アカウント（無料枠で可）</li>
+</ul>
+<hr />
+<h3 id="google-cloud">Google Cloud プロジェクトのセットアップ<a class="headerlink" href="#google-cloud" title="Permanent link">&para;</a></h3>
+<h4 id="1">1. プロジェクト作成<a class="headerlink" href="#1" title="Permanent link">&para;</a></h4>
+<ol>
+<li><a href="https://console.cloud.google.com/">Google Cloud Console</a> にアクセス</li>
+<li>画面上部のプロジェクトセレクター → <strong>「新しいプロジェクト」</strong> をクリック</li>
+<li>プロジェクト名を入力して <strong>「作成」</strong></li>
+</ol>
+<h4 id="2-youtube-data-api-v3">2. YouTube Data API v3 を有効化<a class="headerlink" href="#2-youtube-data-api-v3" title="Permanent link">&para;</a></h4>
+<ol>
+<li>左メニュー → <strong>「APIとサービス」</strong> → <strong>「ライブラリ」</strong></li>
+<li>検索ボックスに「YouTube Data API v3」と入力</li>
+<li>表示されたカードをクリック → <strong>「有効にする」</strong></li>
+</ol>
+<h4 id="3-oauth">3. OAuth 同意画面を設定<a class="headerlink" href="#3-oauth" title="Permanent link">&para;</a></h4>
+<ol>
+<li>左メニュー → <strong>「APIとサービス」</strong> → <strong>「OAuth 同意画面」</strong></li>
+<li>ユーザーの種類: <strong>「外部」</strong> を選択（個人利用でもこちらを選ぶ）</li>
+<li>アプリ名・サポートメールアドレスを入力して <strong>「保存して次へ」</strong></li>
+<li>スコープの追加は不要（そのまま <strong>「保存して次へ」</strong>）</li>
+</ol>
+<div class="admonition warning">
+<p class="admonition-title">テストユーザーの登録（よくある見落とし）</p>
+<p>同意画面のステータスが <strong>「テスト」</strong> の状態（Google の審査を受けていない状態）では、
+<strong>テストユーザーとして登録されたアカウントしか認証できません。</strong></p>
+<p>「テストユーザー」の入力欄に、認証に使う Google アカウントのメールアドレスを追加してください。</p>
+<p>追加しないと、Google のログイン後に「このアプリは Google で確認されていません」という
+警告画面が表示され、「続行」を押しても認証がブロックされます。</p>
+</div>
+<div class="admonition danger">
+<p class="admonition-title">「テスト」モードのままだとリフレッシュトークンが 7 日で失効する</p>
+<p>OAuth 同意画面のステータスが <strong>「テスト」</strong> の場合、発行されたリフレッシュトークンは
+<strong>発行から 7 日後に自動的に無効化</strong> されます（テストユーザーも例外ではありません）。</p>
+<p>失効すると定期同期が <code>400 Bad Request</code> エラーで失敗し続けます。
+毎週再認証が必要になります。
+そのため、運用方針に応じて OAuth 同意画面を「本番環境」に公開するかを検討してください。
+※この手順は本プロジェクトでは未テストです。</p>
+</div>
+<h4 id="4-oauth-id">4. OAuth クライアント ID を作成<a class="headerlink" href="#4-oauth-id" title="Permanent link">&para;</a></h4>
+<ol>
+<li>左メニュー → <strong>「APIとサービス」</strong> → <strong>「認証情報」</strong></li>
+<li><strong>「認証情報を作成」</strong> → <strong>「OAuth クライアント ID」</strong></li>
+<li>アプリケーションの種類: <strong>「ウェブ アプリケーション」</strong> を選択</li>
+<li><strong>承認済みリダイレクト URI</strong> の欄に、後述のリダイレクト URI を入力して <strong>「追加」</strong></li>
+<li><strong>「作成」</strong> をクリック</li>
+<li>表示される <strong>クライアント ID</strong> と <strong>クライアント シークレット</strong> をコピーして <code>.env</code> に設定</li>
+</ol>
+<hr />
+<h3 id="_5">本番環境への公開（任意・未テスト）<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<p>「テスト」モードの 7 日制限を外すには、OAuth 同意画面を <strong>「本番環境」</strong> に公開します。</p>
+<div class="admonition warning">
+<p class="admonition-title">本番環境への公開手順は未テスト</p>
+<p>以下の手順は本プロジェクトでは動作検証していません。
+実施する場合は自己責任で行い、必ず再認証後の動作確認を行ってください。</p>
+</div>
+<p><strong>手順:</strong></p>
+<ol>
+<li><a href="https://console.cloud.google.com/">Google Cloud Console</a> → <strong>「APIとサービス」</strong> → <strong>「OAuth 同意画面」</strong></li>
+<li><strong>「アプリを公開」</strong> ボタンをクリック</li>
+<li>確認ダイアログで <strong>「確認」</strong></li>
+</ol>
+<p>公開後は再認証すると 7 日制限のない長期有効なリフレッシュトークンが発行されます。
+UI の <strong>「再認証（OAuth）」</strong> ボタンから OAuth フローをやり直してください。</p>
+<hr />
+<h3 id="envoauth2">必須 env（OAuth2 フロー利用時）<a class="headerlink" href="#envoauth2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>YOUTUBE_CLIENT_ID</code></li>
+<li><code>YOUTUBE_CLIENT_SECRET</code></li>
+<li><code>YOUTUBE_REDIRECT_URI</code></li>
+</ul>
+<h3 id="_6">設定値と取得元<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>YOUTUBE_CLIENT_ID</code> / <code>YOUTUBE_CLIENT_SECRET</code>: Google Cloud Console の OAuth クライアント情報</li>
+<li><code>YOUTUBE_REDIRECT_URI</code>: アプリ側のコールバック URL（運用環境に合わせて変更が必要）</li>
+</ul>
+<hr />
+<h3 id="uri">リダイレクト URI の設定（環境別）<a class="headerlink" href="#uri" title="Permanent link">&para;</a></h3>
+<p>リダイレクト URI は、Google の認証後にブラウザが返ってくる URL です。<br />
+<strong><code>.env</code> の値</strong> と <strong>Google Cloud Console に登録した値</strong> が完全一致していないと認証に失敗します。</p>
+<p>また、リダイレクト URI はブラウザが実際にアクセスできる URL でなければなりません。<br />
+ブラウザ（クライアント）からアクセスできないホスト名や IP を指定しても動作しません。</p>
+<h4 id="1-localhost">パターン 1: localhost で動かす場合（デフォルト）<a class="headerlink" href="#1-localhost" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>YOUTUBE_REDIRECT_URI=http://localhost:8000/api/v1/youtube/auth/callback
+</code></pre></div>
+<p>Google Cloud Console の「承認済みリダイレクト URI」に同じ URI を追加してください。</p>
+<h4 id="2-lan-vm-lan">パターン 2: LAN の VM にセルフホストする場合（同一 LAN からアクセス）<a class="headerlink" href="#2-lan-vm-lan" title="Permanent link">&para;</a></h4>
+<div class="admonition danger">
+<p class="admonition-title">IP アドレス・プライベート TLD はリダイレクト URI に登録できない</p>
+<p>Google Cloud Console は以下を承認済みリダイレクト URI として<strong>登録できません</strong>。</p>
+<ul>
+<li>IP アドレス（<code>192.168.1.50</code> など）→「末尾はパブリック TLD (.com, .org 等) にする必要があります」</li>
+<li><code>.home</code> / <code>.lan</code> / <code>.local</code> / <code>.internal</code> などの非公開 TLD → 同エラー</li>
+</ul>
+<p>末尾が<strong>パブリック TLD</strong>（.com / .io / .net 等）または <strong>Mozilla PSL</strong> に登録されたドメインである必要があります。</p>
+</div>
+<p>以下の 2 つの方法で回避できます。</p>
+<hr />
+<h5 id="a-nipio-dns">方法 A: nip.io ワイルドカード DNS（推奨）<a class="headerlink" href="#a-nipio-dns" title="Permanent link">&para;</a></h5>
+<p><code>nip.io</code> は IP アドレスをドメイン名にマッピングする無料の DNS サービスです。<br />
+<code>&lt;IP&gt;.nip.io</code> が自動的にその IP に解決されます。TLD が <code>.io</code>（パブリック）のため Google Cloud Console に登録できます。</p>
+<p><strong>手順:</strong></p>
+<ol>
+<li>
+<p><strong><code>.env</code> を設定する</strong>（<code>192.168.1.50</code> を実際のサーバー IP に置き換える）</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>YOUTUBE_REDIRECT_URI=http://192.168.1.50.nip.io:8000/api/v1/youtube/auth/callback
+</code></pre></div>
+</li>
+<li>
+<p><strong>Google Cloud Console に登録する</strong><br />
+    「承認済みリダイレクト URI」に上記と同じ URI を完全一致で追加する。</p>
+</li>
+<li>
+<p><strong>OAuth フローを実行する</strong><br />
+    ブラウザで <code>http://192.168.1.50.nip.io:8000</code> にアクセスし、「YouTubeアカウントに接続」をクリックする。</p>
+</li>
+<li>
+<p><strong>認証後は IP でアクセス可能</strong><br />
+    トークンは DB に保存されます。以降は他デバイスから <code>http://192.168.1.50:8000</code> で通常どおりアクセスできます。</p>
+</li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">nip.io の前提条件</p>
+<ul>
+<li>認証フローを踏む端末が<strong>インターネットに接続できる</strong>こと（DNS 解決に必要）</li>
+<li>OAuth フロー実行時のブラウザも <code>192.168.1.50.nip.io</code> に名前解決できること<br />
+  （エアギャップ環境では方法 B を使用してください）</li>
+<li><code>/etc/hosts</code> の変更は不要</li>
+</ul>
+</div>
+<hr />
+<h5 id="b-ssh">方法 B: SSH ローカルポートフォワーディング<a class="headerlink" href="#b-ssh" title="Permanent link">&para;</a></h5>
+<p>SSH でサーバーのポートを手元の <code>localhost</code> に転送し、Google Cloud Console への登録が常に有効な <code>localhost</code> のリダイレクト URI をそのまま使う。<strong>Google Cloud の設定変更は不要</strong>。</p>
+<p><strong>手順:</strong></p>
+<ol>
+<li>
+<p><strong>認証フロー前に SSH トンネルを張る</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>ssh<span class="w"> </span>-N<span class="w"> </span>-L<span class="w"> </span><span class="m">8000</span>:localhost:8000<span class="w"> </span>user@192.168.1.50
+</code></pre></div>
+</li>
+<li>
+<p><strong><code>.env</code> はデフォルトのまま</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>YOUTUBE_REDIRECT_URI=http://localhost:8000/api/v1/youtube/auth/callback
+</code></pre></div>
+</li>
+<li>
+<p><strong>ブラウザで <code>http://localhost:8000</code> を開き</strong>、「YouTubeアカウントに接続」をクリックする。</p>
+</li>
+<li>
+<p><strong>認証完了後は SSH セッションを切断</strong>し、以後は IP アドレスで通常どおりアクセスできます。</p>
+</li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">SSH セッションは認証フロー中だけ必要</p>
+<p>ポートフォワーディングは OAuth フロー実行中のみ維持すれば十分です。<br />
+認証後のトークンは DB に保存されるため、SSH は不要になります。</p>
+</div>
+<hr />
+<h4 id="3">パターン 3: 公開ドメインで動かす場合（本番環境）<a class="headerlink" href="#3" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>YOUTUBE_REDIRECT_URI=https://example.com/api/v1/youtube/auth/callback
+</code></pre></div>
+<p>Google Cloud Console の「承認済みリダイレクト URI」に同じ URI を追加してください。</p>
+<div class="admonition tip">
+<p class="admonition-title">本番環境では HTTPS が必須</p>
+<p>外部からアクセス可能なサーバーで運用する場合、Google は HTTPS の URI のみを承認します。</p>
+</div>
+<hr />
+<h3 id="_7">参照リンク<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Google Cloud Console: <a href="https://console.cloud.google.com/">https://console.cloud.google.com/</a></li>
+<li>YouTube Data API v3 の有効化: <a href="https://developers.google.com/youtube/v3/getting-started">https://developers.google.com/youtube/v3/getting-started</a></li>
+<li>OAuth 同意画面の設定: <a href="https://support.google.com/cloud/answer/10311615">https://support.google.com/cloud/answer/10311615</a></li>
+<li>OAuth クライアント ID の作成: <a href="https://support.google.com/cloud/answer/6158849">https://support.google.com/cloud/answer/6158849</a></li>
+<li>YouTube チャンネルの作成: <a href="https://support.google.com/youtube/answer/1646861">https://support.google.com/youtube/answer/1646861</a></li>
+</ul>
+<hr />
+<h2 id="youtube-api-401">YouTube API 401 エラー チェックシート<a class="headerlink" href="#youtube-api-401" title="Permanent link">&para;</a></h2>
+<h3 id="_8">エラーの種類を特定する<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
+<p>まず画面またはブラウザの開発者ツール（Network タブ）でレスポンスを確認し、エラー種別を特定します。</p>
+<table>
+<thead>
+<tr>
+<th>表示</th>
+<th>意味</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>401 Not authenticated with YouTube</code></td>
+<td>アプリの DB にトークンが存在しない</td>
+</tr>
+<tr>
+<td><code>502 YouTube API error: … 401 …</code></td>
+<td>トークンはあるが Google API に拒否された</td>
+</tr>
+<tr>
+<td><code>502 YouTube API error: … invalid_grant …</code></td>
+<td>リフレッシュトークンが失効している</td>
+</tr>
+<tr>
+<td>プレイリスト一覧が空（エラーなし）</td>
+<td>認証アカウントに YouTube チャンネルがない</td>
+</tr>
+<tr>
+<td>認証フロー自体が開始できない / <code>redirect_uri_mismatch</code></td>
+<td>リダイレクト URI の設定ミス。LAN IP や <code>.home</code> 等の非公開 TLD は登録不可 → <a href="#パターン-2-lan-の-vm-にセルフホストする場合同一-lan-からアクセス">パターン 2</a> を参照</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="_9">チェックリスト<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h3>
+<p>以下を上から順に確認してください。</p>
+<h4 id="1-db">□ 1. トークンが DB に保存されているか<a class="headerlink" href="#1-db" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>curl<span class="w"> </span>http://localhost:8000/api/v1/youtube/auth/status
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># → {&quot;authenticated&quot;: true, ...} であれば保存済み</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># → {&quot;authenticated&quot;: false} であれば未認証</span>
+</code></pre></div>
+<p><code>false</code> の場合は <strong>UI から「YouTubeアカウントに接続」または「トークンを直接入力」</strong> で認証を行ってください。</p>
+<hr />
+<h4 id="2-7">□ 2.【最多】リフレッシュトークンが 7 日で失効していないか<a class="headerlink" href="#2-7" title="Permanent link">&para;</a></h4>
+<div class="admonition warning">
+<p class="admonition-title">OAuth 同意画面が「テスト」モードの場合、リフレッシュトークンは 7 日で失効します</p>
+<p>Google Cloud Console の OAuth 同意画面のステータスが <strong>「テスト」</strong> のままの場合、
+発行されたリフレッシュトークンは <strong>発行から 7 日後に自動的に無効化</strong> されます。</p>
+<p>失効すると、定期同期タスクが <code>400 Bad Request</code> で失敗し、プレイリスト画面の同期カードに
+<strong>「同期エラーが発生しました」</strong> バナーが表示されます（「詳細を見る」でメッセージを確認できます）。</p>
+</div>
+<p><strong>対処法（いずれか）:</strong></p>
+<ul>
+<li><strong>対応 A（任意・未テスト）</strong>: OAuth 同意画面を「本番環境」に公開する → <a href="#本番環境への公開任意未テスト">本番環境への公開</a> を参照</li>
+<li><strong>対応 B（推奨）</strong>: UI の <strong>「再認証（OAuth）」</strong> ボタンから OAuth フローをやり直す（7 日ごとに繰り返し必要）</li>
+</ul>
+<hr />
+<h4 id="3-google">□ 3. Google アカウントのセキュリティ設定でアクセスを手動削除していないか<a class="headerlink" href="#3-google" title="Permanent link">&para;</a></h4>
+<p>Google アカウントのセキュリティページ（<code>myaccount.google.com/security</code>）→
+「サードパーティ アプリとサービス」でアプリのアクセス権が残っているか確認します。</p>
+<p>「アクセスを削除」した場合はリフレッシュトークンが即座に無効化されます。
+→ UI から再認証してください。</p>
+<hr />
+<h4 id="4-youtube_client_secret">□ 4. <code>YOUTUBE_CLIENT_SECRET</code> が最新か<a class="headerlink" href="#4-youtube_client_secret" title="Permanent link">&para;</a></h4>
+<p>Google Cloud Console で OAuth クライアントのシークレットを<strong>ローテーション（再生成）</strong>すると、
+旧シークレットで取得したリフレッシュトークンはすべて無効になります。</p>
+<ul>
+<li><code>.env</code> の <code>YOUTUBE_CLIENT_SECRET</code> が Google Cloud Console の現在の値と一致しているか確認</li>
+<li>Docker の場合は <code>.env</code> 変更後に <code>docker compose restart</code> が必要</li>
+</ul>
+<hr />
+<h4 id="5-youtube-data-api-v3">□ 5. YouTube Data API v3 が有効か<a class="headerlink" href="#5-youtube-data-api-v3" title="Permanent link">&para;</a></h4>
+<p><a href="https://console.cloud.google.com/">Google Cloud Console</a> →
+「APIとサービス」→「有効にしたAPI」で <strong>YouTube Data API v3</strong> が一覧にあるか確認します。</p>
+<p>無効になっていた場合は「ライブラリ」から再度有効化してください。</p>
+<hr />
+<h4 id="6-oauth">□ 6. OAuth クライアントが削除・無効化されていないか<a class="headerlink" href="#6-oauth" title="Permanent link">&para;</a></h4>
+<p>「APIとサービス」→「認証情報」で該当の OAuth クライアント ID が存在するか確認します。
+削除されていた場合は再作成し、<code>.env</code> を更新して再認証が必要です。</p>
+<hr />
+<h4 id="7-youtube">□ 7. 認証アカウントに YouTube チャンネルがあるか<a class="headerlink" href="#7-youtube" title="Permanent link">&para;</a></h4>
+<p>API 呼び出しは成功（200）するが<strong>プレイリスト一覧が空</strong>の場合、
+認証に使った Google アカウントに YouTube チャンネルが存在しない可能性があります。</p>
+<p>→ <a href="https://support.google.com/youtube/answer/1646861">YouTube チャンネルを作成する</a> 後、
+プレイリスト一覧を再取得してください。</p>
+<hr />
+<h4 id="8">□ 8.【直接入力方式のみ】アクセストークンの有効期限が切れていないか<a class="headerlink" href="#8" title="Permanent link">&para;</a></h4>
+<p>「トークンを直接入力」でリフレッシュトークンを入力しなかった場合、
+アクセストークンの有効期限（通常 <strong>1 時間</strong>）が過ぎると自動更新されません。</p>
+<ul>
+<li>期限切れ後はアプリが <code>502</code> または <code>401</code> を返します</li>
+<li>UI の <strong>「再認証（OAuth）」</strong> ボタンで OAuth フローをやり直すか、
+  <strong>「トークンを直接入力」</strong> から <a href="https://developers.google.com/oauthplayground/">OAuth 2.0 Playground</a> で新しいアクセストークンを取得して再入力してください</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">OAuth2 Playground のトークンは自動更新されません</p>
+<p>Playground で取得したリフレッシュトークンは Playground 自身の <code>client_id</code> に紐づくため、
+このアプリの <code>YOUTUBE_CLIENT_SECRET</code> では更新できません。
+<strong>アクセストークンが切れるたびに手動再入力が必要</strong> になります。
+<code>YOUTUBE_CLIENT_ID</code> / <code>YOUTUBE_CLIENT_SECRET</code> を設定して「再認証（OAuth）」ボタンを使うことを推奨します。</p>
+</div>
+<hr />
+<h3 id="_10">再認証の手順<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h3>
+<p>上記チェックで「再認証が必要」と判断した場合:</p>
+<p><strong>接続済みの場合（トークン更新）:</strong></p>
+<ol>
+<li>Playlists パネルの <strong>「再認証（OAuth）」</strong> をクリック → Google 認可画面へ遷移</li>
+<li>アカウントを選択して許可すると自動的にアプリへ戻る</li>
+<li>同期カードのエラーバナーが消えれば完了</li>
+</ol>
+<p><strong>未接続の場合（初回接続）:</strong></p>
+<ol>
+<li>Playlists パネルの <strong>「接続解除」</strong> をクリック（既存の壊れたトークンを削除）</li>
+<li><strong>「YouTubeアカウントに接続」</strong> をクリックして OAuth フローをやり直す</li>
+<li><code>GET /api/v1/youtube/auth/status</code> で <code>authenticated: true</code> を確認</li>
+</ol>
+<hr />
+<h2 id="_11">補足: トークン直接入力方式<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h2>
+<p>UI の「トークンを直接入力」を使う場合は <code>YOUTUBE_CLIENT_ID</code> / <code>YOUTUBE_CLIENT_SECRET</code> は必須ではありません。</p>
+<p>ただし以下の制限があります:</p>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>アクセストークン有効期限</td>
+<td>通常 <strong>1 時間</strong>（期限切れ後は手動再入力が必要）</td>
+</tr>
+<tr>
+<td>リフレッシュトークン</td>
+<td>Playground の <code>client_id</code> に紐づくため、アプリでは自動更新<strong>不可</strong></td>
+</tr>
+<tr>
+<td>実用性</td>
+<td>定期同期が 1 時間ごとに失敗するため、長期運用には不向き</td>
+</tr>
+</tbody>
+</table>
+<p><code>YOUTUBE_CLIENT_ID</code> / <code>YOUTUBE_CLIENT_SECRET</code> を設定して「再認証（OAuth）」ボタンを使う方法を推奨します。</p>
+<ul>
+<li>OAuth 2.0 Playground: <a href="https://developers.google.com/oauthplayground/">https://developers.google.com/oauthplayground/</a></li>
+</ul>
+<h2 id="_12">関連ドキュメント<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../../deployment/configuration/">環境設定リファレンス</a></li>
+<li><a href="../../usage/">使い方ガイド（YouTube / Syncthing 操作）</a></li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  ページトップへ戻る
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "navigation.indexes", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tooltips"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u30b3\u30d4\u30fc\u3057\u307e\u3057\u305f", "clipboard.copy": "\u30af\u30ea\u30c3\u30d7\u30dc\u30fc\u30c9\u3078\u30b3\u30d4\u30fc", "search.result.more.one": "\u3053\u306e\u30da\u30fc\u30b8\u5185\u306b\u3082\u30461\u4ef6\u898b\u3064\u304b\u308a\u307e\u3057\u305f", "search.result.more.other": "\u3053\u306e\u30da\u30fc\u30b8\u5185\u306b\u3042\u3068#\u4ef6\u898b\u3064\u304b\u308a\u307e\u3057\u305f", "search.result.none": "\u4f55\u3082\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3067\u3057\u305f", "search.result.one": "1\u4ef6\u898b\u3064\u304b\u308a\u307e\u3057\u305f", "search.result.other": "#\u4ef6\u898b\u3064\u304b\u308a\u307e\u3057\u305f", "search.result.placeholder": "\u691c\u7d22\u30ad\u30fc\u30ef\u30fc\u30c9\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044", "search.result.term.missing": "\u691c\u7d22\u306b\u542b\u307e\u308c\u306a\u3044", "select.version": "\u30d0\u30fc\u30b8\u30e7\u30f3\u5207\u308a\u66ff\u3048"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
