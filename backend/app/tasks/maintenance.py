@@ -72,13 +72,25 @@ def retrim_existing_silence_locally() -> None:
         ffmpeg_threads = int(ffmpeg_threads_row.value if ffmpeg_threads_row else DEFAULTS["ffmpeg_threads"])
         ffmpeg_memory_row = db.get(AppSetting, "ffmpeg_memory_limit_mb")
         ffmpeg_memory_limit_mb = int(ffmpeg_memory_row.value if ffmpeg_memory_row else DEFAULTS["ffmpeg_memory_limit_mb"])
+        ffmpeg_concurrency_row = db.get(AppSetting, "celery_worker_concurrency")
+        ffmpeg_concurrent_processes = int(
+            ffmpeg_concurrency_row.value if ffmpeg_concurrency_row else DEFAULTS["celery_worker_concurrency"]
+        )
 
         jobs = db.query(DownloadJob).filter(DownloadJob.status == "complete").all()
         for job in jobs:
             track = db.query(Track).filter_by(youtube_id=job.youtube_id).first()
             if not track or track.file_format in VIDEO_FORMATS:
                 continue
-            new_size = retrim_audio_file(track.file_path, track.file_format, start_secs, end_secs, ffmpeg_threads, ffmpeg_memory_limit_mb)
+            new_size = retrim_audio_file(
+                track.file_path,
+                track.file_format,
+                start_secs,
+                end_secs,
+                ffmpeg_threads,
+                ffmpeg_memory_limit_mb,
+                ffmpeg_concurrent_processes,
+            )
             if new_size is not None:
                 track.file_size_bytes = new_size
 
@@ -86,7 +98,15 @@ def retrim_existing_silence_locally() -> None:
         for track in sync_tracks:
             if not track.file_path or track.file_format in VIDEO_FORMATS:
                 continue
-            new_size = retrim_audio_file(track.file_path, track.file_format, start_secs, end_secs, ffmpeg_threads, ffmpeg_memory_limit_mb)
+            new_size = retrim_audio_file(
+                track.file_path,
+                track.file_format,
+                start_secs,
+                end_secs,
+                ffmpeg_threads,
+                ffmpeg_memory_limit_mb,
+                ffmpeg_concurrent_processes,
+            )
             if new_size is not None:
                 track.file_size_bytes = new_size
 

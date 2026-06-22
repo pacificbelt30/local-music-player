@@ -182,6 +182,10 @@ def download_playlist_sync_track(self, track_id: int) -> None:
         ffmpeg_threads = int(ffmpeg_threads_row.value if ffmpeg_threads_row else DEFAULTS["ffmpeg_threads"])
         ffmpeg_memory_row = db.get(AppSetting, "ffmpeg_memory_limit_mb")
         ffmpeg_memory_limit_mb = int(ffmpeg_memory_row.value if ffmpeg_memory_row else DEFAULTS["ffmpeg_memory_limit_mb"])
+        ffmpeg_concurrency_row = db.get(AppSetting, "celery_worker_concurrency")
+        ffmpeg_concurrent_processes = int(
+            ffmpeg_concurrency_row.value if ffmpeg_concurrency_row else DEFAULTS["celery_worker_concurrency"]
+        )
 
         # Store in downloads/{dir_name}/, fixed at sync creation
         playlist_name = sync.playlist_name if sync else "unknown"
@@ -210,6 +214,7 @@ def download_playlist_sync_track(self, track_id: int) -> None:
             base_path=base_path,
             ffmpeg_threads=ffmpeg_threads,
             ffmpeg_memory_limit_mb=ffmpeg_memory_limit_mb,
+            ffmpeg_concurrent_processes=ffmpeg_concurrent_processes,
         )
 
         track.title = metadata["title"]

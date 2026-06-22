@@ -115,6 +115,10 @@ def download_track(self, job_id: int) -> None:
         ffmpeg_threads = int(ffmpeg_threads_row.value if ffmpeg_threads_row else DEFAULTS["ffmpeg_threads"])
         ffmpeg_memory_row = db.get(AppSetting, "ffmpeg_memory_limit_mb")
         ffmpeg_memory_limit_mb = int(ffmpeg_memory_row.value if ffmpeg_memory_row else DEFAULTS["ffmpeg_memory_limit_mb"])
+        ffmpeg_concurrency_row = db.get(AppSetting, "celery_worker_concurrency")
+        ffmpeg_concurrent_processes = int(
+            ffmpeg_concurrency_row.value if ffmpeg_concurrency_row else DEFAULTS["celery_worker_concurrency"]
+        )
 
         job.status = "downloading"
         job.started_at = datetime.now(timezone.utc)
@@ -138,6 +142,7 @@ def download_track(self, job_id: int) -> None:
             base_path=_download_base_path(source),
             ffmpeg_threads=ffmpeg_threads,
             ffmpeg_memory_limit_mb=ffmpeg_memory_limit_mb,
+            ffmpeg_concurrent_processes=ffmpeg_concurrent_processes,
         )
 
         # Upsert track record
