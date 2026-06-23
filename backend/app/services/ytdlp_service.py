@@ -111,16 +111,23 @@ def _silence_trim_filter(
     # start_periods=1 only ever matches the very first silence run, so reversing
     # the audio lets the same trick trim trailing silence without touching
     # silence elsewhere in the track.
+    #
+    # start_silence (not start_duration) is what caps how much leading silence
+    # survives: it keeps up to that many seconds of whatever silence is there
+    # and removes only the excess, so a run shorter than it is left untouched.
+    # start_duration instead gates how long non-silence must hold before the
+    # trim stops, so using it as the threshold would keep eating into actual
+    # sound whenever the track starts with a quiet passage shorter than that.
     parts: list[str] = []
     if start_secs > 0:
         parts.append(
-            f"silenceremove=start_periods=1:start_duration={start_secs}:"
+            f"silenceremove=start_periods=1:start_silence={start_secs}:"
             f"start_threshold={threshold_db}:detection=peak"
         )
     if include_end_trim and end_secs > 0:
         parts.append("areverse")
         parts.append(
-            f"silenceremove=start_periods=1:start_duration={end_secs}:"
+            f"silenceremove=start_periods=1:start_silence={end_secs}:"
             f"start_threshold={threshold_db}:detection=peak"
         )
         parts.append("areverse")

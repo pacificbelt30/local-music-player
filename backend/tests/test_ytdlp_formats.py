@@ -59,7 +59,7 @@ class TestSilenceTrimFilter:
 
     def test_start_only(self):
         f = _silence_trim_filter(2.5, 0)
-        assert f == "silenceremove=start_periods=1:start_duration=2.5:start_threshold=-50dB:detection=peak"
+        assert f == "silenceremove=start_periods=1:start_silence=2.5:start_threshold=-50dB:detection=peak"
 
     def test_end_only_uses_reverse_trick(self):
         f = _silence_trim_filter(0, 2.5)
@@ -69,9 +69,9 @@ class TestSilenceTrimFilter:
     def test_both_sides(self):
         f = _silence_trim_filter(2.0, 3.0)
         parts = f.split(",")
-        assert parts[0].startswith("silenceremove=start_periods=1:start_duration=2.0")
+        assert parts[0].startswith("silenceremove=start_periods=1:start_silence=2.0")
         assert parts[1] == "areverse"
-        assert parts[2].startswith("silenceremove=start_periods=1:start_duration=3.0")
+        assert parts[2].startswith("silenceremove=start_periods=1:start_silence=3.0")
         assert parts[3] == "areverse"
 
 
@@ -101,8 +101,8 @@ class TestDownloadPostprocessorArgs:
 
         filter_str = args[args.index("-af") + 1]
         assert filter_str.startswith("volume=")
-        assert "start_duration=2.0" in filter_str
-        assert "start_duration=3.0" not in filter_str
+        assert "start_silence=2.0" in filter_str
+        assert "start_silence=3.0" not in filter_str
         assert "areverse" not in filter_str
 
 
@@ -326,5 +326,5 @@ class TestDownloadTrackOptions:
         retry_filter = captured_opts[1]["postprocessor_args"][captured_opts[1]["postprocessor_args"].index("-af") + 1]
         assert "areverse" in first_filter
         assert "areverse" not in retry_filter
-        assert "start_duration=2.0" in retry_filter
-        assert "start_duration=3.0" not in retry_filter
+        assert "start_silence=2.0" in retry_filter
+        assert "start_silence=3.0" not in retry_filter
