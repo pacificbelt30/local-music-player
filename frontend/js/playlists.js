@@ -261,6 +261,21 @@ function formatPlaylistDuration(seconds) {
   return `${m}分`;
 }
 
+async function createUrlSyncWithRetry(playlistId, audio_format, audio_quality, btn) {
+  const source_url = `https://www.youtube.com/playlist?list=${playlistId}`;
+  const delaysMs = [3000, 5000, 8000]; // total ~16s of backoff after the first attempt
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await api.youtubeCreateSync({ source_type: "url", source_url, audio_format, audio_quality });
+      return;
+    } catch (e) {
+      if (attempt >= delaysMs.length) throw e;
+      btn.textContent = `限定公開への反映待ち…(${attempt + 1}/${delaysMs.length})`;
+      await new Promise((r) => setTimeout(r, delaysMs[attempt]));
+    }
+  }
+}
+
 // ── Add Sync Dialog ───────────────────────────────────────────────────────────
 
 function showAddSyncDialog(btn) {
@@ -343,10 +358,6 @@ function showAddSyncDialog(btn) {
     btn.disabled = true;
     btn.textContent = "追加中…";
     try {
-      if (method === "url-switch") {
-        // Flip the private playlist to unlisted before syncing by share URL.
-        await api.youtubeSetPlaylistPrivacy(btn.dataset.id, "unlisted");
-      }
       if (method === "api") {
         await api.youtubeCreateSync({
           playlist_id: btn.dataset.id,
@@ -354,8 +365,15 @@ function showAddSyncDialog(btn) {
           audio_format,
           audio_quality,
         });
+      } else if (method === "url-switch") {
+        // Flip the private playlist to unlisted, then resolve it by share URL.
+        // YouTube's privacy change can take a few seconds to propagate to the
+        // anonymous page yt-dlp scrapes, so retry instead of failing on the
+        // first "playlist does not exist" while it's still catching up.
+        await api.youtubeSetPlaylistPrivacy(btn.dataset.id, "unlisted");
+        await createUrlSyncWithRetry(btn.dataset.id, audio_format, audio_quality, btn);
       } else {
-        // "url" or "url-switch": sync via the playlist's share URL (no API).
+        // "url": sync via the playlist's share URL (no API).
         await api.youtubeCreateSync({
           source_type: "url",
           source_url: `https://www.youtube.com/playlist?list=${btn.dataset.id}`,
