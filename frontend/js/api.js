@@ -9,7 +9,8 @@ async function request(method, path, body) {
   const res = await fetch(BASE + path, opts);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || res.statusText);
+    const detail = Array.isArray(err.detail) ? err.detail.map(item => item.msg).join(" / ") : err.detail;
+    throw new Error(detail || res.statusText);
   }
   if (res.status === 204) return null;
   return res.json();
@@ -70,6 +71,10 @@ export const api = {
   // Settings
   getSettings: () => request("GET", "/settings"),
   updateSettings: (payload) => request("PATCH", "/settings", payload),
+  ytdlpStatus: () => request("GET", "/ytdlp"),
+  ytdlpConfigure: (payload) => request("PATCH", "/ytdlp/config", payload),
+  ytdlpCheck: () => request("POST", "/ytdlp/check"),
+  ytdlpRollback: () => request("POST", "/ytdlp/rollback"),
 
   // Debug / monitoring
   getDebug: () => request("GET", "/debug"),

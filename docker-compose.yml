@@ -78,6 +78,22 @@ services:
       - syncthing
     command: celery -A app.tasks.celery_app.celery_app worker --loglevel=info -Q downloads,scheduler
 
+  updater:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_RESULT_BACKEND=redis://redis:6379/1
+      - DATABASE_URL=sqlite:////data/music.db
+      - DATA_PATH=/data
+    volumes:
+      - ./data:/data
+    depends_on:
+      - redis
+      - api
+    command: celery -A app.tasks.celery_app.celery_app worker --loglevel=info -Q updates --concurrency=1 --hostname=updater@%h
+
   beat:
     build: .
     restart: unless-stopped

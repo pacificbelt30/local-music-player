@@ -13,7 +13,7 @@ dependencies = [
     "alembic>=1.13.1",
     "celery[redis]>=5.4.0",
     "redis>=5.0.4",
-    "yt-dlp>=2024.5.1",
+    "yt-dlp[default]==2026.8.19",
     "pydantic-settings>=2.2.1",
     "aiofiles>=23.2.1",
     "httpx>=0.27.0",

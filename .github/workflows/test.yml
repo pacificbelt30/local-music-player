@@ -19,6 +19,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r backend/requirements.txt pytest httpx
 
+      - name: Install FFmpeg for runtime compatibility checks
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       - name: Run tests
         working-directory: backend
         run: python -m pytest tests/ -v

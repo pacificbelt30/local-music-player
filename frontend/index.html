@@ -200,6 +200,27 @@
         <div class="error-msg" id="settings-error"></div>
         <div class="success-msg" id="settings-ok"></div>
       </form>
+      <hr>
+      <h3>yt-dlp 自動更新</h3>
+      <p>検証を通った版を次の処理から使います。実行中のダウンロードは継続します。</p>
+      <form id="ytdlp-update-form" class="syncthing-config-form">
+        <label class="notify-checkbox-item"><input type="checkbox" name="enabled"><span>定期的に更新を確認する</span></label>
+        <label class="syncthing-field"><span>確認間隔</span>
+          <select name="interval_minutes"><option value="60">1時間</option><option value="360">6時間</option><option value="1440">24時間</option><option value="10080">1週間</option></select>
+        </label>
+        <label class="syncthing-field"><span>検証用の公開動画（60秒以内）</span><input type="url" name="video_url" placeholder="https://www.youtube.com/watch?v=..."></label>
+        <label class="syncthing-field"><span>検証用の公開プレイリスト（少数の動画）</span><input type="url" name="playlist_url" placeholder="https://www.youtube.com/playlist?list=..."></label>
+        <label class="syncthing-field"><span>検証用チャンネル（任意）</span><input type="url" name="channel_url" placeholder="https://www.youtube.com/@..."></label>
+        <p>更新時は現行版と候補版で音声5形式・動画2形式を検証します。テスト用ファイルは削除され、ライブラリには登録されません。</p>
+        <div class="syncthing-config-actions">
+          <button type="submit" class="btn btn-primary">更新設定を保存</button>
+          <button type="button" id="ytdlp-check" class="btn">今すぐ確認</button>
+          <button type="button" id="ytdlp-rollback" class="btn">前の版に戻す</button>
+        </div>
+      </form>
+      <p id="ytdlp-status" role="status" aria-live="polite"></p>
+      <pre id="ytdlp-results" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+      <div class="error-msg" id="ytdlp-error"></div>
     </div>
   </div>
 </div>

@@ -8,8 +8,20 @@ from sqlalchemy.pool import StaticPool
 import app.database as app_database
 from app.database import Base, get_db
 from app.main import app
+from app.tasks.celery_app import celery_app
+
+# Unit tests must not wait for a real broker or Redis result backend.
+celery_app.conf.update(broker_url="memory://", result_backend="cache+memory://")
 
 TEST_DB_URL = "sqlite:///:memory:"
+
+
+@pytest.fixture(autouse=True)
+def isolated_runtime(monkeypatch, tmp_path):
+    # Existing adapter unit tests mock YoutubeDL in-process. Process integration
+    # tests explicitly remove this flag to exercise the production boundary.
+    monkeypatch.setenv("YTDLP_CHILD", "1")
+    monkeypatch.setattr("app.config.settings.data_path", tmp_path)
 
 # StaticPool forces all sessions to share one connection so in-memory tables
 # are visible across sessions and threads.
