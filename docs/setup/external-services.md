@@ -150,33 +150,17 @@ Google Cloud Console の「承認済みリダイレクト URI」に同じ URI �
 
 ---
 
-##### 方法 A: nip.io ワイルドカード DNS（推奨）
+##### 方法 A: 固定ホスト名 + HTTPS
 
-`nip.io` は IP アドレスをドメイン名にマッピングする無料の DNS サービスです。  
-`<IP>.nip.io` が自動的にその IP に解決されます。TLD が `.io`（パブリック）のため Google Cloud Console に登録できます。
+Google は localhost 以外の Web アプリ向けリダイレクト URI に HTTPS を要求します。
+`http://192.168.1.50.nip.io:8000/...` を使う旧手順では要件を満たせません。
 
-**手順:**
+所有ドメインがない場合は、`192-168-1-50.nip.io` などのホスト名と Caddy のローカル CA を利用できます。
+端末で CA を信頼したうえで、Google とアプリの戻り先を同じ HTTPS URL に揃えます。
+サーバーの外部公開は不要です。
 
-1. **`.env` を設定する**（`192.168.1.50` を実際のサーバー IP に置き換える）
-
-    ```dotenv
-    YOUTUBE_REDIRECT_URI=http://192.168.1.50.nip.io:8000/api/v1/youtube/auth/callback
-    ```
-
-2. **Google Cloud Console に登録する**  
-    「承認済みリダイレクト URI」に上記と同じ URI を完全一致で追加する。
-
-3. **OAuth フローを実行する**  
-    ブラウザで `http://192.168.1.50.nip.io:8000` にアクセスし、「YouTubeアカウントに接続」をクリックする。
-
-4. **認証後は IP でアクセス可能**  
-    トークンは DB に保存されます。以降は他デバイスから `http://192.168.1.50:8000` で通常どおりアクセスできます。
-
-!!! note "nip.io の前提条件"
-    - 認証フローを踏む端末が**インターネットに接続できる**こと（DNS 解決に必要）
-    - OAuth フロー実行時のブラウザも `192.168.1.50.nip.io` に名前解決できること  
-      （エアギャップ環境では方法 B を使用してください）
-    - `/etc/hosts` の変更は不要
+[LAN 内の固定ホスト名と HTTPS の設定手順](../deployment/https.md)を参照してください。
+Google の本番審査でドメイン所有権を求められる場合は、所有ドメインが必要です。
 
 ---
 
@@ -217,7 +201,7 @@ YOUTUBE_REDIRECT_URI=https://example.com/api/v1/youtube/auth/callback
 Google Cloud Console の「承認済みリダイレクト URI」に同じ URI を追加してください。
 
 !!! tip "本番環境では HTTPS が必須"
-    外部からアクセス可能なサーバーで運用する場合、Google は HTTPS の URI のみを承認します。
+    LAN 内でも localhost 以外のホスト名を使う場合、Google は HTTPS の URI を要求します。
 
 ---
 

@@ -99,5 +99,6 @@ nav:
   - デプロイ:
       - Linuxセットアップ: deployment/linux-setup.md
       - Docker: deployment/docker.md
+      - LAN内のHTTPS・OAuth: deployment/https.md
       - ローカル開発: deployment/local-dev.md
       - 環境設定: deployment/configuration.md

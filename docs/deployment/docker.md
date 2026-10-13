@@ -89,3 +89,9 @@ docker compose up -d --scale worker=3
 ```
 
 Beat スケジューラは**必ず 1 インスタンスのみ**起動してください（重複実行防止）。
+
+## LAN 内の HTTPS と OAuth
+
+別の端末から認証する場合は、[固定ホスト名と HTTPS の構成](https.md)を利用できます。
+追加の `docker-compose.https.yml` で HTTPS の入口を起動し、OAuth の戻り先も同じホスト名に揃えます。
+所有ドメインがない場合の `nip.io` と、ローカル CA を端末で信頼する手順も説明しています。

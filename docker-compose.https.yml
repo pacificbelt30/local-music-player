@@ -1,0 +1,27 @@
+# Optional LAN HTTPS entry point. Use with docker-compose.yml.
+services:
+  https:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    environment:
+      HTTPS_HOSTNAME: ${HTTPS_HOSTNAME:?Set HTTPS_HOSTNAME to your fixed DNS hostname}
+      NO_PROXY: api,localhost,127.0.0.1
+      no_proxy: api,localhost,127.0.0.1
+    ports:
+      - "${HTTPS_BIND_IP:-0.0.0.0}:${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./deploy/https/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Keep the local CA stable across container recreation.
+      - https-data:/data
+      - https-config:/config
+    depends_on:
+      api:
+        condition: service_started
+
+  api:
+    environment:
+      YOUTUBE_REDIRECT_URI: https://${HTTPS_HOSTNAME:?Set HTTPS_HOSTNAME}${HTTPS_URL_PORT:-}/api/v1/youtube/auth/callback
+
+volumes:
+  https-data:
+  https-config:

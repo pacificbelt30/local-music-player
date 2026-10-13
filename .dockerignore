@@ -9,3 +9,4 @@ syncthing-config
 syncthing-state
 work
 node_modules
+https-root.crt

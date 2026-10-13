@@ -44,3 +44,12 @@ jobs:
           docker pull syncthing/syncthing:2.1.6
           docker build -t local-music-player:syncthing-recovery-test ..
           python -m pytest tests/integration/test_syncthing_recreate.py -v
+
+      - name: Test LAN HTTPS and certificate persistence
+        working-directory: backend
+        env:
+          HTTPS_DOCKER_TESTS: "1"
+          HTTPS_APP_TEST_IMAGE: local-music-player:syncthing-recovery-test
+        run: |
+          docker pull caddy:2.10.2-alpine
+          python -m pytest tests/integration/test_https_recreate.py -v
