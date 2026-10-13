@@ -636,6 +636,13 @@ header h1 {
   overflow-y: auto;
 }
 
+.yt-list-title { display: flex; align-items: center; justify-content: flex-start; gap: 8px; }
+.yt-list-title > span { flex: 1; min-width: 0; }
+.yt-list-title .btn { font-size: 0.75rem; padding: 5px 10px; }
+.yt-list-feedback { font-size: 0.78rem; color: var(--text-muted); margin: 6px 0; overflow-wrap: anywhere; }
+.yt-list-feedback:empty { display: none; }
+.yt-list-feedback.error-msg { color: var(--danger, #ef4444); }
+
 .yt-pl-item {
   background: var(--surface);
   border: 1px solid var(--border);

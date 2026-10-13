@@ -8,3 +8,4 @@ data
 syncthing-config
 syncthing-state
 work
+node_modules

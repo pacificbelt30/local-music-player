@@ -30,8 +30,10 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Test Syncthing status presentation
-        run: node --test tests/frontend/*.test.mjs
+      - name: Test frontend behavior
+        run: |
+          npm ci --ignore-scripts
+          npm test
 
       - name: Test Syncthing container recreation
         working-directory: backend
