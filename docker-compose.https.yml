@@ -20,7 +20,7 @@ services:
 
   api:
     environment:
-      YOUTUBE_REDIRECT_URI: https://${HTTPS_HOSTNAME:?Set HTTPS_HOSTNAME}${HTTPS_URL_PORT:-}/api/v1/youtube/auth/callback
+      YOUTUBE_REDIRECT_URI: ${HTTPS_OAUTH_REDIRECT_URI:-${YOUTUBE_REDIRECT_URI:-http://localhost:8000/api/v1/youtube/auth/callback}}
 
 volumes:
   https-data:

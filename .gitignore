@@ -233,3 +233,5 @@ CLAUDE.local.md
 
 # Exported local HTTPS trust certificate
 https-root.crt
+
+https-setup/

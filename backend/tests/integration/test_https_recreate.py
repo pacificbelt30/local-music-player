@@ -19,7 +19,7 @@ pytestmark = pytest.mark.skipif(os.environ.get('HTTPS_DOCKER_TESTS') != '1', rea
 def test_https_verification_oauth_url_and_recreation(tmp_path):
     env = {k:v for k,v in os.environ.items() if k not in ('DOCKER_HOST','DOCKER_CONTEXT','DOCKER_TLS','DOCKER_TLS_VERIFY','DOCKER_CERT_PATH')}
     name = 'https-test-' + uuid.uuid4().hex[:10]
-    host = '192-168-1-50.nip.io'
+    host = 'music.home.arpa'
     spec = yaml.safe_load((REPO / 'docker-compose.https.yml').read_text())['services']['https']
     data = tmp_path / 'ca-data'
     data.mkdir()
@@ -72,7 +72,7 @@ def test_https_verification_oauth_url_and_recreation(tmp_path):
                '-e','DATABASE_URL=sqlite:////data/music.db','-e','DATA_PATH=/data',
                '-e','DOWNLOADS_PATH=/tmp/downloads','-e','PLAYLISTS_PATH=/tmp/playlists',
                '-e','YOUTUBE_CLIENT_ID=test-client','-e','SECRET_TOKEN=',
-               '-e','YOUTUBE_REDIRECT_URI=https://'+host+'/api/v1/youtube/auth/callback',
+               '-e','YOUTUBE_REDIRECT_URI=http://localhost:8000/api/v1/youtube/auth/callback',
                os.environ.get('HTTPS_APP_TEST_IMAGE','local-music-player:https-test'))
         port = start_proxy()
         def copy_root():
@@ -85,7 +85,7 @@ def test_https_verification_oauth_url_and_recreation(tmp_path):
         assert status == 200 and b'<!DOCTYPE html>' in body
         status, body = request(port,'/api/v1/youtube/auth/url')
         params = parse_qs(urlparse(json.loads(body)['url']).query)
-        assert params['redirect_uri'] == ['https://'+host+'/api/v1/youtube/auth/callback']
+        assert params['redirect_uri'] == ['http://localhost:8000/api/v1/youtube/auth/callback']
         assert request(port,'/api/v1/youtube/auth/callback')[0] == 422  # callback route is reachable; code absent
         with pytest.raises(ssl.SSLCertVerificationError): request(port,'/',trusted=False)
         with pytest.raises(ssl.SSLError): request(port,'/',server_name='wrong.example.com')

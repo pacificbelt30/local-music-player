@@ -10,3 +10,5 @@ syncthing-state
 work
 node_modules
 https-root.crt
+
+https-setup/

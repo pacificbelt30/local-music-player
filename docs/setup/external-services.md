@@ -153,14 +153,12 @@ Google Cloud Console の「承認済みリダイレクト URI」に同じ URI �
 ##### 方法 A: 固定ホスト名 + HTTPS
 
 Google は localhost 以外の Web アプリ向けリダイレクト URI に HTTPS を要求します。
-`http://192.168.1.50.nip.io:8000/...` を使う旧手順では要件を満たせません。
+所有ドメインのサブドメインを hosts またはローカル DNS でサーバーの LAN 内 IP に向け、
+Google とアプリの戻り先を同じ HTTPS URL に揃えます。外部公開は不要です。
 
-所有ドメインがない場合は、`192-168-1-50.nip.io` などのホスト名と Caddy のローカル CA を利用できます。
-端末で CA を信頼したうえで、Google とアプリの戻り先を同じ HTTPS URL に揃えます。
-サーバーの外部公開は不要です。
-
-[LAN 内の固定ホスト名と HTTPS の設定手順](../deployment/https.md)を参照してください。
-Google の本番審査でドメイン所有権を求められる場合は、所有ドメインが必要です。
+[LAN 内の HTTPS・hosts・DNS 設定](../deployment/https.md)には、設定生成ツールと端末・ルーターへの適用手順があります。
+所有ドメインがない場合も `music.home.arpa` で LAN 内の HTTPS は利用できますが、
+その名前を Google に登録できるとは限りません。OAuth は下記の localhost + SSH 転送方式を使えます。
 
 ---
 
