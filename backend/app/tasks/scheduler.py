@@ -111,6 +111,9 @@ def periodic_oauth_expiry_check() -> None:
         token = db.query(YouTubeOAuthToken).first()
         if not token or not token.token_expiry:
             return
+        # A short-lived access token is automatically renewed, not reauthorized.
+        if token.refresh_token:
+            return
 
         now = datetime.now(timezone.utc)
         expiry = token.token_expiry

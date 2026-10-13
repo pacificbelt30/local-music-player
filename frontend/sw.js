@@ -1,4 +1,4 @@
-const CACHE = "lmp-v2";
+const CACHE = "lmp-v3";
 const SHELL = ["/", "/css/app.css", "/js/api.js", "/js/queue.js", "/js/library.js", "/js/player.js"];
 
 self.addEventListener("install", (e) => {

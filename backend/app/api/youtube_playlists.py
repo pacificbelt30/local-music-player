@@ -93,6 +93,7 @@ def set_token_directly(payload: YouTubeTokenInput, db: Session = Depends(get_db)
             scope=None,
         )
         db.add(record)
+    youtube_api_service.record_authorization(record, payload.model_dump(), now, issued_here=False)
     db.commit()
     return {"ok": True}
 
@@ -125,6 +126,7 @@ def oauth_callback(code: str = Query(...), db: Session = Depends(get_db)):
             scope=data.get("scope"),
         )
         db.add(record)
+    youtube_api_service.record_authorization(record, data, now)
     db.commit()
     return RedirectResponse(url="/?youtube_auth=success")
 
@@ -132,9 +134,19 @@ def oauth_callback(code: str = Query(...), db: Session = Depends(get_db)):
 @router.get("/auth/status", response_model=YouTubeAuthStatus)
 def auth_status(db: Session = Depends(get_db)):
     record = db.query(YouTubeOAuthToken).first()
-    if not record:
-        return YouTubeAuthStatus(authenticated=False)
-    return YouTubeAuthStatus(authenticated=True, scope=record.scope)
+    return youtube_api_service.token_status(record)
+
+
+@router.post("/auth/check", response_model=YouTubeAuthStatus)
+def check_auth(db: Session = Depends(get_db)):
+    """Explicitly verify the refresh token; normal status reads do not use Google."""
+    if not settings.youtube_client_id or not settings.youtube_client_secret:
+        return youtube_api_service.token_status(db.query(YouTubeOAuthToken).first())
+    try:
+        youtube_api_service.get_fresh_access_token(db, force=True)
+    except (httpx.HTTPStatusError, httpx.RequestError):
+        pass  # Safe failure details are persisted by the refresh helper.
+    return youtube_api_service.token_status(db.query(YouTubeOAuthToken).first())
 
 
 @router.delete("/auth", status_code=204)

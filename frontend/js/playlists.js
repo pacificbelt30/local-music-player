@@ -1,4 +1,5 @@
 import { api } from "./api.js";
+import { oauthStatusLines } from "./oauth-status.js";
 
 const accountPlaylists = new Map();
 const accountRows = new Map();
@@ -65,13 +66,24 @@ async function renderAuthSection() {
     if (status.authenticated) {
       container.innerHTML = `
         <div class="yt-auth-connected">
-          <span class="status-badge status-complete">YouTube接続済み</span>
+          <span class="status-badge" id="yt-auth-badge"></span>
+          <button class="btn btn-ghost" id="yt-auth-check-btn">接続を確認</button>
           <button class="btn btn-primary" id="yt-reauth-btn">再認証（OAuth）</button>
           <button class="btn btn-ghost" id="yt-token-toggle-btn">トークンを直接入力</button>
           <button class="btn btn-ghost" id="yt-disconnect-btn">接続解除</button>
         </div>
+        <div id="yt-oauth-status" class="yt-list-feedback" role="status" aria-live="polite"></div>
         ${tokenFormHTML()}
       `;
+      displayOAuthStatus(status);
+      document.getElementById("yt-auth-check-btn").addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        button.disabled = true;
+        button.textContent = "確認中…";
+        try { displayOAuthStatus(await api.youtubeAuthCheck()); }
+        catch (error) { feedback("yt-oauth-status", "確認に失敗しました: " + error.message, true); }
+        finally { button.disabled = false; button.textContent = "接続を確認"; }
+      });
       document.getElementById("yt-reauth-btn").addEventListener("click", connectYouTube);
       document.getElementById("yt-disconnect-btn").addEventListener("click", disconnectYouTube);
       bindTokenForm();
@@ -95,6 +107,24 @@ async function renderAuthSection() {
   } catch (e) {
     container.innerHTML = `<div class="error-msg">${escHtml(e.message)}</div>`;
   }
+}
+
+function displayOAuthStatus(status) {
+  const badge = document.getElementById("yt-auth-badge");
+  if (!badge) return;
+  const problem = ["reauth_required", "configuration_error", "temporary_error", "check_required"].includes(status.refresh_status);
+  badge.textContent = status.refresh_status === "reauth_required" ? "YouTube再認証が必要" : problem ? "YouTube接続を確認" : "YouTube認証情報あり";
+  badge.classList.toggle("status-complete", !problem);
+  const box = document.getElementById("yt-oauth-status");
+  box.replaceChildren(...oauthStatusLines(status).map(line => {
+    const element = document.createElement("div");
+    element.textContent = line;
+    return element;
+  }));
+}
+
+async function refreshOAuthStatus() {
+  try { displayOAuthStatus(await api.youtubeAuthStatus()); } catch (_) { /* Keep the last known status during outages. */ }
 }
 
 function tokenFormHTML() {
@@ -282,7 +312,7 @@ async function renderAccountPlaylists() {
     feedback("yt-account-status", `更新に失敗しました: ${e.message}`, true);
     if (!accountRows.size) container.innerHTML = '<div class="empty-state">プレイリストを取得できませんでした</div>';
   } finally {
-    if (request === accountListRequest) container.removeAttribute("aria-busy");
+    if (request === accountListRequest) { container.removeAttribute("aria-busy"); refreshOAuthStatus(); }
   }
 }
 

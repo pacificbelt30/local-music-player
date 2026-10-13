@@ -444,3 +444,30 @@ test('settings save does not steal focus if the user moves to another control', 
   await until(() => !toggle.disabled);
   assert.equal(state.doc.activeElement, other);
 });
+
+test('OAuth check reports refresh refusal without rebuilding playlist or track views', async t => {
+  const state = await setup(t);
+  const card = state.doc.querySelector('.yt-sync-card');
+  const account = state.doc.querySelector('.yt-pl-item');
+  const button = state.doc.querySelector('#yt-auth-check-btn');
+  const pending = deferred();
+  state.handlers.set('POST /api/v1/youtube/auth/check', () => pending.promise);
+  button.click();
+  assert.equal(button.disabled, true);
+  pending.resolve({authenticated:true, refresh_token_set:true, refresh_status:'reauth_required', refresh_error:'invalid_grant'});
+  await until(() => !button.disabled);
+  assert.match(state.doc.querySelector('#yt-auth-badge').textContent, /再認証/);
+  assert.match(state.doc.querySelector('#yt-oauth-status').textContent, /不明/);
+  assert.equal(state.doc.querySelector('.yt-sync-card'), card);
+  assert.equal(state.doc.querySelector('.yt-pl-item'), account);
+  assert.equal(state.count('GET /api/v1/youtube/playlists'), 1);
+});
+
+test('OAuth check network failure restores the check button', async t => {
+  const state = await setup(t);
+  state.handlers.set('POST /api/v1/youtube/auth/check', () => {throw new Error('offline');});
+  const button = state.doc.querySelector('#yt-auth-check-btn');
+  button.click();
+  await until(() => !button.disabled);
+  assert.match(state.doc.querySelector('#yt-oauth-status').textContent, /確認に失敗/);
+});

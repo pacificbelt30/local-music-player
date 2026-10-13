@@ -49,6 +49,7 @@ export const api = {
 
   // YouTube Auth
   youtubeAuthUrl: () => request("GET", "/youtube/auth/url"),
+  youtubeAuthCheck: () => request("POST", "/youtube/auth/check"),
   youtubeAuthStatus: () => request("GET", "/youtube/auth/status"),
   youtubeRevokeAuth: () => request("DELETE", "/youtube/auth"),
   youtubeSetToken: (payload) => request("POST", "/youtube/auth/token", payload),
