@@ -240,6 +240,7 @@
         <label class="syncthing-field">
           <span>URL</span>
           <input type="url" name="url" placeholder="http://localhost:8384" required autocomplete="off">
+          <small>Docker内部の接続先は http://syncthing:8384 です。コンテナのIPアドレスは再作成で変わります。</small>
         </label>
         <label class="syncthing-field">
           <span>API キー</span>
@@ -248,6 +249,7 @@
         <div class="syncthing-config-actions">
           <button type="button" class="btn btn-ghost" id="syncthing-test-btn">接続テスト</button>
           <button type="submit" class="btn btn-primary">保存</button>
+          <button type="button" class="btn btn-ghost" id="syncthing-reset-btn">環境設定に戻す</button>
         </div>
         <div class="error-msg" id="syncthing-config-error"></div>
         <div class="success-msg" id="syncthing-config-ok"></div>
@@ -319,6 +321,7 @@
   import { initSyncthing } from "/js/syncthing.js";
   import { initSettings } from "/js/settings.js";
   import { initDebug } from "/js/debug.js";
+  import { badgePresentation } from "/js/syncthing-status.js";
 
   initQueue();
   initLibrary();
@@ -338,28 +341,26 @@
   });
 
   // Syncthing status badge
+  let syncthingBadgeUpdating = false;
   async function updateSyncthingBadge() {
+    if (syncthingBadgeUpdating) return;
+    syncthingBadgeUpdating = true;
+    const badge = document.getElementById("syncthing-badge");
     try {
       const { api } = await import("/js/api.js");
       const status = await api.syncthingStatus();
-      const badge = document.getElementById("syncthing-badge");
-      if (!status.available) {
-        badge.textContent = "Syncthing: off";
-        badge.title = status.reason || "";
-        badge.className = "syncthing-badge";
-      } else if (status.syncing) {
-        const pct = Math.round(status.completion_pct || 0);
-        badge.textContent = `Syncing ${pct}%`;
-        badge.title = `残り ${status.need_bytes_fmt || "?"}、${status.need_items || 0} ファイル | デバイス ${status.connected_devices}/${status.total_devices} 接続中`;
-        badge.className = "syncthing-badge syncing";
-      } else {
-        badge.textContent = "Synced";
-        badge.title = `合計 ${status.global_bytes_fmt || "?"}、デバイス ${status.connected_devices}/${status.total_devices} 接続中`;
-        badge.className = "syncthing-badge ok";
-      }
-    } catch {}
+      const view = badgePresentation(status);
+      badge.textContent = view.text;
+      badge.title = view.title;
+      badge.className = view.className;
+    } catch (error) {
+      badge.textContent = "Syncthing: off";
+      badge.title = error.message;
+      badge.className = "syncthing-badge";
+    } finally { syncthingBadgeUpdating = false; }
   }
   updateSyncthingBadge();
+  window.addEventListener("syncthing-config-changed", updateSyncthingBadge);
   setInterval(updateSyncthingBadge, 30000);
 
   if ("serviceWorker" in navigator) {

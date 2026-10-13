@@ -65,6 +65,7 @@ db.sqlite3-journal
 data/
 downloads/
 syncthing-config/
+syncthing-state/
 
 # Flask stuff:
 instance/

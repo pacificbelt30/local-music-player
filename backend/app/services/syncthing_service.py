@@ -1,4 +1,6 @@
 import asyncio
+import ipaddress
+from urllib.parse import urlsplit
 
 import httpx
 from sqlalchemy.orm import Session
@@ -24,15 +26,14 @@ def _set_setting(db: Session, key: str, value: str) -> None:
 
 
 def get_effective_config(db: Session) -> tuple[str, str]:
-    """Return (url, api_key), DB overrides falling back to env settings."""
     url = _get_setting(db, URL_KEY) or settings.syncthing_url
     api_key = _get_setting(db, API_KEY_KEY) or settings.syncthing_api_key
-    return url, api_key
+    return url.rstrip("/"), api_key
 
 
 def update_config(db: Session, url: str | None, api_key: str | None) -> None:
     if url is not None:
-        _set_setting(db, URL_KEY, url.strip())
+        _set_setting(db, URL_KEY, url.strip().rstrip("/"))
     if api_key is not None:
         _set_setting(db, API_KEY_KEY, api_key.strip())
     db.commit()
@@ -46,86 +47,202 @@ def _fmt_bytes(n: int) -> str:
     return f"{n:.1f} TB"
 
 
+def _client(url: str):
+    # Local services must not be routed through an Internet proxy. Public
+    # custom endpoints retain the normal environment proxy configuration.
+    host = urlsplit(url).hostname or ""
+    private = "." not in host or host.endswith((".local", ".internal", ".localhost"))
+    try:
+        private = private or ipaddress.ip_address(host).is_private
+    except ValueError:
+        pass
+    return httpx.AsyncClient(timeout=5.0, trust_env=not private)
+
+
+def _reason(exc):
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"Syncthing HTTP {exc.response.status_code}"
+    if isinstance(exc, httpx.RequestError):
+        return "Syncthing not reachable"
+    return "Invalid response from Syncthing"
+
+
+async def _get(client, url, path, headers, params=None):
+    # Retry only reads, once, to cover connections closing during a restart.
+    for attempt in range(2):
+        try:
+            response = await client.get(f"{url}{path}", headers=headers, params=params or {})
+            response.raise_for_status()
+            return response.json()
+        except httpx.RequestError:
+            if attempt:
+                raise
+        except httpx.HTTPStatusError as exc:
+            if attempt or exc.response.status_code not in (502, 503, 504):
+                raise
+        await asyncio.sleep(0.1)
+
+
+def _checked(value, expected):
+    if isinstance(value, Exception):
+        raise value
+    if not isinstance(value, expected):
+        raise ValueError("Unexpected Syncthing response type")
+    return value
+
+
+async def _folder_summaries(client, url, headers, folders, my_id, connections, connections_known):
+    semaphore = asyncio.Semaphore(8)
+
+    async def get(path, params):
+        async with semaphore:
+            return _checked(await _get(client, url, path, headers, params), dict)
+
+    async def summarize(folder):
+        peers = list(dict.fromkeys(d["deviceID"] for d in folder.get("devices", []) if d.get("deviceID") and d["deviceID"] != my_id))
+        summary = {k: folder.get(k) for k in ("id", "label", "path", "type")}
+        summary.update(paused=folder.get("paused", False), completion_pct=None,
+                       need_bytes=0, global_bytes=0, need_items=0, errors=[], peer_ids=peers,
+                       connected_devices=sum(bool(connections.get(p, {}).get("connected")) for p in peers),
+                       total_devices=len(peers), state="paused" if folder.get("paused") else "unknown")
+        if not folder.get("paused"):
+            responses = await asyncio.gather(
+                get("/rest/db/status", {"folder": folder["id"]}),
+                *(get("/rest/db/completion", {"folder": folder["id"], "device": peer}) for peer in peers),
+                return_exceptions=True,
+            )
+            local, remote = responses[0], responses[1:]
+            percentages = []
+            incomplete = False
+            if isinstance(local, Exception):
+                summary["errors"].append(_reason(local))
+                incomplete = True
+            else:
+                if not isinstance(local.get("state"), str) or not isinstance(local.get("globalBytes"), (int, float)):
+                    incomplete = True
+                    summary["errors"].append("Invalid folder status from Syncthing")
+                total = local.get("globalBytes", 0)
+                summary.update(global_bytes=total, need_bytes=local.get("needBytes", 0),
+                               need_items=local.get("needTotalItems", 0), folder_state=local.get("state"))
+                percentages.append(max(0, 100 * (total - summary["need_bytes"]) / total) if total else (0 if summary["need_items"] else 100))
+                for message in (local.get("error"), local.get("invalid"), local.get("watchError")):
+                    if message:
+                        summary["errors"].append(str(message))
+                if local.get("pullErrors") or local.get("errors"):
+                    summary["errors"].append("Folder has synchronization errors")
+                if local.get("state") == "error" and not summary["errors"]:
+                    summary["errors"].append("Folder is stopped by an error")
+            for result in remote:
+                if isinstance(result, Exception):
+                    summary["errors"].append(_reason(result))
+                    incomplete = True
+                    continue
+                summary["global_bytes"] = max(summary["global_bytes"], result.get("globalBytes", 0))
+                summary["need_bytes"] += result.get("needBytes", 0)
+                summary["need_items"] += result.get("needItems", 0) + result.get("needDeletes", 0)
+                if result.get("remoteState") not in (None, "valid") or result.get("completion") is None:
+                    incomplete = True
+                else:
+                    percentages.append(result["completion"])
+            if not incomplete:
+                summary["completion_pct"] = min(percentages)
+            local_error = not isinstance(local, Exception) and (
+                local.get("error") or local.get("invalid") or local.get("watchError")
+                or local.get("pullErrors") or local.get("errors") or local.get("state") == "error")
+            if local_error:
+                summary["state"] = "error"
+            elif peers and connections_known and summary["connected_devices"] < len(peers):
+                summary["state"] = "disconnected"
+            elif incomplete or not connections_known:
+                summary["state"] = "unknown"
+            elif summary["need_bytes"] or summary["need_items"] or summary.get("folder_state") in ("scanning", "scan-waiting", "syncing", "sync-waiting", "sync-preparing"):
+                summary["state"] = "syncing"
+            elif not peers:
+                summary["state"] = "unshared"
+            else:
+                summary["state"] = "synced"
+        summary["need_bytes_fmt"] = _fmt_bytes(summary["need_bytes"])
+        summary["global_bytes_fmt"] = _fmt_bytes(summary["global_bytes"])
+        return summary
+
+    return await asyncio.gather(*(summarize(folder) for folder in folders))
+
+
+async def _snapshot(client, url, headers):
+    system = _checked(await _get(client, url, "/rest/system/status", headers), dict)
+    if not isinstance(system.get("myID"), str) or not system["myID"]:
+        raise ValueError("Syncthing device ID missing")
+    folders, connection_data = await asyncio.gather(
+        _get(client, url, "/rest/config/folders", headers),
+        _get(client, url, "/rest/system/connections", headers), return_exceptions=True,
+    )
+    errors = []
+    connections_known = isinstance(connection_data, dict) and isinstance(connection_data.get("connections"), dict)
+    connections = connection_data.get("connections", {}) if connections_known else {}
+    if not connections_known:
+        errors.append(_reason(connection_data))
+    if isinstance(folders, Exception) or not isinstance(folders, list):
+        errors.append(_reason(folders))
+        summaries = []
+    else:
+        summaries = await _folder_summaries(client, url, headers, folders, system.get("myID"), connections, connections_known)
+    return system, summaries, connections, errors
+
+
 async def get_syncthing_status(db: Session) -> dict:
-    """Fetch Syncthing status from its REST API."""
     url, api_key = get_effective_config(db)
     if not api_key:
-        return {"available": False, "reason": "SYNCTHING_API_KEY not configured"}
-
-    headers = {"X-API-Key": api_key}
+        return {"available": False, "state": "unavailable", "reason": "SYNCTHING_API_KEY not configured"}
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            system_resp, completion_resp, conns_resp = await asyncio.gather(
-                client.get(f"{url}/rest/system/status", headers=headers),
-                client.get(f"{url}/rest/db/completion", headers=headers),
-                client.get(f"{url}/rest/system/connections", headers=headers),
-            )
-            system_resp.raise_for_status()
-            system = system_resp.json()
-            completion = completion_resp.json() if completion_resp.status_code == 200 else {}
-            conns_data = conns_resp.json() if conns_resp.status_code == 200 else {}
-
-        connections = conns_data.get("connections", {})
-        connected_devices = sum(1 for c in connections.values() if c.get("connected"))
-        total_devices = len(connections)
-        need_bytes = completion.get("needBytes", 0)
-        global_bytes = completion.get("globalBytes", 0)
-        need_items = completion.get("needItems", 0)
-
+        async with _client(url) as client:
+            system, folders, connections, errors = await _snapshot(client, url, {"X-API-Key": api_key})
+        states = {f["state"] for f in folders}
+        state = next((s for s in ("error", "unknown", "disconnected", "syncing") if s in states), None)
+        if state is None:
+            state = "unknown" if errors else "unshared" if not folders else "paused" if states == {"paused"} else "unshared" if "unshared" in states else "synced"
+        if errors and state != "error":
+            state = "unknown"
+        active = [f for f in folders if not f["paused"]]
+        complete_known = bool(active) and not errors and all(f["completion_pct"] is not None for f in active)
+        percentage = sum(f["completion_pct"] * max(f["global_bytes"], 1) for f in active) / sum(max(f["global_bytes"], 1) for f in active) if complete_known else None
+        need_bytes = sum(f["need_bytes"] for f in active)
+        global_bytes = sum(f["global_bytes"] for f in active)
+        peer_ids = set(connections) | {peer for f in folders for peer in f["peer_ids"]}
+        peer_ids.discard(system.get("myID"))
+        for folder in folders:
+            errors.extend(f"{folder.get('label') or folder['id']}: {error}" for error in folder["errors"])
         return {
-            "available": True,
-            "my_id": system.get("myID"),
-            "completion_pct": completion.get("completion", 100),
-            "syncing": need_bytes > 0,
-            "need_bytes": need_bytes,
-            "need_bytes_fmt": _fmt_bytes(need_bytes),
-            "global_bytes": global_bytes,
-            "global_bytes_fmt": _fmt_bytes(global_bytes),
-            "need_items": need_items,
-            "connected_devices": connected_devices,
-            "total_devices": total_devices,
+            "available": True, "state": state, "my_id": system.get("myID"),
+            "completion_pct": percentage, "syncing": state == "syncing",
+            "need_bytes": need_bytes, "need_bytes_fmt": _fmt_bytes(need_bytes),
+            "global_bytes": global_bytes, "global_bytes_fmt": _fmt_bytes(global_bytes),
+            "need_items": sum(f["need_items"] for f in active),
+            "connected_devices": sum(bool(connections.get(p, {}).get("connected")) for p in peer_ids),
+            "total_devices": len(peer_ids), "errors": errors,
         }
-    except (httpx.ConnectError, httpx.TimeoutException):
-        return {"available": False, "reason": "Syncthing not reachable"}
-    except httpx.HTTPStatusError as e:
-        return {"available": False, "reason": f"HTTP {e.response.status_code}"}
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+        return {"available": False, "state": "unavailable", "reason": _reason(exc)}
 
 
 async def test_connection(url: str, api_key: str) -> dict:
-    """Probe a Syncthing instance with the given URL and API key without saving."""
     if not api_key:
         return {"ok": False, "reason": "API key is required"}
-    headers = {"X-API-Key": api_key}
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{url}/rest/system/status", headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
+        async with _client(url) as client:
+            data = _checked(await _get(client, url.rstrip("/"), "/rest/system/status", {"X-API-Key": api_key}), dict)
+            if not isinstance(data.get("myID"), str) or not data["myID"]:
+                raise ValueError("Syncthing device ID missing")
         return {"ok": True, "my_id": data.get("myID")}
-    except (httpx.ConnectError, httpx.TimeoutException):
-        return {"ok": False, "reason": "Syncthing not reachable"}
-    except httpx.HTTPStatusError as e:
-        return {"ok": False, "reason": f"HTTP {e.response.status_code}"}
-
-
-async def _proxy_get(db: Session, path: str) -> dict | list:
-    url, api_key = get_effective_config(db)
-    if not api_key:
-        raise _ConfigError("SYNCTHING_API_KEY not configured")
-    headers = {"X-API-Key": api_key}
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.get(f"{url}{path}", headers=headers)
-        resp.raise_for_status()
-        return resp.json()
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+        return {"ok": False, "reason": _reason(exc)}
 
 
 async def _proxy_post(db: Session, path: str, params: dict | None = None) -> dict:
     url, api_key = get_effective_config(db)
     if not api_key:
         raise _ConfigError("SYNCTHING_API_KEY not configured")
-    headers = {"X-API-Key": api_key}
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.post(f"{url}{path}", headers=headers, params=params or {})
+    async with _client(url) as client:
+        resp = await client.post(f"{url}{path}", headers={"X-API-Key": api_key}, params=params or {})
         resp.raise_for_status()
         return {"ok": True}
 
@@ -134,76 +251,37 @@ async def list_folders(db: Session) -> list[dict]:
     url, api_key = get_effective_config(db)
     if not api_key:
         raise _ConfigError("SYNCTHING_API_KEY not configured")
-    headers = {"X-API-Key": api_key}
-
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        folders_resp = await client.get(f"{url}/rest/config/folders", headers=headers)
-        folders_resp.raise_for_status()
-        folders_data = folders_resp.json() or []
-
-        completion_resps = await asyncio.gather(
-            *[
-                client.get(
-                    f"{url}/rest/db/completion",
-                    headers=headers,
-                    params={"folder": f.get("id")},
-                )
-                for f in folders_data
-            ],
-            return_exceptions=True,
-        )
-
-    result = []
-    for f, comp_resp in zip(folders_data, completion_resps):
-        comp = {}
-        if not isinstance(comp_resp, Exception) and comp_resp.status_code == 200:
-            comp = comp_resp.json()
-        need_bytes = comp.get("needBytes", 0)
-        global_bytes = comp.get("globalBytes", 0)
-        result.append({
-            "id": f.get("id"),
-            "label": f.get("label"),
-            "path": f.get("path"),
-            "type": f.get("type"),
-            "paused": f.get("paused", False),
-            "completion_pct": comp.get("completion", 100 if not comp else 0),
-            "need_bytes": need_bytes,
-            "need_bytes_fmt": _fmt_bytes(need_bytes),
-            "global_bytes": global_bytes,
-            "global_bytes_fmt": _fmt_bytes(global_bytes),
-            "need_items": comp.get("needItems", 0),
-        })
-    return result
+    async with _client(url) as client:
+        _, folders, _, errors = await _snapshot(client, url, {"X-API-Key": api_key})
+        if errors:
+            raise httpx.RequestError("; ".join(errors))
+        return folders
 
 
 async def list_devices(db: Session) -> list[dict]:
     url, api_key = get_effective_config(db)
     if not api_key:
         raise _ConfigError("SYNCTHING_API_KEY not configured")
-    headers = {"X-API-Key": api_key}
-
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        devices_resp, conns_resp = await asyncio.gather(
-            client.get(f"{url}/rest/config/devices", headers=headers),
-            client.get(f"{url}/rest/system/connections", headers=headers),
+    async with _client(url) as client:
+        system, devices, conns, stats = await asyncio.gather(
+            *(_get(client, url, path, {"X-API-Key": api_key}) for path in
+              ("/rest/system/status", "/rest/config/devices", "/rest/system/connections", "/rest/stats/device")),
+            return_exceptions=True,
         )
-        devices_resp.raise_for_status()
-        devices_data = devices_resp.json() or []
-        conns = conns_resp.json().get("connections", {}) if conns_resp.status_code == 200 else {}
-
-    return [
-        {
-            "device_id": d.get("deviceID"),
-            "name": d.get("name"),
-            "addresses": d.get("addresses", []),
-            "paused": d.get("paused", False),
-            "connected": conns.get(d.get("deviceID"), {}).get("connected", False),
-            "address": conns.get(d.get("deviceID"), {}).get("address"),
-            "last_seen": conns.get(d.get("deviceID"), {}).get("lastSeen"),
-            "client_version": conns.get(d.get("deviceID"), {}).get("clientVersion"),
-        }
-        for d in devices_data
-    ]
+        devices = _checked(devices, list)
+        system = _checked(system, dict)
+        connection_known = isinstance(conns, dict) and isinstance(conns.get("connections"), dict)
+        connections = conns.get("connections", {}) if connection_known else {}
+        stats = stats if isinstance(stats, dict) else {}
+    return [{
+        "device_id": d.get("deviceID"), "name": d.get("name"),
+        "addresses": d.get("addresses", []), "paused": d.get("paused", False),
+        "connected": bool(connections.get(d["deviceID"], {}).get("connected")),
+        "connection_known": connection_known,
+        "address": connections.get(d["deviceID"], {}).get("address"),
+        "last_seen": stats.get(d["deviceID"], {}).get("lastSeen") or connections.get(d["deviceID"], {}).get("lastSeen"),
+        "client_version": connections.get(d["deviceID"], {}).get("clientVersion"),
+    } for d in devices if d.get("deviceID") and d["deviceID"] != system.get("myID")]
 
 
 async def rescan_folder(db: Session, folder_id: str) -> dict:

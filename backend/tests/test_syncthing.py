@@ -30,9 +30,19 @@ def _make_client_mock(url_responses: dict):
     Build a mock httpx.AsyncClient whose .get() dispatches based on URL substring.
     url_responses: {url_substring: (status_code, data)}
     """
+    responses = {
+        "/rest/system/status": (200, {"myID": "LOCAL"}),
+        "/rest/config/folders": (200, [{"id": "music", "devices": [{"deviceID": "DEV-DEFAULT"}]}]),
+        "/rest/system/connections": (200, {"connections": {"DEV-DEFAULT": {"connected": True}}}),
+        "/rest/db/status": (200, {"state": "idle", "globalBytes": 0, "needBytes": 0, "needTotalItems": 0}),
+        "/rest/stats/device": (200, {}),
+        **url_responses,
+    }
     async def fake_get(url, **kwargs):
-        for pattern, (status, data) in url_responses.items():
+        for pattern, (status, data) in responses.items():
             if pattern in url:
+                if pattern == "/rest/config/folders" and status == 200:
+                    data = [{**f, "devices": f.get("devices", [{"deviceID": "DEV-DEFAULT"}])} for f in data]
                 return _MockResponse(status, data)
         return _MockResponse(404, {"error": f"no mock for {url}"})
 
@@ -130,6 +140,7 @@ def test_status_returns_detailed_fields(client, db):
 
     mock = _make_client_mock({
         "/rest/system/status": (200, {"myID": "AAAAAAA-BBBBBBB"}),
+        "/rest/config/folders": (200, [{"id": "music", "devices": [{"deviceID": "DEV-A"}]}]),
         "/rest/db/completion": (200, {
             "completion": 85.5,
             "needBytes": 1024 * 1024,
@@ -266,22 +277,14 @@ def test_folders_includes_completion_fields(client, db):
 
 
 def test_folders_completion_error_falls_back_gracefully(client, db):
-    """Completion API failure should not crash; folder is returned with zeroed fields."""
+    """Completion API failure must report unknown, never completed."""
     db.add(AppSetting(key="syncthing_api_key", value="k"))
     db.commit()
 
-    async def fake_get(url, **kwargs):
-        if "/rest/config/folders" in url:
-            return _MockResponse(200, [
-                {"id": "music", "label": "Music", "path": "/data", "type": "sendreceive", "paused": False},
-            ])
-        # Completion endpoint returns error
-        return _MockResponse(503, {})
-
-    mock = MagicMock()
-    mock.get = fake_get
-    mock.__aenter__ = AsyncMock(return_value=mock)
-    mock.__aexit__ = AsyncMock(return_value=None)
+    mock = _make_client_mock({
+        "/rest/config/folders": (200, [{"id": "music", "label": "Music", "path": "/data", "type": "sendreceive", "paused": False}]),
+        "/rest/db/completion": (503, {}),
+    })
     with patch("app.services.syncthing_service.httpx.AsyncClient", return_value=mock):
         resp = client.get("/api/v1/syncthing/folders")
 
@@ -290,6 +293,8 @@ def test_folders_completion_error_falls_back_gracefully(client, db):
     assert data[0]["id"] == "music"
     assert data[0]["need_bytes"] == 0
     assert data[0]["global_bytes"] == 0
+    assert data[0]["completion_pct"] is None
+    assert data[0]["state"] == "unknown"
 
 
 def test_folders_empty_list(client, db):
