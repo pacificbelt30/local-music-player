@@ -19,11 +19,13 @@ from yt_dlp.version import __version__
 
 from app.config import settings
 
+DEFAULT_TEST_VIDEO_URL = "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+
 
 class UpdateConfig(BaseModel):
     enabled: bool = True
     interval_minutes: int = Field(default=1440, ge=60, le=10080)
-    video_url: str = ""
+    video_url: str = DEFAULT_TEST_VIDEO_URL
     playlist_url: str = ""
     channel_url: str = ""
 
@@ -32,7 +34,7 @@ class UpdateConfig(BaseModel):
     def youtube_url(cls, value, info):
         value = value.strip()
         if not value:
-            return value
+            return DEFAULT_TEST_VIDEO_URL if info.field_name == "video_url" else value
         url = urlsplit(value)
         if (url.scheme != "https" or url.hostname not in ("youtube.com", "www.youtube.com", "youtu.be")
                 or url.username or url.password or url.port not in (None, 443)):
@@ -73,6 +75,10 @@ def read_state():
     if state.get("previous") is not None and not state["previous"].get("path"):
         state["previous"] = bundled()
     state.setdefault("config", UpdateConfig().model_dump())
+    # Older installations persisted an empty URL; apply the new default while
+    # preserving custom URLs and the user's automatic-update settings.
+    if not (state["config"].get("video_url") or "").strip():
+        state["config"]["video_url"] = DEFAULT_TEST_VIDEO_URL
     state.setdefault("status", "idle")
     state.setdefault("previous", None)
     return state
@@ -236,7 +242,7 @@ def check(*, force=False):
                 if version_key(version) <= version_key(state["active"]["version"]):
                     state["status"] = "up_to_date"
                 elif not config.video_url or not config.playlist_url:
-                    state.update(status="needs_configuration", error="60秒以内の検証用動画と公開プレイリストを設定してください")
+                    state.update(status="needs_configuration", error="検証用の公開プレイリストを設定してください。動画には既定の短い動画を使用できます")
                 else:
                     state.update(status="installing", candidate={"version": version})
                     save_state(state)

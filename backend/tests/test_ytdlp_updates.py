@@ -87,6 +87,44 @@ def test_no_test_urls_never_installs(monkeypatch):
     install.assert_not_called()
 
 
+def test_default_video_is_the_user_selected_video():
+    config = updates.UpdateConfig()
+    assert config.video_url == "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+    assert "si=" not in config.video_url
+    assert config.playlist_url == ""
+
+
+@pytest.mark.parametrize("video_url", ["", "   "])
+def test_empty_video_uses_default(video_url):
+    assert updates.UpdateConfig(video_url=video_url).video_url == updates.DEFAULT_TEST_VIDEO_URL
+
+
+@pytest.mark.parametrize("old_video", [None, "", "   "])
+def test_existing_empty_config_gets_default_without_enabling_updates(old_video):
+    config = {"enabled": False, "interval_minutes": 360, "playlist_url": "https://www.youtube.com/playlist?list=custom"}
+    if old_video is not None:
+        config["video_url"] = old_video
+    updates.save_state({"config": config})
+    restored = updates.read_state()["config"]
+    assert restored["video_url"] == updates.DEFAULT_TEST_VIDEO_URL
+    assert restored["enabled"] is False
+    assert restored["interval_minutes"] == 360
+    assert restored["playlist_url"] == config["playlist_url"]
+
+
+def test_custom_video_is_preserved_in_saved_state():
+    custom = "https://youtu.be/custom-video"
+    updates.configure(updates.UpdateConfig(video_url=custom))
+    assert updates.read_state()["config"]["video_url"] == custom
+
+
+def test_api_empty_video_restores_default(client):
+    response = client.patch("/api/v1/ytdlp/config", json={"video_url": "", "enabled": False})
+    assert response.status_code == 200
+    assert response.json()["config"]["video_url"] == updates.DEFAULT_TEST_VIDEO_URL
+    assert response.json()["config"]["enabled"] is False
+
+
 def test_periodic_check_respects_disabled_and_interval(monkeypatch):
     updates.configure(updates.UpdateConfig(enabled=False))
     with patch.object(updates, "latest_version") as latest:
@@ -152,6 +190,7 @@ def test_api_status_configuration_check_and_rollback(client):
     response = client.get("/api/v1/ytdlp")
     assert response.status_code == 200
     assert response.json()["config"]["interval_minutes"] == 1440
+    assert response.json()["config"]["video_url"] == updates.DEFAULT_TEST_VIDEO_URL
     assert client.patch("/api/v1/ytdlp/config", json={"interval_minutes": 1}).status_code == 422
     assert client.patch("/api/v1/ytdlp/config", json={"video_url": "https://example.com/video"}).status_code == 422
     assert client.patch("/api/v1/ytdlp/config", json={"enabled": False}).status_code == 200
