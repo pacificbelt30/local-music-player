@@ -340,6 +340,11 @@ function updateAccountRow(item, pl) {
 }
 
 function updateAccountSyncBadges() {
+  const records = [...syncRecords.values()];
+  for (const [id, value] of [["sync-total", records.length], ["sync-enabled", records.filter(s => s.enabled).length], ["sync-errors", records.filter(s => s.last_error).length]]) {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value;
+  }
   for (const [id, item] of accountRows) updateAccountRow(item, accountPlaylists.get(id));
 }
 
@@ -542,6 +547,7 @@ function upsertSyncCard(sync) {
     card.className = "yt-sync-card";
     card.dataset.syncId = id;
     card.innerHTML = syncCardHTML(sync);
+    prepareSyncDetails(card, sync);
     bindSyncCardEvents(card, sync);
     syncCards.set(id, card);
   }
@@ -567,6 +573,10 @@ function setCardMutation(card, pending) {
 
 function updateSyncCard(card, sync) {
   card.querySelector(".yt-sync-name").textContent = sync.playlist_name;
+  card.querySelector(".sync-detail-title").textContent = sync.playlist_name;
+  const state = card.querySelector(".yt-sync-state");
+  state.textContent = sync.last_error ? "要対応" : sync.enabled ? "自動同期 有効" : "一時停止中";
+  state.classList.toggle("needs-attention", Boolean(sync.last_error));
   const source = card.querySelector(".yt-sync-source");
   source.textContent = sync.source_type === "url" ? "共有URL同期" : "API同期";
   source.classList.toggle("status-complete", sync.source_type !== "url");
@@ -637,6 +647,52 @@ function syncCardHTML(sync) {
     <div class="yt-sync-tracks" id="yt-tracks-${sync.id}" style="display:none"></div>
     <button class="yt-tracks-toggle btn btn-ghost" data-id="${sync.id}">トラック一覧を表示 ▾</button>
   `;
+}
+
+function prepareSyncDetails(card, sync) {
+  const actions = card.querySelector(".yt-sync-actions");
+  const state = document.createElement("span");
+  state.className = "yt-sync-state";
+  card.querySelector(".yt-sync-title").append(state);
+  const open = document.createElement("button");
+  open.className = "btn btn-ghost yt-sync-detail-btn";
+  open.textContent = "詳細 →";
+  open.setAttribute("aria-expanded", "false");
+  open.setAttribute("aria-controls", `sync-details-${sync.id}`);
+  const drawer = document.createElement("section");
+  drawer.className = "sync-detail-panel";
+  drawer.id = `sync-details-${sync.id}`;
+  drawer.hidden = true;
+  drawer.setAttribute("aria-label", "プレイリストの詳細");
+  const heading = document.createElement("div");
+  heading.className = "sync-detail-heading";
+  heading.innerHTML = '<div><span class="eyebrow">PLAYLIST DETAILS</span><h2 class="sync-detail-title"></h2></div><button type="button" class="btn btn-ghost close-sync-detail" aria-label="詳細を閉じる">✕</button>';
+  drawer.append(heading);
+  const controls = document.createElement("div");
+  controls.className = "sync-detail-actions";
+  controls.append(card.querySelector(".yt-sync-now-btn"), card.querySelector(".yt-sync-delete-btn"));
+  drawer.append(card.querySelector(".yt-sync-format"), controls, card.querySelector(".yt-sync-error-section"), card.querySelector(".yt-tracks-toggle"), card.querySelector(".yt-sync-tracks"));
+  card.append(drawer);
+  actions.append(open);
+  const close = () => {
+    drawer.hidden = true;
+    open.setAttribute("aria-expanded", "false");
+    open.focus({preventScroll: true});
+  };
+  open.addEventListener("click", () => {
+    const wasOpen = !drawer.hidden;
+    document.querySelectorAll(".sync-detail-panel").forEach(panel => {
+      panel.hidden = true;
+      panel.closest(".yt-sync-card").querySelector(".yt-sync-detail-btn").setAttribute("aria-expanded", "false");
+    });
+    drawer.hidden = wasOpen;
+    open.setAttribute("aria-expanded", String(!wasOpen));
+    if (!wasOpen) heading.querySelector("button").focus({preventScroll: true});
+  });
+  heading.querySelector("button").addEventListener("click", close);
+  card.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !drawer.hidden) { close(); event.stopPropagation(); }
+  });
 }
 
 function bindSyncCardEvents(card, sync) {

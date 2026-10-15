@@ -197,31 +197,7 @@ function restoreState() {
     shuffleOn = localStorage.getItem("player_shuffle") === "true";
     repeatMode = localStorage.getItem("player_repeat") || "none";
 
-    const saved = localStorage.getItem("player_playlist");
-    const savedIndex = localStorage.getItem("player_index");
-    if (!saved || savedIndex === null) return;
-
-    playlist = JSON.parse(saved);
-    currentIndex = Number(savedIndex);
-    if (shuffleOn) buildShuffleOrder();
-
-    const track = playlist[currentIndex];
-    if (!track) return;
-
-    audio.src = track.stream_url;
-    const pos = Number(localStorage.getItem("player_position") || 0);
-    audio.addEventListener("loadedmetadata", () => {
-      if (pos > 0 && pos < audio.duration) audio.currentTime = pos;
-    }, { once: true });
-
-    bar.classList.remove("hidden");
-    titleEl.textContent = track.title;
-    artistEl.textContent = track.artist || "";
-    thumbEl.src = track.thumbnail_url || "";
-    thumbEl.style.display = track.thumbnail_url ? "block" : "none";
-    shuffleBtn.classList.toggle("active", shuffleOn);
-    repeatBtn.textContent = repeatMode === "one" ? "🔂" : "🔁";
-    repeatBtn.classList.toggle("active", repeatMode !== "none");
+    // Playback is an explicit preview action; never restore the player on load.
   } catch {}
 }
 

@@ -1,5 +1,5 @@
-const CACHE = "lmp-v3";
-const SHELL = ["/", "/css/app.css", "/js/api.js", "/js/queue.js", "/js/library.js", "/js/player.js"];
+const CACHE = "lmp-v4";
+const SHELL = ["/", "/css/app.css", "/js/api.js", "/js/queue.js", "/js/library.js", "/js/player.js", "/js/navigation.js", "/js/playlists.js", "/js/settings.js", "/js/syncthing.js", "/js/debug.js", "/js/oauth-status.js", "/js/syncthing-status.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));

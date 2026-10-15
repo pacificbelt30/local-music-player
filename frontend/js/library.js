@@ -15,7 +15,7 @@ export function initLibrary() {
 async function loadTracks(params = {}, append = false) {
   const container = document.getElementById("track-grid");
   if (!append) {
-    container.innerHTML = '<div class="empty-state">Loading…</div>';
+    container.innerHTML = '<div class="empty-state">読込中…</div>';
     tracks = [];
     currentOffset = 0;
     currentParams = params;
@@ -32,13 +32,13 @@ async function loadTracks(params = {}, append = false) {
       renderAll(container);
     }
   } catch {
-    if (!append) container.innerHTML = '<div class="empty-state">Failed to load tracks</div>';
+    if (!append) container.innerHTML = '<div class="empty-state">ファイルの取得に失敗しました</div>';
   }
 }
 
 function renderAll(container) {
   if (!tracks.length) {
-    container.innerHTML = '<div class="empty-state">No tracks yet. Add a YouTube URL to get started.</div>';
+    container.innerHTML = '<div class="empty-state">保存済みのファイルはありません。ダウンロードからURLを追加できます。</div>';
     return;
   }
   container.innerHTML = "";
@@ -86,16 +86,14 @@ function buildItem(t, index) {
       <div class="track-artist">${escHtml(t.artist || "Unknown")}</div>
     </div>
     <div class="track-actions">
+      <button class="btn btn-ghost preview-track" type="button" aria-label="${escHtml(t.title)}を試聴">試聴</button>
       <span class="track-duration">${fmt(t.duration_secs)}</span>
-      <a class="btn btn-ghost" href="${t.download_url}" download title="Download">↓</a>
-      <button class="btn btn-ghost delete-track" data-id="${t.id}" title="Delete">🗑</button>
+      <a class="btn btn-ghost" href="${t.download_url}" download title="ファイルをダウンロード">↓</a>
+      <button class="btn btn-ghost delete-track" data-id="${t.id}" title="削除">🗑</button>
     </div>
   `;
 
-  item.addEventListener("click", (e) => {
-    if (e.target.closest(".track-actions a, .track-actions button")) return;
-    player.play(tracks, index);
-  });
+  item.querySelector(".preview-track").addEventListener("click", () => player.play([t], 0));
 
   return item;
 }

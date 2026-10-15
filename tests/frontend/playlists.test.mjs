@@ -72,6 +72,7 @@ async function setup(t, options = {}) {
 
 async function expandDetails(state) {
   const card = state.doc.querySelector('.yt-sync-card');
+  card.querySelector('.yt-sync-detail-btn').click();
   card.querySelector('.yt-tracks-toggle').click();
   await until(() => card.querySelector('.yt-track-item'));
   card.querySelector('.yt-sync-error-detail-btn').click();
@@ -470,4 +471,31 @@ test('OAuth check network failure restores the check button', async t => {
   button.click();
   await until(() => !button.disabled);
   assert.match(state.doc.querySelector('#yt-oauth-status').textContent, /確認に失敗/);
+});
+
+test('sync overview reflects pause, errors and deletion without refetching account playlists',async t=>{
+  const state=await setup(t);
+  assert.equal(state.doc.querySelector('#sync-total').textContent,'1');
+  assert.equal(state.doc.querySelector('#sync-enabled').textContent,'1');
+  assert.equal(state.doc.querySelector('#sync-errors').textContent,'1');
+  const card=state.doc.querySelector('.yt-sync-card');
+  card.querySelector('.yt-sync-toggle-btn').click();
+  await until(()=>state.doc.querySelector('#sync-enabled').textContent==='0');
+  card.querySelector('.yt-sync-delete-btn').click();
+  await until(()=>state.doc.querySelector('#sync-total').textContent==='0');
+  assert.equal(state.doc.querySelector('#sync-errors').textContent,'0');
+});
+test('details open on demand, remain open through refresh and close with Escape',async t=>{
+  const state=await setup(t);
+  const card=state.doc.querySelector('.yt-sync-card'),drawer=card.querySelector('.sync-detail-panel'),button=card.querySelector('.yt-sync-detail-btn');
+  assert.equal(drawer.hidden,true);
+  button.click();assert.equal(drawer.hidden,false);
+  assert.equal(button.getAttribute('aria-expanded'),'true');
+  state.doc.querySelector('#yt-refresh-syncs-btn').click();
+  await until(()=>!state.doc.querySelector('#yt-sync-list').hasAttribute('aria-busy'));
+  assert.equal(card.querySelector('.sync-detail-panel'),drawer);
+  assert.equal(drawer.hidden,false);
+  drawer.querySelector('.close-sync-detail').dispatchEvent(new window.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+  assert.equal(drawer.hidden,true);
+  assert.equal(state.doc.activeElement,button);
 });

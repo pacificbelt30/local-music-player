@@ -27,7 +27,7 @@ JSDOM上で本番モジュールを読み込み、同期追加・一時停止・
 
 ```
 frontend/
-├── index.html        # メイン UI（3 パネルレイアウト）
+├── index.html        # メイン UI（4画面の管理ワークスペース）
 ├── manifest.json     # PWA マニフェスト
 ├── sw.js             # Service Worker
 ├── css/
@@ -134,3 +134,13 @@ const es = subscribeQueueEvents((jobs) => {
 ```
 
 API エラー時はレスポンスの `detail` フィールドから `Error` を throw します。
+
+## 管理中心の画面構成
+
+`navigation.js` が同期・ダウンロード・ファイル・設定を切り替えます。
+ハッシュは `#sync`、`#downloads`、`#files`、`#settings`。初期画面は同期です。
+非表示の画面は `hidden` で操作対象から外し、遷移時もDOMと展開状態を維持します。
+同期の概要件数は保持した同期レコードから算出し、設定変更・追加・削除で更新します。
+詳細パネルも同期IDごとに保持し、再取得で作り直しません。
+`library.js` は試聴ボタンだけで再生を始め、`player.js` は起動時に曲やプレイヤー表示を復元しません。
+PCはサイドナビゲーション、スマホは下部ナビゲーション。試聴欄は明示操作時だけ小さく表示します。
