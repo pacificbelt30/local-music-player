@@ -8,6 +8,7 @@ const syncCards = new Map();
 const trackRequests = new WeakMap();
 let accountListRequest = 0;
 let syncListRequest = 0;
+let lastAddedSyncId = null;
 
 function feedback(id, message = "", error = false) {
   const element = document.getElementById(id);
@@ -48,11 +49,35 @@ export function initPlaylists() {
   if (new URLSearchParams(location.search).get("youtube_auth") === "success") {
     history.replaceState({}, "", "/");
   }
+  document.getElementById("yt-dismiss-add-result")?.addEventListener("click", clearAddResult);
+  document.getElementById("yt-view-added-sync")?.addEventListener("click", () => {
+    const card = syncCards.get(lastAddedSyncId);
+    if (!card?.isConnected) {
+      document.getElementById("yt-sync-add-message").textContent = "追加した同期は一覧にありません。更新して確認してください。";
+      return;
+    }
+    card.scrollIntoView?.({behavior: "smooth", block: "center"});
+    card.querySelector(".yt-sync-detail-btn").focus({preventScroll: true});
+  });
   renderAuthSection();
   renderUrlSyncSection();
   renderSyncList();
   document.getElementById("yt-refresh-account-btn")?.addEventListener("click", renderAccountPlaylists);
   document.getElementById("yt-refresh-syncs-btn")?.addEventListener("click", renderSyncList);
+}
+
+function clearAddResult() {
+  const notice = document.getElementById("yt-sync-add-result");
+  if (notice) notice.hidden = true;
+}
+
+function showAddResult(sync) {
+  lastAddedSyncId = String(sync.id);
+  const notice = document.getElementById("yt-sync-add-result");
+  if (!notice) return;
+  document.getElementById("yt-sync-add-message").textContent = `「${sync.playlist_name}」の同期を追加しました`;
+  notice.hidden = false;
+  for (const [id, card] of syncCards) card.classList.toggle("just-added", id === lastAddedSyncId);
 }
 
 // ── Auth Section ──────────────────────────────────────────────────────────────
@@ -246,6 +271,7 @@ async function addSyncFromUrl() {
   const btn = document.getElementById("yt-add-url-btn");
 
   errDiv.style.display = "none";
+  clearAddResult();
   if (!url) {
     errDiv.textContent = "URLを入力してください";
     errDiv.style.display = "";
@@ -259,6 +285,7 @@ async function addSyncFromUrl() {
     const sync = await api.youtubeCreateSync({ source_type: "url", source_url: url, audio_format, audio_quality });
     invalidateSyncRequests();
     applySync(sync);
+    showAddResult(sync);
     urlInput.value = "";
     renderSyncList();
   } catch (e) {
@@ -466,6 +493,7 @@ function showAddSyncDialog(btn) {
     btn.disabled = true;
     btn.dataset.busy = "true";
     btn.textContent = "追加中…";
+    clearAddResult();
     try {
       invalidateSyncRequests();
       let sync;
@@ -495,6 +523,7 @@ function showAddSyncDialog(btn) {
       }
       invalidateSyncRequests();
       applySync(sync);
+      showAddResult(sync);
       feedback("yt-account-status", "同期を追加しました");
       renderSyncList();
     } catch (e) {
@@ -671,11 +700,16 @@ function prepareSyncDetails(card, sync) {
   const controls = document.createElement("div");
   controls.className = "sync-detail-actions";
   controls.append(card.querySelector(".yt-sync-now-btn"), card.querySelector(".yt-sync-delete-btn"));
-  drawer.append(card.querySelector(".yt-sync-format"), controls, card.querySelector(".yt-sync-error-section"), card.querySelector(".yt-tracks-toggle"), card.querySelector(".yt-sync-tracks"));
+  const detailStatus = document.createElement("div");
+  detailStatus.className = "yt-list-feedback yt-sync-detail-status";
+  detailStatus.setAttribute("role", "status");
+  detailStatus.setAttribute("aria-live", "polite");
+  drawer.append(card.querySelector(".yt-sync-format"), controls, detailStatus, card.querySelector(".yt-sync-error-section"), card.querySelector(".yt-tracks-toggle"), card.querySelector(".yt-sync-tracks"));
   card.append(drawer);
   actions.append(open);
   const close = () => {
     drawer.hidden = true;
+    card.classList.remove("details-open");
     open.setAttribute("aria-expanded", "false");
     open.focus({preventScroll: true});
   };
@@ -683,9 +717,11 @@ function prepareSyncDetails(card, sync) {
     const wasOpen = !drawer.hidden;
     document.querySelectorAll(".sync-detail-panel").forEach(panel => {
       panel.hidden = true;
+      panel.closest(".yt-sync-card").classList.remove("details-open");
       panel.closest(".yt-sync-card").querySelector(".yt-sync-detail-btn").setAttribute("aria-expanded", "false");
     });
     drawer.hidden = wasOpen;
+    card.classList.toggle("details-open", !wasOpen);
     open.setAttribute("aria-expanded", String(!wasOpen));
     if (!wasOpen) heading.querySelector("button").focus({preventScroll: true});
   });
@@ -696,7 +732,12 @@ function prepareSyncDetails(card, sync) {
 }
 
 function bindSyncCardEvents(card, sync) {
-  const actionStatus = card.querySelector(".yt-sync-action-status");
+  function actionStatus(message, error = false) {
+    for (const element of card.querySelectorAll(".yt-sync-action-status, .yt-sync-detail-status")) {
+      element.textContent = message;
+      element.classList.toggle("error-msg", error);
+    }
+  }
   card.querySelector(".yt-sync-error-section").addEventListener("click", (event) => {
     const errorDetailBtn = event.target.closest(".yt-sync-error-detail-btn");
     if (errorDetailBtn) {
@@ -712,10 +753,11 @@ function bindSyncCardEvents(card, sync) {
     btn.disabled = true;
     btn.dataset.busy = "true";
     btn.textContent = "同期中…";
+    actionStatus("同期を依頼中…");
     try {
       await api.youtubeSyncNow(sync.id);
       btn.textContent = "キュー登録済み";
-      actionStatus.textContent = "同期をキューに追加しました";
+      actionStatus("同期をキューに追加しました");
       setTimeout(() => {
         btn.disabled = false;
         delete btn.dataset.busy;
@@ -726,7 +768,7 @@ function bindSyncCardEvents(card, sync) {
       btn.disabled = false;
       delete btn.dataset.busy;
       btn.textContent = "同期";
-      actionStatus.textContent = "同期に失敗しました: " + err.message;
+      actionStatus("同期に失敗しました: " + err.message, true);
     }
   });
 
@@ -744,9 +786,9 @@ function bindSyncCardEvents(card, sync) {
       const updated = await api.youtubeUpdateSync(sync.id, { enabled: !enabled });
       invalidateSyncRequests();
       applySync(updated);
-      actionStatus.textContent = updated.enabled ? "同期を再開しました" : "同期を一時停止しました";
+      actionStatus(updated.enabled ? "同期を再開しました" : "同期を一時停止しました");
     } catch (err) {
-      actionStatus.textContent = "更新に失敗しました: " + err.message;
+      actionStatus("更新に失敗しました: " + err.message, true);
     } finally {
       btn.disabled = false;
       delete btn.dataset.busy;
@@ -772,7 +814,7 @@ function bindSyncCardEvents(card, sync) {
       reconcileRows(document.getElementById("yt-sync-list"), [...syncCards.values()], ".yt-sync-card", "同期中のプレイリストはありません");
       updateAccountSyncBadges();
     } catch (err) {
-      actionStatus.textContent = "削除に失敗しました: " + err.message;
+      actionStatus("削除に失敗しました: " + err.message, true);
     } finally {
       setCardMutation(card, false);
     }

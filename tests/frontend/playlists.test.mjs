@@ -499,3 +499,70 @@ test('details open on demand, remain open through refresh and close with Escape'
   assert.equal(drawer.hidden,true);
   assert.equal(state.doc.activeElement,button);
 });
+
+test('manual sync failure and retry results are shown inside the open details panel',async t=>{
+  const state=await setup(t);
+  const card=state.doc.querySelector('.yt-sync-card');card.querySelector('.yt-sync-detail-btn').click();
+  const drawer=card.querySelector('.sync-detail-panel'),button=drawer.querySelector('.yt-sync-now-btn'),status=drawer.querySelector('.yt-sync-detail-status');
+  state.handlers.set('POST /api/v1/youtube/syncs/1/run',()=>new Response(JSON.stringify({detail:'通信できません'}),{status:503}));
+  button.click();assert.match(status.textContent,/依頼中/);
+  await until(()=>!button.disabled);
+  assert.match(status.textContent,/同期に失敗しました: 通信できません/);
+  assert.equal(status.classList.contains('error-msg'),true);
+  assert.equal(drawer.hidden,false);
+  state.handlers.set('POST /api/v1/youtube/syncs/1/run',()=>({ok:true}));
+  t.mock.timers.enable({apis:['setTimeout']});
+  button.click();await until(()=>status.textContent==='同期をキューに追加しました');
+  assert.equal(status.classList.contains('error-msg'),false);
+  t.mock.timers.tick(3000);await until(()=>!button.disabled);
+  assert.equal(drawer.hidden,false);
+});
+
+test('sync deletion failure is visible beside the delete control in details',async t=>{
+  const state=await setup(t);
+  const card=state.doc.querySelector('.yt-sync-card');card.querySelector('.yt-sync-detail-btn').click();
+  state.handlers.set('DELETE /api/v1/youtube/syncs/1?delete_files=true',()=>new Response(JSON.stringify({detail:'削除できません'}),{status:500}));
+  card.querySelector('.yt-sync-delete-btn').click();
+  await until(()=>!card.querySelector('.yt-sync-delete-btn').disabled);
+  assert.match(card.querySelector('.sync-detail-panel .yt-sync-detail-status').textContent,/削除に失敗/);
+  assert.equal(state.doc.querySelector('.yt-sync-card'),card);
+});
+
+test('URL addition announces the named playlist and offers a stable jump to it',async t=>{
+  const state=await setup(t);
+  state.doc.querySelector('#yt-playlist-url-input').value='https://www.youtube.com/playlist?list=PL2';
+  state.doc.querySelector('#yt-add-url-btn').click();
+  await until(()=>!state.doc.querySelector('#yt-sync-add-result').hidden);
+  const card=state.doc.querySelector('[data-sync-id="2"]');
+  assert.match(state.doc.querySelector('#yt-sync-add-message').textContent,/Playlist PL1.*追加しました/);
+  assert.equal(card.classList.contains('just-added'),true);
+  let scrolled=false;card.scrollIntoView=()=>{scrolled=true;};
+  state.doc.querySelector('#yt-view-added-sync').click();
+  assert.equal(scrolled,true);
+  assert.equal(state.doc.activeElement,card.querySelector('.yt-sync-detail-btn'));
+  state.doc.querySelector('#yt-dismiss-add-result').click();
+  assert.equal(state.doc.querySelector('#yt-sync-add-result').hidden,true);
+});
+
+test('account addition also shows completion; a subsequent failed add hides old success',async t=>{
+  const state=await setup(t);
+  state.doc.querySelector('.yt-add-sync-btn').click();state.doc.querySelector('#yt-sync-confirm-btn').click();
+  await until(()=>!state.doc.querySelector('#yt-sync-add-result').hidden);
+  state.handlers.set('POST /api/v1/youtube/syncs',()=>new Response(JSON.stringify({detail:'追加できません'}),{status:500}));
+  state.doc.querySelector('#yt-playlist-url-input').value='https://www.youtube.com/playlist?list=PL3';
+  state.doc.querySelector('#yt-add-url-btn').click();
+  await until(()=>!state.doc.querySelector('#yt-add-url-btn').disabled);
+  assert.equal(state.doc.querySelector('#yt-sync-add-result').hidden,true);
+  assert.match(state.doc.querySelector('#yt-add-url-error').textContent,/追加できません/);
+});
+
+test('jump handles a playlist deleted after the completion notice',async t=>{
+  const state=await setup(t);
+  state.doc.querySelector('#yt-playlist-url-input').value='https://www.youtube.com/playlist?list=PL2';
+  state.doc.querySelector('#yt-add-url-btn').click();
+  await until(()=>!state.doc.querySelector('#yt-sync-add-result').hidden);
+  state.doc.querySelector('[data-sync-id="2"] .yt-sync-delete-btn').click();
+  await until(()=>!state.doc.querySelector('[data-sync-id="2"]'));
+  state.doc.querySelector('#yt-view-added-sync').click();
+  assert.match(state.doc.querySelector('#yt-sync-add-message').textContent,/一覧にありません/);
+});

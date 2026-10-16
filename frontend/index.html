@@ -71,6 +71,10 @@
       <div><span>自動同期が有効</span><strong id="sync-enabled">—</strong><small>プレイリスト</small></div>
       <div class="attention-stat"><span>要対応</span><strong id="sync-errors">—</strong><small>同期エラー</small></div>
     </div>
+    <div id="yt-sync-add-result" class="sync-add-notice" hidden>
+      <span id="yt-sync-add-message" role="status" aria-live="polite"></span>
+      <div class="sync-add-notice-actions"><button type="button" class="btn btn-ghost" id="yt-view-added-sync">追加した同期を見る</button><button type="button" class="btn btn-ghost" id="yt-dismiss-add-result" aria-label="追加完了の通知を閉じる">✕</button></div>
+    </div>
     <details class="add-sync-box" id="sync-add-panel"><summary>プレイリストを追加</summary>
     <div class="section-title" style="margin-top:18px">URLから同期追加</div>
     <div id="yt-url-sync-section" class="yt-auth-section"></div>

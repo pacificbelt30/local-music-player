@@ -91,6 +91,10 @@ function buildItem(t, index) {
       <a class="btn btn-ghost" href="${t.download_url}" download title="ファイルをダウンロード">↓</a>
       <button class="btn btn-ghost delete-track" data-id="${t.id}" title="削除">🗑</button>
     </div>
+    <div class="track-delete-feedback" hidden>
+      <span class="track-delete-message" role="status" aria-live="polite"></span>
+      <button class="btn btn-ghost retry-delete-track" type="button">削除を再試行</button>
+    </div>
   `;
 
   item.querySelector(".preview-track").addEventListener("click", () => player.play([t], 0));
@@ -102,12 +106,33 @@ function bindDeleteButtons(container) {
   container.querySelectorAll(".delete-track").forEach((btn) => {
     if (btn.dataset.bound) return;
     btn.dataset.bound = "1";
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      if (!confirm("Delete this track?")) return;
-      await api.deleteTrack(Number(btn.dataset.id), true).catch(() => {});
-      loadTracks(currentParams);
-    });
+    const row = btn.closest(".track-item");
+    const notice = row.querySelector(".track-delete-feedback");
+    const message = notice.querySelector(".track-delete-message");
+    const retry = notice.querySelector("button");
+    const remove = async (event) => {
+      event.stopPropagation();
+      if (btn.disabled || !confirm("このファイルを削除しますか？")) return;
+      btn.disabled = retry.disabled = true;
+      row.setAttribute("aria-busy", "true");
+      notice.hidden = false;
+      notice.classList.remove("error-msg");
+      message.textContent = "削除中…";
+      retry.hidden = true;
+      try {
+        await api.deleteTrack(Number(btn.dataset.id), true);
+        await loadTracks(currentParams);
+      } catch (error) {
+        message.textContent = "削除に失敗しました: " + error.message;
+        notice.classList.add("error-msg");
+        retry.hidden = false;
+      } finally {
+        btn.disabled = retry.disabled = false;
+        row.removeAttribute("aria-busy");
+      }
+    };
+    btn.addEventListener("click", remove);
+    retry.addEventListener("click", remove);
   });
 }
 

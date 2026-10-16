@@ -1362,3 +1362,14 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline:2px solid
   .yt-sync-info { flex-basis:100%; }
   .yt-sync-actions { width:100%; justify-content:flex-end; }
 }
+
+.track-delete-feedback { grid-column:1 / -1; display:flex; align-items:center; flex-wrap:wrap; gap:8px 14px; font-size:12px; overflow-wrap:anywhere; }
+.track-delete-feedback .btn { flex-shrink:0; }
+.yt-sync-card.details-open > .yt-sync-action-status { display:none; }
+.yt-sync-detail-status { margin-bottom:18px; }
+.sync-add-notice { position:fixed; right:22px; bottom:22px; z-index:160; max-width:min(460px,calc(100vw - 44px)); padding:16px 20px; border:1px solid var(--accent); border-radius:12px; background:var(--surface); color:var(--text); box-shadow:var(--shadow-lg); font-size:13px; overflow-wrap:anywhere; }
+.sync-add-notice-actions { display:flex; gap:10px; justify-content:space-between; margin-top:10px; }
+.yt-sync-card.just-added { border-color:var(--accent); }
+@media (max-width:600px) {
+  .sync-add-notice { right:10px; bottom:78px; max-width:calc(100vw - 20px); }
+}
