@@ -37,7 +37,7 @@ async function setup(t, options = {}) {
     state.calls.push({key, body});
     let value;
     if (state.handlers.has(key)) value = await state.handlers.get(key)(body);
-    else if (path.endsWith('/youtube/auth/status')) value = {authenticated: true};
+    else if (path.endsWith('/youtube/auth/status')) value = options.authStatus || {authenticated: true};
     else if (path.endsWith('/youtube/playlists')) value = state.playlists;
     else if (path.endsWith('/youtube/syncs') && method === 'GET') value = state.syncs;
     else if (path.endsWith('/tracks')) value = [track()];
@@ -64,7 +64,7 @@ async function setup(t, options = {}) {
   });
   const {initPlaylists} = await import(new URL(`../../frontend/js/playlists.js?test=${++moduleId}`, import.meta.url));
   initPlaylists();
-  await until(() => document.querySelector('.yt-pl-item') && (state.syncs.length ? document.querySelector('.yt-sync-card') : document.querySelector('#yt-sync-list .empty-state')));
+  await until(() => (options.authStatus?.authenticated === false ? document.querySelector('#yt-connect-btn') : document.querySelector('.yt-pl-item')) && (state.syncs.length ? document.querySelector('.yt-sync-card') : document.querySelector('#yt-sync-list .empty-state')));
   state.doc = dom.window.document;
   state.count = key => state.calls.filter(call => call.key === key).length;
   return state;
@@ -565,4 +565,51 @@ test('jump handles a playlist deleted after the completion notice',async t=>{
   await until(()=>!state.doc.querySelector('[data-sync-id="2"]'));
   state.doc.querySelector('#yt-view-added-sync').click();
   assert.match(state.doc.querySelector('#yt-sync-add-message').textContent,/一覧にありません/);
+});
+
+test('connected account sees addition guidance instead of a request to connect again',async t=>{
+  const state=await setup(t,{authStatus:{authenticated:true,refresh_status:'available'}});
+  assert.match(state.doc.querySelector('#yt-connection-guide-message').textContent,/追加できます/);
+  assert.equal(state.doc.querySelector('#yt-connection-guide-action').textContent,'接続設定を開く');
+  const {initNavigation}=await import('../../frontend/js/navigation.js');
+  initNavigation();
+  state.doc.querySelector('#yt-connection-guide-action').click();
+  assert.equal(state.doc.querySelector('.panel.active').id,'settings-panel');
+});
+
+test('disconnected account is guided to connect while URL sync remains available',async t=>{
+  const state=await setup(t,{authStatus:{authenticated:false}});
+  assert.match(state.doc.querySelector('#yt-connection-guide-message').textContent,/共有URL.*接続なし/);
+  assert.equal(state.doc.querySelector('#yt-connection-guide-action').textContent,'設定でYouTubeに接続');
+  assert.equal(state.doc.querySelector('#yt-playlist-picker').style.display,'none');
+  assert.ok(state.doc.querySelector('#yt-playlist-url-input'));
+});
+
+test('connection check updates guidance after refusal and recovery without replacing account rows',async t=>{
+  const state=await setup(t,{authStatus:{authenticated:true,refresh_status:'available'}});
+  const account=state.doc.querySelector('.yt-pl-item');
+  const check=state.doc.querySelector('#yt-auth-check-btn');
+  state.handlers.set('POST /api/v1/youtube/auth/check',()=>({authenticated:true,refresh_status:'reauth_required'}));
+  check.click();await until(()=>!check.disabled);
+  assert.equal(state.doc.querySelector('#yt-connection-guide-action').textContent,'設定で再認証');
+  state.handlers.set('POST /api/v1/youtube/auth/check',()=>({authenticated:true,refresh_status:'available'}));
+  check.click();await until(()=>!check.disabled);
+  assert.match(state.doc.querySelector('#yt-connection-guide-message').textContent,/追加できます/);
+  assert.equal(state.doc.querySelector('.yt-pl-item'),account);
+});
+
+test('failed status check shows unknown connection state without demanding reauthentication',async t=>{
+  const state=await setup(t);
+  state.handlers.set('POST /api/v1/youtube/auth/check',()=>{throw new Error('offline');});
+  const check=state.doc.querySelector('#yt-auth-check-btn');check.click();await until(()=>!check.disabled);
+  assert.match(state.doc.querySelector('#yt-connection-guide-message').textContent,/取得できません/);
+  assert.doesNotMatch(state.doc.querySelector('#yt-connection-guide-message').textContent,/再認証/);
+});
+
+test('disconnect updates addition guidance to disconnected state',async t=>{
+  const state=await setup(t);
+  state.handlers.set('GET /api/v1/youtube/auth/status',()=>({authenticated:false}));
+  state.doc.querySelector('#yt-disconnect-btn').click();
+  await until(()=>state.doc.querySelector('#yt-connect-btn'));
+  assert.equal(state.doc.querySelector('#yt-connection-guide-action').textContent,'設定でYouTubeに接続');
 });

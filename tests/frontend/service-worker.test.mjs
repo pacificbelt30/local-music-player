@@ -12,7 +12,7 @@ function worker(fetch) {
     URL, Response, JSON, fetch,
     caches: {
       open: async () => ({addAll: async () => {}, put: async () => {}}),
-      keys: async () => ['lmp-v4', 'lmp-v5'],
+      keys: async () => ['lmp-v5', 'lmp-v6'],
       delete: async key => deleted.push(key), match: async () => undefined,
     },
   };
@@ -41,5 +41,5 @@ test('activation removes the previous shell cache so UI fixes can be loaded', as
   let activation;
   handlers.get('activate')({waitUntil: promise => activation = promise});
   await activation;
-  assert.deepEqual(deleted, ['lmp-v4']);
+  assert.deepEqual(deleted, ['lmp-v5']);
 });
