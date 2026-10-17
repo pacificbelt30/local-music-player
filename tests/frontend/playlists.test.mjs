@@ -514,7 +514,9 @@ test('manual sync failure and retry results are shown inside the open details pa
   t.mock.timers.enable({apis:['setTimeout']});
   button.click();await until(()=>status.textContent==='同期をキューに追加しました');
   assert.equal(status.classList.contains('error-msg'),false);
-  t.mock.timers.tick(3000);await until(()=>!button.disabled);
+  t.mock.timers.tick(3000);
+  // The button resets before the asynchronous list refresh finishes.
+  await until(()=>!button.disabled && !state.doc.querySelector('#yt-sync-list').hasAttribute('aria-busy'));
   assert.equal(drawer.hidden,false);
 });
 
