@@ -653,3 +653,28 @@ test('opening another row closes the previous drawer and text selection does not
   assert.equal(first.classList.contains('details-open'),false);
   assert.equal(second.querySelector('.sync-detail-panel').hidden,false);
 });
+
+test('details button retains an explicit accessible name after playlist metadata changes',async t=>{
+  const state=await setup(t);
+  const card=state.doc.querySelector('.yt-sync-card');
+  assert.equal(card.querySelector('.yt-sync-detail-btn').getAttribute('aria-label'),'Playlist PL1の詳細を開く');
+  state.syncs=[{...sync(),playlist_name:'更新後のプレイリスト'}];
+  state.doc.querySelector('#yt-refresh-syncs-btn').click();
+  await until(()=>!state.doc.querySelector('#yt-sync-list').hasAttribute('aria-busy'));
+  assert.equal(card.querySelector('.yt-sync-detail-btn').getAttribute('aria-label'),'更新後のプレイリストの詳細を開く');
+  assert.equal(card.querySelector('.yt-sync-name').title,'更新後のプレイリスト');
+});
+
+test('paused and attention states stay distinct when changing sync settings',async t=>{
+  const state=await setup(t,{syncs:[{...sync(),last_error:null}]});
+  const card=state.doc.querySelector('.yt-sync-card'),badge=card.querySelector('.yt-sync-state');
+  card.querySelector('.yt-sync-toggle-btn').click();await until(()=>!card.querySelector('.yt-sync-toggle-btn').disabled);
+  assert.match(badge.textContent,/一時停止/);
+  assert.equal(badge.classList.contains('is-paused'),true);
+  assert.equal(badge.classList.contains('needs-attention'),false);
+  state.syncs=[{...sync(),enabled:false,last_error:'同期エラー'}];
+  state.doc.querySelector('#yt-refresh-syncs-btn').click();await until(()=>!state.doc.querySelector('#yt-sync-list').hasAttribute('aria-busy'));
+  assert.match(badge.textContent,/要対応/);
+  assert.equal(badge.classList.contains('needs-attention'),true);
+  assert.equal(badge.classList.contains('is-paused'),false);
+});

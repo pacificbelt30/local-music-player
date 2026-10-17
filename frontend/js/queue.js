@@ -33,7 +33,7 @@ async function renderUrlList() {
   const container = document.getElementById("url-list");
   try {
     const urls = await api.listUrls();
-    container.innerHTML = urls.length ? "" : '<div class="empty-state">No URLs registered</div>';
+    container.innerHTML = urls.length ? "" : '<div class="empty-state">登録済みのURLはありません</div>';
     for (const src of urls) {
       const item = document.createElement("div");
       item.className = "url-item";
@@ -66,7 +66,7 @@ async function renderJobList() {
 }
 
 function renderJobs(container, jobList) {
-  container.innerHTML = jobList.length ? "" : '<div class="empty-state">No active downloads</div>';
+  container.innerHTML = jobList.length ? "" : '<div class="empty-state">処理中のダウンロードはありません</div>';
   for (const job of jobList) {
     const item = document.createElement("div");
     item.className = "job-item";

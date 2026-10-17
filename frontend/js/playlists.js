@@ -617,10 +617,13 @@ function updateSyncCard(card, sync) {
   const state = card.querySelector(".yt-sync-state");
   state.textContent = sync.last_error ? "要対応" : sync.enabled ? "自動同期 有効" : "一時停止中";
   state.classList.toggle("needs-attention", Boolean(sync.last_error));
+  state.classList.toggle("is-paused", !sync.enabled && !sync.last_error);
+  card.querySelector(".yt-sync-detail-btn").setAttribute("aria-label", `${sync.playlist_name}の詳細を開く`);
+  card.querySelector(".yt-sync-name").title = sync.playlist_name;
   const source = card.querySelector(".yt-sync-source");
   source.textContent = sync.source_type === "url" ? "共有URL同期" : "API同期";
   source.classList.toggle("status-complete", sync.source_type !== "url");
-  const lastSynced = sync.last_synced ? new Date(sync.last_synced).toLocaleString("ja-JP") : "未同期";
+  const lastSynced = sync.last_synced ? new Date(sync.last_synced).toLocaleString("ja-JP", {year:"numeric", month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"}) : "未同期";
   const progress = sync.track_count ? `${sync.downloaded_count}/${sync.track_count} 曲ダウンロード済み` : "トラックなし";
   card.querySelector(".yt-sync-progress").textContent = `${progress} · 最終同期: ${lastSynced}`;
   card.querySelector(".yt-sync-format").textContent = ["mp4", "webm"].includes(sync.audio_format)
@@ -641,7 +644,7 @@ function updateSyncCard(card, sync) {
 
 function syncCardHTML(sync) {
   const lastSynced = sync.last_synced
-    ? new Date(sync.last_synced).toLocaleString("ja-JP")
+    ? new Date(sync.last_synced).toLocaleString("ja-JP", {year:"numeric", month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"})
     : "未同期";
   const progress = sync.track_count
     ? `${sync.downloaded_count}/${sync.track_count} 曲ダウンロード済み`
@@ -663,13 +666,13 @@ function syncCardHTML(sync) {
 
   return `
     <div class="yt-sync-header">
+      <div class="yt-sync-object" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v12H3z"/><path d="M7 12h10M7 16h7"/></svg></div>
       <div class="yt-sync-info">
         <div class="yt-sync-title">
           <span class="yt-id-badge" title="同期ID（DB障害メッセージの id= と一致）">ID:${sync.id}</span>
           <span class="yt-sync-name">${escHtml(sync.playlist_name)}</span>
-          <span class="${sourceBadgeClass} yt-sync-source" style="font-size:0.7em">${sourceLabel}</span>
         </div>
-        <div class="yt-sync-meta yt-sync-progress">${progress} · 最終同期: ${lastSynced}</div>
+        <div class="yt-sync-caption"><span class="${sourceBadgeClass} yt-sync-source">${sourceLabel}</span><span class="yt-sync-meta yt-sync-progress">${progress} · 最終同期: ${lastSynced}</span></div>
         <div class="yt-sync-meta yt-sync-format">${["mp4", "webm"].includes(sync.audio_format)
           ? `${sync.audio_format.toUpperCase()} (動画)`
           : `${sync.audio_format.toUpperCase()} / ${sync.audio_quality === "best" ? "Best" : sync.audio_quality + "kbps"}`}</div>
@@ -693,10 +696,11 @@ function prepareSyncDetails(card, sync) {
   const actions = card.querySelector(".yt-sync-actions");
   const state = document.createElement("span");
   state.className = "yt-sync-state";
-  card.querySelector(".yt-sync-title").append(state);
+  card.querySelector(".yt-sync-header").insertBefore(state, actions);
   const open = document.createElement("button");
   open.className = "btn btn-ghost yt-sync-detail-btn";
-  open.textContent = "詳細 →";
+  open.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"/></svg>';
+  open.setAttribute("aria-label", "同期プレイリストの詳細を開く");
   open.setAttribute("aria-expanded", "false");
   open.setAttribute("aria-controls", `sync-details-${sync.id}`);
   const drawer = document.createElement("section");
