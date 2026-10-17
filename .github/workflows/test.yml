@@ -19,6 +19,37 @@ jobs:
       - name: Install dependencies
         run: pip install -r backend/requirements.txt pytest httpx
 
+      - name: Install FFmpeg for runtime compatibility checks
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       - name: Run tests
         working-directory: backend
         run: python -m pytest tests/ -v
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test frontend behavior
+        run: |
+          npm ci --ignore-scripts
+          npm test
+
+      - name: Test Syncthing container recreation
+        working-directory: backend
+        env:
+          SYNCTHING_DOCKER_TESTS: "1"
+          SYNCTHING_APP_TEST_IMAGE: local-music-player:syncthing-recovery-test
+        run: |
+          docker pull syncthing/syncthing:2.1.6
+          docker build -t local-music-player:syncthing-recovery-test ..
+          python -m pytest tests/integration/test_syncthing_recreate.py -v
+
+      - name: Test LAN HTTPS and certificate persistence
+        working-directory: backend
+        env:
+          HTTPS_DOCKER_TESTS: "1"
+          HTTPS_APP_TEST_IMAGE: local-music-player:syncthing-recovery-test
+        run: |
+          docker pull caddy:2.10.2-alpine
+          python -m pytest tests/integration/test_https_recreate.py -v

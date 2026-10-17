@@ -58,27 +58,92 @@ def revoke_token(token: str) -> None:
     httpx.post(GOOGLE_REVOKE_URL, params={"token": token})
 
 
-def get_fresh_access_token(db) -> str | None:
-    """Return a valid access token, refreshing if necessary. Returns None if not authenticated."""
+def utc(value):
+    return value.replace(tzinfo=timezone.utc) if value and value.tzinfo is None else value
+
+
+def record_authorization(record, data, now, issued_here=True):
+    """Only a newly issued refresh token starts a new refresh-token lifetime."""
+    if data.get("refresh_token"):
+        record.refresh_token = data["refresh_token"]
+        record.authorized_at = now if issued_here else None
+        seconds = data.get("refresh_token_expires_in")
+        record.refresh_token_expiry = now + timedelta(seconds=seconds) if seconds is not None else None
+        record.last_refresh_at = None
+        record.refresh_error = None
+
+
+def token_status(record):
+    from app.schemas import YouTubeAuthStatus
+    if not record:
+        return YouTubeAuthStatus(authenticated=False)
+    now = datetime.now(timezone.utc)
+    expiry = utc(record.refresh_token_expiry)
+    estimated = False
+    if not expiry and record.refresh_token and record.authorized_at and settings.youtube_oauth_publish_status == "testing":
+        expiry = utc(record.authorized_at) + timedelta(days=7)
+        estimated = True
+    access_expiry = utc(record.token_expiry)
+    expired = bool(access_expiry and access_expiry <= now)
+    if record.refresh_error in ("invalid_grant", "invalid_client", "unauthorized_client"):
+        status = "reauth_required" if record.refresh_error == "invalid_grant" else "configuration_error"
+    elif expiry and expiry <= now:
+        verified_after_estimate = record.last_refresh_at and utc(record.last_refresh_at) >= expiry
+        status = ("available" if verified_after_estimate else "check_required") if estimated else "reauth_required"
+    elif not record.refresh_token:
+        status = "reauth_required" if expired else "unavailable"
+    elif not settings.youtube_client_id or not settings.youtube_client_secret:
+        status = "configuration_error"
+    elif record.refresh_error:
+        status = "temporary_error"
+    else:
+        status = "available"
+    return YouTubeAuthStatus(
+        authenticated=True, scope=record.scope, access_token_expiry=access_expiry,
+        access_token_expired=expired, refresh_token_set=bool(record.refresh_token),
+        refresh_token_expiry=expiry, refresh_expiry_estimated=estimated,
+        authorized_at=utc(record.authorized_at), last_refresh_at=utc(record.last_refresh_at),
+        refresh_status=status, refresh_error=record.refresh_error,
+    )
+
+
+def get_fresh_access_token(db, force=False) -> str | None:
+    """Refresh on API use; keep safe diagnostic metadata without exposing tokens."""
     from app.models import YouTubeOAuthToken
     record = db.query(YouTubeOAuthToken).first()
     if not record:
         return None
-
     now = datetime.now(timezone.utc)
-    expiry = record.token_expiry
-    if expiry and expiry.tzinfo is None:
-        expiry = expiry.replace(tzinfo=timezone.utc)
-
-    if expiry and now >= expiry - timedelta(minutes=5):
-        data = refresh_access_token(record.refresh_token)
+    expiry = utc(record.token_expiry)
+    if force or (expiry and now >= expiry - timedelta(minutes=5)):
+        if not record.refresh_token:
+            if force or (expiry and now >= expiry):
+                return None
+            return record.access_token
+        try:
+            data = refresh_access_token(record.refresh_token)
+        except httpx.HTTPStatusError as exc:
+            try:
+                error = exc.response.json().get("error")
+            except (ValueError, AttributeError):
+                error = None
+            # Store only known codes, never provider messages or token values.
+            record.refresh_error = error if error in ("invalid_grant", "invalid_client", "unauthorized_client") else "temporary_error"
+            db.commit()
+            raise
+        except httpx.RequestError:
+            record.refresh_error = "temporary_error"
+            db.commit()
+            raise
         record.access_token = data["access_token"]
-        if "refresh_token" in data:
+        if data.get("refresh_token"):
             record.refresh_token = data["refresh_token"]
-        if "expires_in" in data:
-            record.token_expiry = now + timedelta(seconds=data["expires_in"])
+        if "refresh_token_expires_in" in data:
+            record.refresh_token_expiry = now + timedelta(seconds=data["refresh_token_expires_in"])
+        record.token_expiry = now + timedelta(seconds=data.get("expires_in", 3600))
+        record.last_refresh_at = now
+        record.refresh_error = None
         db.commit()
-
     return record.access_token
 
 

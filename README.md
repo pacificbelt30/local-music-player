@@ -6,6 +6,7 @@ YouTube から yt-dlp でダウンロードし、Syncthing でスマホに同期
 
 - YouTube の URL（動画・プレイリスト・チャンネル）を登録
 - バックグラウンドで yt-dlp が自動ダウンロード
+- 稼働中の yt-dlp 自動更新（候補版を検証してから切り替え、切り戻し対応）
 - 毎時プレイリストを再スキャンして新着動画を追加
 - ブラウザからストリーミング再生（PWA対応、スマホのホーム画面に追加可能）
 - 音声フォーマットを URL ごとに選択（MP3/FLAC/AAC/OGG）
@@ -86,6 +87,32 @@ cp .env.example .env
   `/var/syncthing/downloads` を共有フォルダとして登録してください。
 - 公開ポート: `8384`（Web GUI / REST API）、`22000/tcp`・`22000/udp`（同期）、
   `21027/udp`（ローカル探索）。
+- 設定・デバイスID・ペアリングは `./syncthing-config/`、その他のSyncthing領域は
+  `./syncthing-state/` に保存します。`./downloads/` と合わせてコンテナ再作成後も維持します。
+- Syncthingは検証済みの `2.1.6` に固定し、APIの準備完了後にアプリを起動します。
+
+#### 既存環境で `/var/syncthing/Sync` を共有している場合
+
+以前の構成では、このフォルダはコンテナ固有の領域にありました。**既存コンテナを削除する前に**、次の手順で移してください。すでに `/var/syncthing/downloads` を共有している場合、このコピーは不要です。
+
+```bash
+mkdir -p syncthing-state
+docker compose stop syncthing
+docker compose cp syncthing:/var/syncthing/Sync ./syncthing-state/Sync
+docker compose up -d --build
+```
+
+コピー先にすでに `Sync` がある場合は上書きせず、内容を確認してから移行してください。
+`/var/syncthing/` 配下の別の共有フォルダも、対応する `./syncthing-state/` の位置へ移してください。
+`./syncthing-config/` にある証明書・鍵と `config.xml` はそのまま使い、削除しないでください。
+既に旧コンテナを削除した場合、旧匿名ボリュームや同期先からの復旧が必要になることがあります。
+フォルダ障害を隠すために空のフォルダや `.stfolder` を作ると、削除が同期される場合があるため、先に内容を復旧してください。
+
+アプリの接続先はコンテナのIPではなく `http://syncthing:8384` を使います。
+以前保存したURL/APIキーが環境設定を上書きしている場合は、アプリのSyncthing設定で
+「環境設定に戻す」を選択できます。再作成時の一時的な切断は自動的に再接続され、画面も再取得します。
+スマホ側でサーバーのアドレスを固定する場合は、コンテナのIPではなくホストの固定IPやDNS名の
+`tcp://<server>:22000` を使ってください。
 
 ### スマホとペアリング
 

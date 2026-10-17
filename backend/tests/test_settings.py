@@ -489,7 +489,7 @@ class TestOAuthExpiryCheck:
         from app.models import YouTubeOAuthToken
         db.add(YouTubeOAuthToken(
             access_token="token",
-            refresh_token="refresh",
+            refresh_token="",
             token_expiry=expiry,
         ))
         db.commit()

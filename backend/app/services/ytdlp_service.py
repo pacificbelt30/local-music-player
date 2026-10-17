@@ -1,4 +1,5 @@
 import math
+import os
 import shlex
 import shutil
 import stat
@@ -203,6 +204,7 @@ def _download_postprocessor_args(
     silence_trim_end_secs: float,
     ffmpeg_threads: int | None = None,
     include_end_trim: bool = True,
+    audio_format: str = "mp3",
 ) -> list[str]:
     ffmpeg_args: list[str] = []
     effective_threads = _effective_ffmpeg_threads(ffmpeg_threads)
@@ -225,7 +227,40 @@ def _download_postprocessor_args(
 
     if audio_filters:
         ffmpeg_args.extend(["-af", ",".join(audio_filters)])
+        # yt-dlp can otherwise select stream-copy when the source codec matches
+        # the output codec (e.g. AAC -> m4a), which cannot apply audio filters.
+        ffmpeg_args.extend(_codec_args_for(audio_format)[:2])
+    if not is_video and audio_format == "aac":
+        # Recent yt-dlp versions label AAC output as m4a. Our AAC format is
+        # raw ADTS; explicitly keep that container before normalizing the name.
+        ffmpeg_args.extend(["-f", "adts"])
     return ffmpeg_args
+
+
+def _normalize_aac_path(
+    dest: Path, title: str, ffmpeg_memory_limit_mb: int | None = None,
+    ffmpeg_concurrent_processes: int | None = None,
+) -> Path:
+    safe_title = yt_dlp.utils.sanitize_filename(title)
+    expected = dest / f"{safe_title}.aac"
+    # Keep the intermediate name separate from a user's m4a download.
+    for extension in ("m4a", "aac"):
+        actual = dest / f"{safe_title}.aac-work.{extension}"
+        if actual.is_file():
+            temporary = dest / f"{safe_title}.aac-work.final"
+            try:
+                subprocess.run(
+                    ["ffmpeg", "-v", "error", "-y", "-i", str(actual),
+                     "-vn", "-c:a", "copy", "-f", "adts", str(temporary)],
+                    check=True, capture_output=True, timeout=120,
+                    preexec_fn=_ffmpeg_memory_preexec(ffmpeg_memory_limit_mb, ffmpeg_concurrent_processes),
+                )
+                temporary.replace(expected)
+                actual.unlink()
+            finally:
+                temporary.unlink(missing_ok=True)
+            break
+    return expected
 
 
 def _is_audio_postprocessing_error(exc: Exception) -> bool:
@@ -239,6 +274,9 @@ def _is_audio_postprocessing_error(exc: Exception) -> bool:
 
 def get_playlist_info(url: str) -> dict:
     """Fetch playlist metadata and all entries without downloading."""
+    if os.environ.get("YTDLP_CHILD") != "1":
+        from app.services.ytdlp_process import call
+        return call("get_playlist_info", {"url": url}, timeout=180)
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
@@ -275,6 +313,9 @@ def get_playlist_info(url: str) -> dict:
 
 def resolve_url(url: str) -> list[dict[str, Any]]:
     """Return a flat list of {id, title, url_type} dicts without downloading."""
+    if os.environ.get("YTDLP_CHILD") != "1":
+        from app.services.ytdlp_process import call
+        return call("resolve_url", {"url": url}, timeout=180)
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
@@ -322,9 +363,16 @@ def download_track(
     ffmpeg_concurrent_processes: int | None = None,
 ) -> dict[str, Any]:
     """Download a single track. Returns metadata dict on success."""
+    if os.environ.get("YTDLP_CHILD") != "1":
+        arguments = dict(locals())
+        arguments.pop("progress_hook")
+        from app.services.ytdlp_process import call
+        return call("download_track", arguments, progress_hook=progress_hook, timeout=21600)
     dest = base_path or settings.downloads_path
     dest.mkdir(parents=True, exist_ok=True)
     output_template = str(dest / "%(title)s.%(ext)s")
+    if audio_format == "aac":
+        output_template = str(dest / "%(title)s.aac-work.%(ext)s")
 
     is_video = is_video_format(audio_format)
     ydl_opts: dict[str, Any] = {
@@ -346,6 +394,7 @@ def download_track(
         silence_trim_start_secs,
         silence_trim_end_secs,
         ffmpeg_threads,
+        audio_format=audio_format,
     )
     if ffmpeg_args:
         ydl_opts["postprocessor_args"] = ffmpeg_args
@@ -376,6 +425,7 @@ def download_track(
                 0.0,
                 ffmpeg_threads,
                 include_end_trim=False,
+                audio_format=audio_format,
             )
             if retry_args:
                 ydl_opts["postprocessor_args"] = retry_args
@@ -392,6 +442,8 @@ def download_track(
     # Sanitize filename the same way yt-dlp does
     safe_title = yt_dlp.utils.sanitize_filename(title)
     file_path = dest / f"{safe_title}.{ext}"
+    if ext == "aac":
+        file_path = _normalize_aac_path(dest, title, ffmpeg_memory_limit_mb, ffmpeg_concurrent_processes)
 
     return {
         "youtube_id": youtube_id,

@@ -1,4 +1,8 @@
 import { api } from "./api.js";
+import { folderPresentation } from "./syncthing-status.js";
+
+let refreshTimer;
+let refreshing = false;
 
 export function initSyncthing() {
   const modal = document.getElementById("syncthing-modal");
@@ -15,8 +19,7 @@ export function initSyncthing() {
   });
 
   document.getElementById("syncthing-refresh-btn")?.addEventListener("click", () => {
-    refreshFolders();
-    refreshDevices();
+    refreshViews();
   });
 }
 
@@ -25,11 +28,20 @@ function openModal() {
   if (!modal) return;
   modal.classList.remove("hidden");
   refreshConfig();
-  refreshFolders();
-  refreshDevices();
+  refreshViews();
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(refreshViews, 5000);
+}
+
+async function refreshViews() {
+  if (refreshing) return;
+  refreshing = true;
+  try { await Promise.all([refreshFolders(), refreshDevices()]); }
+  finally { refreshing = false; }
 }
 
 function closeModal() {
+  clearInterval(refreshTimer);
   document.getElementById("syncthing-modal")?.classList.add("hidden");
 }
 
@@ -54,8 +66,8 @@ function bindConfigForm() {
       okEl.textContent = "保存しました";
       form.api_key.value = "";
       refreshConfig();
-      refreshFolders();
-      refreshDevices();
+      refreshViews();
+      window.dispatchEvent(new Event("syncthing-config-changed"));
     } catch (err) {
       errEl.textContent = err.message;
     }
@@ -75,15 +87,6 @@ function bindConfigForm() {
         errEl.textContent = "テストには API キーを入力してください";
         return;
       }
-      // Use stored key via status endpoint instead
-      try {
-        const status = await api.syncthingStatus();
-        if (status.available) okEl.textContent = `接続OK (myID: ${status.my_id?.slice(0, 7) || "?"})`;
-        else errEl.textContent = `接続失敗: ${status.reason}`;
-      } catch (e) {
-        errEl.textContent = e.message;
-      }
-      return;
     }
 
     try {
@@ -93,6 +96,16 @@ function bindConfigForm() {
     } catch (e) {
       errEl.textContent = e.message;
     }
+  });
+
+  document.getElementById("syncthing-reset-btn")?.addEventListener("click", async () => {
+    try {
+      await api.syncthingUpdateConfig({url: "", api_key: ""});
+      document.getElementById("syncthing-config-ok").textContent = "環境設定に戻しました";
+      form.api_key.value = "";
+      await Promise.all([refreshConfig(), refreshFolders(), refreshDevices()]);
+      window.dispatchEvent(new Event("syncthing-config-changed"));
+    } catch (error) { document.getElementById("syncthing-config-error").textContent = error.message; }
   });
 }
 
@@ -106,7 +119,7 @@ async function refreshConfig() {
     }
     const stateEl = document.getElementById("syncthing-config-state");
     if (stateEl) {
-      stateEl.textContent = cfg.api_key_set ? "API キー: 設定済み" : "API キー: 未設定";
+      stateEl.textContent = (cfg.api_key_set ? "API キー: 設定済み" : "API キー: 未設定") + (cfg.overridden ? " / 保存した接続設定を使用" : " / 環境設定を使用");
       stateEl.className = "syncthing-config-state " + (cfg.api_key_set ? "ok" : "warn");
     }
   } catch (e) {
@@ -118,7 +131,7 @@ async function refreshConfig() {
 async function refreshFolders() {
   const container = document.getElementById("syncthing-folder-list");
   if (!container) return;
-  container.innerHTML = '<div class="empty-state">読込中…</div>';
+  if (!container.childElementCount) container.innerHTML = '<div class="empty-state">読込中…</div>';
   try {
     const folders = await api.syncthingListFolders();
     if (!folders.length) {
@@ -127,11 +140,12 @@ async function refreshFolders() {
     }
     container.innerHTML = "";
     for (const f of folders) {
-      const pct = Math.round(f.completion_pct ?? 100);
-      const syncing = (f.need_bytes ?? 0) > 0;
-      const statusColor = f.paused ? "var(--text-muted)" : syncing ? "var(--warning)" : "var(--success)";
-      const statusLabel = f.paused ? "paused" : syncing ? `同期中 ${pct}%` : `完了 ${pct}%`;
-      const needInfo = syncing ? ` · 残り ${esc(f.need_bytes_fmt || "")}、${f.need_items || 0} ファイル` : "";
+      const view = folderPresentation(f);
+      const pct = f.completion_pct == null ? null : Math.max(0, Math.min(100, Math.round(f.completion_pct)));
+      const syncing = f.state === "syncing";
+      const statusColor = `var(--${view.color})`;
+      const statusLabel = view.label;
+      const needInfo = (f.need_bytes || f.need_items) ? ` · 残り ${esc(f.need_bytes_fmt || "")}、${f.need_items || 0} 項目` : "";
       const row = document.createElement("div");
       row.className = "syncthing-row";
       row.innerHTML = `
@@ -139,11 +153,12 @@ async function refreshFolders() {
           <div class="syncthing-row-title">${esc(f.label || f.id)}</div>
           <div class="syncthing-row-meta">${esc(f.path || "")} · ${esc(f.type || "")}</div>
           <div class="syncthing-row-meta" style="margin-top:4px">
-            <span style="color:${statusColor};font-weight:600">${statusLabel}</span>
+            <span style="color:${statusColor};font-weight:600">${esc(statusLabel)}</span>
             ${needInfo}
             · 合計 ${esc(f.global_bytes_fmt || "?")}
           </div>
-          ${syncing ? `<div style="margin-top:6px;height:3px;background:var(--surface3);border-radius:99px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--warning);transition:width 0.3s"></div></div>` : ""}
+          ${(f.errors || []).length ? `<div class="error-msg">${esc(f.errors.join(" / "))}</div>` : ""}
+          ${syncing && pct !== null ? `<div style="margin-top:6px;height:3px;background:var(--surface3);border-radius:99px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--warning);transition:width 0.3s"></div></div>` : ""}
         </div>
         <button class="btn btn-ghost rescan-folder" data-id="${esc(f.id)}" title="再スキャン">↻</button>
       `;
@@ -170,7 +185,7 @@ async function refreshFolders() {
 async function refreshDevices() {
   const container = document.getElementById("syncthing-device-list");
   if (!container) return;
-  container.innerHTML = '<div class="empty-state">読込中…</div>';
+  if (!container.childElementCount) container.innerHTML = '<div class="empty-state">読込中…</div>';
   try {
     const devices = await api.syncthingListDevices();
     if (!devices.length) {
@@ -180,7 +195,7 @@ async function refreshDevices() {
     container.innerHTML = "";
     for (const d of devices) {
       const connColor = d.paused ? "var(--text-muted)" : d.connected ? "var(--success)" : "var(--text-muted)";
-      const connLabel = d.paused ? "paused" : d.connected ? "接続中" : "未接続";
+      const connLabel = d.paused ? "paused" : d.connection_known === false ? "接続状態を取得できません" : d.connected ? "接続中" : "未接続";
       const addressLine = d.connected && d.address ? ` · ${esc(d.address)}` : "";
       const versionLine = d.connected && d.client_version ? ` · ${esc(d.client_version)}` : "";
       const lastSeenLine = !d.connected && d.last_seen ? ` · 最終接続: ${esc(d.last_seen.slice(0, 10))}` : "";

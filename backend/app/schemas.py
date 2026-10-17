@@ -274,6 +274,15 @@ class DebugResponse(BaseModel):
 class YouTubeAuthStatus(BaseModel):
     authenticated: bool
     scope: str | None = None
+    access_token_expiry: datetime | None = None
+    access_token_expired: bool = False
+    refresh_token_set: bool = False
+    refresh_token_expiry: datetime | None = None
+    refresh_expiry_estimated: bool = False
+    authorized_at: datetime | None = None
+    last_refresh_at: datetime | None = None
+    refresh_status: str = "not_connected"
+    refresh_error: str | None = None
 
 
 class YouTubeTokenInput(BaseModel):

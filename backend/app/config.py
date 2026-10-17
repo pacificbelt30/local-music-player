@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from pydantic.fields import FieldInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict, EnvSettingsSource, DotEnvSettingsSource
 
@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     youtube_client_id: str = ""
     youtube_client_secret: str = ""
     youtube_redirect_uri: str = "http://localhost:8000/api/v1/youtube/auth/callback"
+
+    youtube_oauth_publish_status: Literal["unknown", "testing", "production"] = "unknown"
 
     # Notification (env fallback used when DB is unavailable)
     discord_webhook_url: str = ""

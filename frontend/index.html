@@ -12,27 +12,26 @@
 </head>
 <body>
 
-<header>
-  <h1>🎵 SyncTune Hub</h1>
-  <div style="display:flex;gap:8px">
-    <button id="debug-badge" class="syncthing-badge" title="デバッグ・モニタリング">Debug</button>
-    <button id="settings-badge" class="syncthing-badge" title="設定を開く">設定</button>
-    <button id="syncthing-badge" class="syncthing-badge" title="Syncthing 設定を開く">Syncthing</button>
-  </div>
+<header class="app-header">
+  <a class="brand" href="#sync"><span class="brand-mark">S</span><span>SyncTune <strong>Hub</strong></span></a>
+  <span class="header-caption">同期とファイルの管理</span>
+  <span class="local-label">YOUR MEDIA, IN SYNC</span>
 </header>
-
-<!-- Mobile tab bar -->
-<nav class="tab-bar">
-  <button class="tab-btn active" data-panel="left-panel">Queue</button>
-  <button class="tab-btn" data-panel="playlists-panel">Playlists</button>
-  <button class="tab-btn" data-panel="right-panel">Library</button>
+<nav class="tab-bar" aria-label="メインナビゲーション">
+  <div class="nav-caption">ワークスペース</div>
+  <button class="tab-btn active" data-panel="playlists-panel" data-route="sync" aria-current="page"><span class="nav-icon">↻</span>同期</button>
+  <button class="tab-btn" data-panel="left-panel" data-route="downloads"><span class="nav-icon">↓</span>ダウンロード</button>
+  <button class="tab-btn" data-panel="right-panel" data-route="files"><span class="nav-icon">▤</span>ファイル</button>
+  <button class="tab-btn" data-panel="settings-panel" data-route="settings"><span class="nav-icon">⚙</span>設定</button>
+  <div class="nav-note">同期を整えて、<br>好きな端末へ。</div>
 </nav>
 
 <div class="layout">
   <!-- LEFT: URL manager + download queue -->
-  <div class="panel left-panel active" id="left-panel">
+  <div class="panel left-panel" id="left-panel">
 
-    <div class="section-title" style="margin-bottom:12px">Add YouTube URL</div>
+    <div class="page-heading"><div><span class="eyebrow">DOWNLOADS</span><h1>ダウンロード</h1><p>URLを追加して、取得状況を確認できます。</p></div></div>
+    <div class="section-title" style="margin-bottom:12px">URLを追加</div>
     <form class="add-url-form" id="add-url-form">
       <input type="text" name="url" placeholder="https://youtube.com/watch?v=..." required autocomplete="off">
       <div class="format-row">
@@ -51,37 +50,47 @@
           <option value="best">Best</option>
         </select>
       </div>
-      <button class="btn btn-primary" type="submit">+ Add &amp; Download</button>
+      <button class="btn btn-primary" type="submit">追加してダウンロード</button>
       <div class="error-msg" id="url-error"></div>
     </form>
 
-    <div class="section-title" style="margin-top:18px">Registered URLs</div>
-    <div class="url-list" id="url-list"><div class="empty-state">No URLs registered</div></div>
+    <div class="section-title" style="margin-top:18px">登録済みのURL</div>
+    <div class="url-list" id="url-list"><div class="empty-state">登録済みのURLはありません</div></div>
 
-    <div class="section-title" style="margin-top:18px">Download Queue</div>
-    <div class="queue-list" id="job-list"><div class="empty-state">No active downloads</div></div>
+    <div class="section-title" style="margin-top:18px">ダウンロードキュー</div>
+    <div class="queue-list" id="job-list"><div class="empty-state">処理中のダウンロードはありません</div></div>
 
   </div>
 
   <!-- CENTER: YouTube Playlist Sync -->
-  <div class="panel playlists-panel" id="playlists-panel">
+  <div class="panel playlists-panel active" id="playlists-panel">
 
-    <div class="section-title">YouTubeアカウント</div>
-    <div id="yt-auth-section" class="yt-auth-section">
-      <div class="empty-state">読込中…</div>
+    <div class="page-heading"><div><span class="eyebrow">PLAYLIST SYNC</span><h1>同期</h1><p>プレイリストを取り込み、保存先の状態を管理します。</p></div><button type="button" class="btn btn-primary" id="open-sync-add">＋ 同期を追加</button></div>
+    <div class="sync-overview" aria-label="同期の概要">
+      <div><span>登録済み</span><strong id="sync-total">—</strong><small>プレイリスト</small></div>
+      <div><span>自動同期が有効</span><strong id="sync-enabled">—</strong><small>プレイリスト</small></div>
+      <div class="attention-stat"><span>要対応</span><strong id="sync-errors">—</strong><small>同期エラー</small></div>
     </div>
-
+    <div id="yt-sync-add-result" class="sync-add-notice" hidden>
+      <span id="yt-sync-add-message" role="status" aria-live="polite"></span>
+      <div class="sync-add-notice-actions"><button type="button" class="btn btn-ghost" id="yt-view-added-sync">追加した同期を見る</button><button type="button" class="btn btn-ghost" id="yt-dismiss-add-result" aria-label="追加完了の通知を閉じる">✕</button></div>
+    </div>
+    <details class="add-sync-box" id="sync-add-panel"><summary>プレイリストを追加</summary>
     <div class="section-title" style="margin-top:18px">URLから同期追加</div>
     <div id="yt-url-sync-section" class="yt-auth-section"></div>
 
     <div id="yt-playlist-picker" style="display:none">
-      <div class="section-title" style="margin-top:18px">アカウントのプレイリスト</div>
+      <div class="section-title yt-list-title" style="margin-top:18px"><span>アカウントのプレイリスト</span><button type="button" class="btn btn-ghost" id="yt-refresh-account-btn">更新</button></div>
+      <div id="yt-account-status" class="yt-list-feedback" role="status" aria-live="polite"></div>
       <div id="yt-account-playlists" class="yt-account-playlists">
         <div class="empty-state">読込中…</div>
       </div>
     </div>
 
-    <div class="section-title" style="margin-top:18px">同期中のプレイリスト</div>
+    <p class="muted-hint" id="yt-connection-guide"><span id="yt-connection-guide-message" role="status" aria-live="polite">YouTubeの接続状態を確認中…</span> <button class="text-button" id="yt-connection-guide-action" data-navigate="settings-panel" hidden>接続設定を開く</button></p>
+    </details>
+    <div class="section-title yt-list-title" style="margin-top:18px"><span>プレイリスト一覧</span><button type="button" class="btn btn-ghost" id="yt-refresh-syncs-btn">更新</button></div>
+    <div id="yt-sync-list-status" class="yt-list-feedback" role="status" aria-live="polite"></div>
     <div id="yt-sync-list" class="yt-sync-list">
       <div class="empty-state">同期中のプレイリストはありません</div>
     </div>
@@ -91,15 +100,33 @@
   <!-- RIGHT: Track library -->
   <div class="panel right-panel" id="right-panel">
 
+    <div class="page-heading"><div><span class="eyebrow">SAVED FILES</span><h1>ファイル</h1><p>保存済みファイルの検索・取得・削除。必要なときだけ試聴できます。</p></div></div>
     <div class="library-toolbar">
-      <input type="search" id="search-input" placeholder="Search tracks…">
+      <input type="search" id="search-input" placeholder="タイトル・アーティストで検索">
     </div>
 
     <div class="track-grid" id="track-grid">
-      <div class="empty-state">No tracks yet</div>
+      <div class="empty-state">保存済みのファイルはありません</div>
     </div>
 
   </div>
+  <section class="panel settings-panel" id="settings-panel">
+    <div class="page-heading"><div><span class="eyebrow">PREFERENCES</span><h1>設定</h1><p>外部サービスとの接続と、自動処理を設定します。</p></div></div>
+    <section class="settings-block"><h2>YouTube接続</h2><p class="muted-hint">アカウントのプレイリスト取得と認証状態の確認。</p>
+    <div class="section-title">YouTubeアカウント</div>
+    <div id="yt-auth-section" class="yt-auth-section">
+      <div class="empty-state">読込中…</div>
+    </div>
+
+    </section>
+    <div class="settings-cards">
+      <button id="syncthing-badge" class="settings-card"><strong>Syncthing</strong><span>端末・共有フォルダと接続状態</span></button>
+      <button id="settings-badge" class="settings-card"><strong>自動処理・通知</strong><span>yt-dlpの更新、リソース制限、通知</span></button>
+      <button id="debug-badge" class="settings-card"><strong>診断</strong><span>動作状況と技術的な詳細</span></button>
+    </div>
+    <section class="settings-block"><h2>HTTPS・名前解決</h2><p class="muted-hint">ホスト名・証明書・hosts／DNSはサーバーと端末側で設定します。</p><a class="text-button" href="https://github.com/pacificbelt30/local-music-player/blob/work/docs/deployment/https.md" target="_blank" rel="noopener">設定手順を開く ↗</a></section>
+  </section>
+
 </div>
 
 <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
@@ -200,6 +227,27 @@
         <div class="error-msg" id="settings-error"></div>
         <div class="success-msg" id="settings-ok"></div>
       </form>
+      <hr>
+      <h3>yt-dlp 自動更新</h3>
+      <p>検証を通った版を次の処理から使います。実行中のダウンロードは継続します。</p>
+      <form id="ytdlp-update-form" class="syncthing-config-form">
+        <label class="notify-checkbox-item"><input type="checkbox" name="enabled"><span>定期的に更新を確認する</span></label>
+        <label class="syncthing-field"><span>確認間隔</span>
+          <select name="interval_minutes"><option value="60">1時間</option><option value="360">6時間</option><option value="1440">24時間</option><option value="10080">1週間</option></select>
+        </label>
+        <label class="syncthing-field"><span>検証用の公開動画（60秒以内）</span><input type="url" name="video_url" placeholder="https://www.youtube.com/watch?v=jNQXAC9IVRw"><small>既定は「Me at the zoo」（約19秒）です。空欄にすると既定の動画を使用します。</small></label>
+        <label class="syncthing-field"><span>検証用の公開プレイリスト（少数の動画）</span><input type="url" name="playlist_url" placeholder="https://www.youtube.com/playlist?list=..."></label>
+        <label class="syncthing-field"><span>検証用チャンネル（任意）</span><input type="url" name="channel_url" placeholder="https://www.youtube.com/@..."></label>
+        <p>更新時は現行版と候補版で音声5形式・動画2形式を検証します。テスト用ファイルは削除され、ライブラリには登録されません。</p>
+        <div class="syncthing-config-actions">
+          <button type="submit" class="btn btn-primary">更新設定を保存</button>
+          <button type="button" id="ytdlp-check" class="btn">今すぐ確認</button>
+          <button type="button" id="ytdlp-rollback" class="btn">前の版に戻す</button>
+        </div>
+      </form>
+      <p id="ytdlp-status" role="status" aria-live="polite"></p>
+      <pre id="ytdlp-results" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+      <div class="error-msg" id="ytdlp-error"></div>
     </div>
   </div>
 </div>
@@ -219,6 +267,7 @@
         <label class="syncthing-field">
           <span>URL</span>
           <input type="url" name="url" placeholder="http://localhost:8384" required autocomplete="off">
+          <small>Docker内部の接続先は http://syncthing:8384 です。コンテナのIPアドレスは再作成で変わります。</small>
         </label>
         <label class="syncthing-field">
           <span>API キー</span>
@@ -227,6 +276,7 @@
         <div class="syncthing-config-actions">
           <button type="button" class="btn btn-ghost" id="syncthing-test-btn">接続テスト</button>
           <button type="submit" class="btn btn-primary">保存</button>
+          <button type="button" class="btn btn-ghost" id="syncthing-reset-btn">環境設定に戻す</button>
         </div>
         <div class="error-msg" id="syncthing-config-error"></div>
         <div class="success-msg" id="syncthing-config-ok"></div>
@@ -265,8 +315,8 @@
   </div>
 </div>
 
-<!-- Player bar (fixed bottom) -->
-<div id="player-bar" class="hidden">
+<!-- Optional preview: shown only by an explicit play action -->
+<div id="player-bar" class="hidden" role="region" aria-label="ファイルの試聴">
   <img class="player-thumb" src="" alt="">
   <div class="player-info">
     <div class="player-title">—</div>
@@ -274,7 +324,7 @@
   </div>
   <div class="player-seek">
     <span class="player-time current-time">0:00</span>
-    <input type="range" class="seek-range" min="0" max="100" value="0">
+    <input type="range" class="seek-range" aria-label="試聴位置" min="0" max="100" value="0">
     <span class="player-time duration">0:00</span>
   </div>
   <div class="player-controls">
@@ -292,13 +342,16 @@
 </div>
 
 <script type="module">
+  import { initNavigation } from "/js/navigation.js";
   import { initQueue } from "/js/queue.js";
   import { initLibrary } from "/js/library.js";
   import { initPlaylists } from "/js/playlists.js";
   import { initSyncthing } from "/js/syncthing.js";
   import { initSettings } from "/js/settings.js";
   import { initDebug } from "/js/debug.js";
+  import { badgePresentation } from "/js/syncthing-status.js";
 
+  initNavigation();
   initQueue();
   initLibrary();
   initPlaylists();
@@ -306,39 +359,27 @@
   initSettings();
   initDebug();
 
-  // Mobile tabs
-  document.querySelectorAll(".tab-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-      document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
-      btn.classList.add("active");
-      document.getElementById(btn.dataset.panel).classList.add("active");
-    });
-  });
-
   // Syncthing status badge
+  let syncthingBadgeUpdating = false;
   async function updateSyncthingBadge() {
+    if (syncthingBadgeUpdating) return;
+    syncthingBadgeUpdating = true;
+    const badge = document.getElementById("syncthing-badge");
     try {
       const { api } = await import("/js/api.js");
       const status = await api.syncthingStatus();
-      const badge = document.getElementById("syncthing-badge");
-      if (!status.available) {
-        badge.textContent = "Syncthing: off";
-        badge.title = status.reason || "";
-        badge.className = "syncthing-badge";
-      } else if (status.syncing) {
-        const pct = Math.round(status.completion_pct || 0);
-        badge.textContent = `Syncing ${pct}%`;
-        badge.title = `残り ${status.need_bytes_fmt || "?"}、${status.need_items || 0} ファイル | デバイス ${status.connected_devices}/${status.total_devices} 接続中`;
-        badge.className = "syncthing-badge syncing";
-      } else {
-        badge.textContent = "Synced";
-        badge.title = `合計 ${status.global_bytes_fmt || "?"}、デバイス ${status.connected_devices}/${status.total_devices} 接続中`;
-        badge.className = "syncthing-badge ok";
-      }
-    } catch {}
+      const view = badgePresentation(status);
+      badge.querySelector("span").textContent = view.text;
+      badge.title = view.title;
+      badge.className = "settings-card " + view.className;
+    } catch (error) {
+      badge.querySelector("span").textContent = "接続状況を取得できません";
+      badge.title = error.message;
+      badge.className = "settings-card";
+    } finally { syncthingBadgeUpdating = false; }
   }
   updateSyncthingBadge();
+  window.addEventListener("syncthing-config-changed", updateSyncthingBadge);
   setInterval(updateSyncthingBadge, 30000);
 
   if ("serviceWorker" in navigator) {

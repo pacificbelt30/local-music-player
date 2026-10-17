@@ -1,5 +1,5 @@
-const CACHE = "lmp-v1";
-const SHELL = ["/", "/css/app.css", "/js/api.js", "/js/queue.js", "/js/library.js", "/js/player.js"];
+const CACHE = "lmp-v6";
+const SHELL = ["/", "/css/app.css", "/js/api.js", "/js/queue.js", "/js/library.js", "/js/player.js", "/js/navigation.js", "/js/playlists.js", "/js/settings.js", "/js/syncthing.js", "/js/debug.js", "/js/oauth-status.js", "/js/syncthing-status.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
@@ -16,7 +16,10 @@ self.addEventListener("fetch", (e) => {
 
   // Network-first for API calls and media streams
   if (url.pathname.startsWith("/api/")) {
-    e.respondWith(fetch(e.request).catch(() => new Response("{}", { headers: { "Content-Type": "application/json" } })));
+    e.respondWith(fetch(e.request).catch(() => new Response(
+      JSON.stringify({detail: "接続できません。通信状態を確認して再試行してください"}),
+      {status: 503, headers: {"Content-Type": "application/json"}},
+    )));
     return;
   }
 

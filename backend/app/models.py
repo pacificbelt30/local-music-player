@@ -14,6 +14,10 @@ class YouTubeOAuthToken(Base):
     refresh_token: Mapped[str] = mapped_column(Text, nullable=False)
     token_expiry: Mapped[datetime | None] = mapped_column(DateTime)
     scope: Mapped[str | None] = mapped_column(Text)
+    authorized_at: Mapped[datetime | None] = mapped_column(DateTime)
+    refresh_token_expiry: Mapped[datetime | None] = mapped_column(DateTime)
+    last_refresh_at: Mapped[datetime | None] = mapped_column(DateTime)
+    refresh_error: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

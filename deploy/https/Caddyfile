@@ -1,0 +1,10 @@
+{
+    # LAN-only: no public ACME challenge or port 80 is required.
+    auto_https disable_redirects
+}
+
+https://{$HTTPS_HOSTNAME} {
+    # Install the exported root.crt on each client before OAuth login.
+    tls internal
+    reverse_proxy api:8000
+}

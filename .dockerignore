@@ -1,0 +1,14 @@
+.git
+.env
+**/.venv
+**/__pycache__
+**/.pytest_cache
+downloads
+data
+syncthing-config
+syncthing-state
+work
+node_modules
+https-root.crt
+
+https-setup/

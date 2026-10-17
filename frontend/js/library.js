@@ -15,7 +15,7 @@ export function initLibrary() {
 async function loadTracks(params = {}, append = false) {
   const container = document.getElementById("track-grid");
   if (!append) {
-    container.innerHTML = '<div class="empty-state">Loading…</div>';
+    container.innerHTML = '<div class="empty-state">読込中…</div>';
     tracks = [];
     currentOffset = 0;
     currentParams = params;
@@ -32,13 +32,13 @@ async function loadTracks(params = {}, append = false) {
       renderAll(container);
     }
   } catch {
-    if (!append) container.innerHTML = '<div class="empty-state">Failed to load tracks</div>';
+    if (!append) container.innerHTML = '<div class="empty-state">ファイルの取得に失敗しました</div>';
   }
 }
 
 function renderAll(container) {
   if (!tracks.length) {
-    container.innerHTML = '<div class="empty-state">No tracks yet. Add a YouTube URL to get started.</div>';
+    container.innerHTML = '<div class="empty-state">保存済みのファイルはありません。ダウンロードからURLを追加できます。</div>';
     return;
   }
   container.innerHTML = "";
@@ -86,16 +86,18 @@ function buildItem(t, index) {
       <div class="track-artist">${escHtml(t.artist || "Unknown")}</div>
     </div>
     <div class="track-actions">
+      <button class="btn btn-ghost preview-track" type="button" aria-label="${escHtml(t.title)}を試聴">試聴</button>
       <span class="track-duration">${fmt(t.duration_secs)}</span>
-      <a class="btn btn-ghost" href="${t.download_url}" download title="Download">↓</a>
-      <button class="btn btn-ghost delete-track" data-id="${t.id}" title="Delete">🗑</button>
+      <a class="btn btn-ghost" href="${t.download_url}" download title="ファイルをダウンロード">↓</a>
+      <button class="btn btn-ghost delete-track" data-id="${t.id}" title="削除">🗑</button>
+    </div>
+    <div class="track-delete-feedback" hidden>
+      <span class="track-delete-message" role="status" aria-live="polite"></span>
+      <button class="btn btn-ghost retry-delete-track" type="button">削除を再試行</button>
     </div>
   `;
 
-  item.addEventListener("click", (e) => {
-    if (e.target.closest(".track-actions a, .track-actions button")) return;
-    player.play(tracks, index);
-  });
+  item.querySelector(".preview-track").addEventListener("click", () => player.play([t], 0));
 
   return item;
 }
@@ -104,12 +106,33 @@ function bindDeleteButtons(container) {
   container.querySelectorAll(".delete-track").forEach((btn) => {
     if (btn.dataset.bound) return;
     btn.dataset.bound = "1";
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      if (!confirm("Delete this track?")) return;
-      await api.deleteTrack(Number(btn.dataset.id), true).catch(() => {});
-      loadTracks(currentParams);
-    });
+    const row = btn.closest(".track-item");
+    const notice = row.querySelector(".track-delete-feedback");
+    const message = notice.querySelector(".track-delete-message");
+    const retry = notice.querySelector("button");
+    const remove = async (event) => {
+      event.stopPropagation();
+      if (btn.disabled || !confirm("このファイルを削除しますか？")) return;
+      btn.disabled = retry.disabled = true;
+      row.setAttribute("aria-busy", "true");
+      notice.hidden = false;
+      notice.classList.remove("error-msg");
+      message.textContent = "削除中…";
+      retry.hidden = true;
+      try {
+        await api.deleteTrack(Number(btn.dataset.id), true);
+        await loadTracks(currentParams);
+      } catch (error) {
+        message.textContent = "削除に失敗しました: " + error.message;
+        notice.classList.add("error-msg");
+        retry.hidden = false;
+      } finally {
+        btn.disabled = retry.disabled = false;
+        row.removeAttribute("aria-busy");
+      }
+    };
+    btn.addEventListener("click", remove);
+    retry.addEventListener("click", remove);
   });
 }
 
