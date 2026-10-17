@@ -724,17 +724,25 @@ function prepareSyncDetails(card, sync) {
     open.setAttribute("aria-expanded", "false");
     open.focus({preventScroll: true});
   };
-  open.addEventListener("click", () => {
-    const wasOpen = !drawer.hidden;
+  const show = () => {
+    if (!drawer.hidden) return;
     document.querySelectorAll(".sync-detail-panel").forEach(panel => {
       panel.hidden = true;
       panel.closest(".yt-sync-card").classList.remove("details-open");
       panel.closest(".yt-sync-card").querySelector(".yt-sync-detail-btn").setAttribute("aria-expanded", "false");
     });
-    drawer.hidden = wasOpen;
-    card.classList.toggle("details-open", !wasOpen);
-    open.setAttribute("aria-expanded", String(!wasOpen));
-    if (!wasOpen) heading.querySelector("button").focus({preventScroll: true});
+    drawer.hidden = false;
+    card.classList.add("details-open");
+    open.setAttribute("aria-expanded", "true");
+    heading.querySelector("button").focus({preventScroll: true});
+  };
+  open.addEventListener("click", () => drawer.hidden ? show() : close());
+  card.addEventListener("click", event => {
+    // Controls and the detail panel keep their own actions.
+    if (event.target.closest("button, a, input, select, textarea, summary, .sync-detail-panel")) return;
+    const selection = window.getSelection();
+    if (selection?.toString() && (card.contains(selection.anchorNode) || card.contains(selection.focusNode))) return;
+    show();
   });
   heading.querySelector("button").addEventListener("click", close);
   card.addEventListener("keydown", event => {
