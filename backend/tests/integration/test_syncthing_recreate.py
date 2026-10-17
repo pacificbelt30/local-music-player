@@ -22,6 +22,37 @@ pytestmark = pytest.mark.skipif(os.environ.get("SYNCTHING_DOCKER_TESTS") != "1",
 REPO = Path(__file__).resolve().parents[3]
 
 
+class ContainerFile:
+    """Access fixtures as the service UID, independent of the host runner UID."""
+    def __init__(self, peers, node, name):
+        self.peers = peers
+        self.container = peers.name + "-" + node
+        self.path = "/var/syncthing/Sync/" + name
+
+    def run(self, *args):
+        return self.peers.docker("exec", "--user", "1000:1000", self.container, *args)
+
+    def write_text(self, content):
+        self.run("sh", "-c", 'printf %s "$1" > "$2"', "write-fixture", content, self.path)
+
+    def read_text(self):
+        return self.run("cat", self.path)
+
+    def exists(self):
+        try:
+            self.run("test", "-e", self.path)
+            return True
+        except subprocess.CalledProcessError:
+            return False
+
+    def is_dir(self):
+        self.run("test", "-d", self.path)
+        return True
+
+    def unlink(self):
+        self.run("rm", self.path)
+
+
 class Peers:
     def __init__(self, directory, legacy=False):
         self.directory = directory
@@ -45,8 +76,9 @@ class Peers:
             if self.legacy and target == "/var/syncthing":
                 continue
             path = self.directory / node / Path(source).name
-            path.mkdir(parents=True, exist_ok=True)
-            path.chmod(0o777)
+            if not path.exists():
+                path.mkdir(parents=True)
+                path.chmod(0o777)
             args.extend(["--mount", f"type=bind,src={path},dst={target}"])
         return args
 
@@ -113,7 +145,7 @@ class Peers:
         return self.api(port, "system/connections")["connections"].get(peer, {}).get("connected")
 
     def file(self, node, name):
-        return self.directory / node / "syncthing-state" / "Sync" / name
+        return ContainerFile(self, node, name)
 
     def remove(self, node):
         self.docker("rm", "-f", "-v", self.name + "-" + node)
@@ -134,6 +166,10 @@ class Peers:
                 self.docker("rm", "-f", "-v", name)
             except subprocess.CalledProcessError:
                 pass
+        # Restore ownership of test-only bind mounts for non-root CI cleanup.
+        self.docker("run", "--rm", "--entrypoint", "sh", "--mount",
+                    f"type=bind,src={self.directory},dst=/test-data", self.spec["image"],
+                    "-c", f"chown -R {os.getuid()}:{os.getgid()} /test-data")
         self.docker("network", "rm", self.name)
 
 

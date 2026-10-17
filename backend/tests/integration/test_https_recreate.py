@@ -97,4 +97,8 @@ def test_https_verification_oauth_url_and_recreation(tmp_path):
     finally:
         for container in reversed(created):
             subprocess.run(['docker','--host=unix:///var/run/docker.sock','rm','-f','-v',container],env=env,capture_output=True)
+        # Caddy's test CA is root-owned; return this isolated fixture to the runner.
+        docker('run','--rm','--entrypoint','sh','--mount',
+               f'type=bind,src={data},dst=/test-data',spec['image'],
+               '-c',f'chown -R {os.getuid()}:{os.getgid()} /test-data')
         subprocess.run(['docker','--host=unix:///var/run/docker.sock','network','rm',name],env=env,capture_output=True)
