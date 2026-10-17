@@ -15,15 +15,15 @@
 <header class="app-header">
   <a class="brand" href="#sync"><span class="brand-mark">S</span><span>SyncTune <strong>Hub</strong></span></a>
   <span class="header-caption">同期とファイルの管理</span>
-  <span class="local-label">YOUR MEDIA, IN SYNC</span>
+  <span class="local-label">メディア管理</span>
 </header>
 <nav class="tab-bar" aria-label="メインナビゲーション">
-  <div class="nav-caption">ワークスペース</div>
-  <button class="tab-btn active" data-panel="playlists-panel" data-route="sync" aria-current="page"><span class="nav-icon">↻</span>同期</button>
-  <button class="tab-btn" data-panel="left-panel" data-route="downloads"><span class="nav-icon">↓</span>ダウンロード</button>
-  <button class="tab-btn" data-panel="right-panel" data-route="files"><span class="nav-icon">▤</span>ファイル</button>
-  <button class="tab-btn" data-panel="settings-panel" data-route="settings"><span class="nav-icon">⚙</span>設定</button>
-  <div class="nav-note">同期を整えて、<br>好きな端末へ。</div>
+  <div class="nav-caption">メニュー</div>
+  <button class="tab-btn active" data-panel="playlists-panel" data-route="sync" aria-current="page"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 11-2l3 3M4 16l3 3a7 7 0 0 0 11-2"/></svg>同期</button>
+  <button class="tab-btn" data-panel="left-panel" data-route="downloads"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>ダウンロード</button>
+  <button class="tab-btn" data-panel="right-panel" data-route="files"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H5v18h14V8zM14 3v5h5M8 12h8M8 16h6"/></svg>ファイル</button>
+  <button class="tab-btn" data-panel="settings-panel" data-route="settings"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3-.7 2.2-2 .9-2.1-.5-2 3.4 1.5 1.7v2.6L2.2 15l2 3.4 2.1-.5 2 .9L9 21h4l.7-2.2 2-.9 2.1.5 2-3.4-1.5-1.7v-2.6L19.8 9l-2-3.4-2.1.5-2-.9L13 3z"/><circle cx="11" cy="12" r="3"/></svg>設定</button>
+  <div class="nav-note">SyncTune Hub<br>同期・ダウンロード管理</div>
 </nav>
 
 <div class="layout">
@@ -65,7 +65,7 @@
   <!-- CENTER: YouTube Playlist Sync -->
   <div class="panel playlists-panel active" id="playlists-panel">
 
-    <div class="page-heading"><div><span class="eyebrow">PLAYLIST SYNC</span><h1>同期</h1><p>プレイリストを取り込み、保存先の状態を管理します。</p></div><button type="button" class="btn btn-primary" id="open-sync-add">＋ 同期を追加</button></div>
+    <div class="page-heading"><div><span class="eyebrow">PLAYLIST SYNC</span><h1>同期</h1><p>プレイリストの取得と同期状況をまとめて管理。</p></div><button type="button" class="btn btn-primary" id="open-sync-add">＋ 同期を追加</button></div>
     <div class="sync-overview" aria-label="同期の概要">
       <div><span>登録済み</span><strong id="sync-total">—</strong><small>プレイリスト</small></div>
       <div><span>自動同期が有効</span><strong id="sync-enabled">—</strong><small>プレイリスト</small></div>

@@ -18,7 +18,7 @@ test('sync is the default and other workspaces take no space', t=>{
   assert.equal(doc.querySelector('.panel.active').id,'playlists-panel');
   assert.equal(doc.querySelector('#right-panel').hidden,true);
   assert.equal(doc.querySelector('#player-bar').classList.contains('hidden'),true);
-  assert.equal(doc.querySelector('[aria-current="page"]').textContent.trim(),'↻同期');
+  assert.equal(doc.querySelector('[aria-current="page"]').textContent.trim(),'同期');
 });
 test('all four workspaces are reachable and switching retains existing DOM and expanded details',t=>{
   const doc=setup(t);
