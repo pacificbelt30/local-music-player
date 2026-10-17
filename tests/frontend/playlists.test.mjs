@@ -615,3 +615,41 @@ test('disconnect updates addition guidance to disconnected state',async t=>{
   await until(()=>state.doc.querySelector('#yt-connect-btn'));
   assert.equal(state.doc.querySelector('#yt-connection-guide-action').textContent,'設定でYouTubeに接続');
 });
+
+test('clicking a sync row or its title opens details and a second click keeps it open',async t=>{
+  const state=await setup(t);
+  const card=state.doc.querySelector('.yt-sync-card'),drawer=card.querySelector('.sync-detail-panel');
+  assert.equal(drawer.hidden,true);
+  card.querySelector('.yt-sync-name').click();
+  assert.equal(drawer.hidden,false);
+  assert.equal(card.querySelector('.yt-sync-detail-btn').getAttribute('aria-expanded'),'true');
+  card.click();assert.equal(drawer.hidden,false);
+  drawer.querySelector('.close-sync-detail').click();assert.equal(drawer.hidden,true);
+  card.click();assert.equal(drawer.hidden,false);
+});
+
+test('row pause and drawer controls never trigger a separate row-open action',async t=>{
+  const state=await setup(t);
+  const card=state.doc.querySelector('.yt-sync-card'),drawer=card.querySelector('.sync-detail-panel');
+  card.querySelector('.yt-sync-toggle-btn').click();
+  await until(()=>!card.querySelector('.yt-sync-toggle-btn').disabled);
+  assert.equal(drawer.hidden,true);
+  card.click();
+  drawer.querySelector('.yt-sync-error-detail-btn').click();
+  assert.equal(drawer.hidden,false);
+  drawer.querySelector('.close-sync-detail').click();
+  assert.equal(drawer.hidden,true);
+  assert.equal(card.querySelector('.yt-sync-detail-btn').getAttribute('aria-expanded'),'false');
+});
+
+test('opening another row closes the previous drawer and text selection does not open it',async t=>{
+  const state=await setup(t,{syncs:[sync(1),sync(2)]});
+  const [first,second]=state.doc.querySelectorAll('.yt-sync-card');
+  const range=state.doc.createRange();range.selectNodeContents(first.querySelector('.yt-sync-name'));
+  const selection=window.getSelection();selection.addRange(range);
+  first.click();assert.equal(first.querySelector('.sync-detail-panel').hidden,true);
+  selection.removeAllRanges();first.click();second.click();
+  assert.equal(first.querySelector('.sync-detail-panel').hidden,true);
+  assert.equal(first.classList.contains('details-open'),false);
+  assert.equal(second.querySelector('.sync-detail-panel').hidden,false);
+});
