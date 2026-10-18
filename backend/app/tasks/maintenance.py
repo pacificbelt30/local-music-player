@@ -13,7 +13,7 @@ def requeue_silence_trim_changed() -> None:
     Video tracks are skipped since the filter never applies to them.
     """
     from app.tasks.download import download_track
-    from app.tasks.sync_playlist import download_playlist_sync_track
+    from app.tasks.sync_playlist import enqueue_playlist_track
 
     db = SessionLocal()
     try:
@@ -46,7 +46,7 @@ def requeue_silence_trim_changed() -> None:
             db.commit()
 
         for track in sync_tracks_to_requeue:
-            download_playlist_sync_track.apply_async(args=[track.id])
+            enqueue_playlist_track(db, track)
     finally:
         db.close()
 

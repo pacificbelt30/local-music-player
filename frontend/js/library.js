@@ -6,6 +6,8 @@ let tracks = [];
 let currentOffset = 0;
 let currentParams = {};
 let hasMore = false;
+let listGeneration = 0;
+let loadingMore = false;
 
 export function initLibrary() {
   loadTracks();
@@ -14,15 +16,22 @@ export function initLibrary() {
 
 async function loadTracks(params = {}, append = false) {
   const container = document.getElementById("track-grid");
+  if (append && loadingMore) return;
   if (!append) {
+    listGeneration++;
+    loadingMore = false;
     container.innerHTML = '<div class="empty-state">読込中…</div>';
     tracks = [];
     currentOffset = 0;
     currentParams = params;
   }
+  const generation = listGeneration;
+  const offset = currentOffset;
+  if (append) loadingMore = true;
 
   try {
-    const page = await api.listTracks({ limit: PAGE_SIZE, offset: currentOffset, ...currentParams });
+    const page = await api.listTracks({ limit: PAGE_SIZE, offset, ...currentParams });
+    if (generation !== listGeneration) return;
     hasMore = page.length === PAGE_SIZE;
     currentOffset += page.length;
     if (append) {
@@ -32,7 +41,10 @@ async function loadTracks(params = {}, append = false) {
       renderAll(container);
     }
   } catch {
+    if (generation !== listGeneration) return;
     if (!append) container.innerHTML = '<div class="empty-state">ファイルの取得に失敗しました</div>';
+  } finally {
+    if (generation === listGeneration && append) loadingMore = false;
   }
 }
 

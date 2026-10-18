@@ -12,6 +12,8 @@ router = APIRouter(prefix="/urls", tags=["urls"])
 
 @router.post("", response_model=UrlSourceResponse, status_code=201)
 def add_url(payload: UrlSourceCreate, db: Session = Depends(get_db)):
+    from app.services.download_preferences import apply_download_defaults
+    apply_download_defaults(payload, db)
     canonical_url = normalize_youtube_url(payload.url)
     existing = db.query(UrlSource).filter_by(canonical_url=canonical_url).first()
     if existing:

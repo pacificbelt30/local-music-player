@@ -1,5 +1,6 @@
 import { api } from "./api.js";
 import { oauthStatusLines, connectionGuide } from "./oauth-status.js";
+import { bindMediaDefaults, currentDownloadPreferences, loadDownloadPreferences, mediaDescription } from "./download-preferences.js";
 
 const accountPlaylists = new Map();
 const accountRows = new Map();
@@ -88,6 +89,7 @@ async function renderAuthSection() {
 
   try {
     const status = await api.youtubeAuthStatus();
+    await loadDownloadPreferences().catch(() => {});
     displayConnectionGuide(status);
     if (status.authenticated) {
       container.innerHTML = `
@@ -253,20 +255,26 @@ function renderUrlSyncSection() {
   const container = document.getElementById("yt-url-sync-section");
   if (!container) return;
   container.innerHTML = `
-    <p class="yt-auth-hint">YouTubeプレイリストの共有URLを貼り付けて同期を追加（認証不要）。</p>
+    <p class="yt-auth-hint">自分のもの以外も、公開・限定公開プレイリストの共有URLで追加できます。YouTubeへのログインは不要です。</p>
     <div class="yt-url-sync-row">
       <input type="url" id="yt-playlist-url-input" class="yt-url-input"
+             aria-label="同期するプレイリストの共有URL"
              placeholder="https://www.youtube.com/playlist?list=PLxxxx">
-      <select id="yt-url-format" class="yt-url-select">${formatOptionsHTML()}</select>
-      <select id="yt-url-quality" class="yt-url-select">
+      <button class="btn btn-primary" id="yt-add-url-btn">同期追加</button>
+    </div>
+    <div class="download-default-summary"><span id="yt-url-media-summary"></span><a href="#settings">設定を変更</a></div>
+    <details class="media-overrides"><summary>今回だけ変更</summary><div class="format-row">
+      <select id="yt-url-format" class="yt-url-select" aria-label="今回の保存形式">${formatOptionsHTML()}</select>
+      <select id="yt-url-quality" class="yt-url-select" aria-label="今回の音声の品質">
         <option value="192">192 kbps</option>
         <option value="320">320 kbps</option>
         <option value="best">Best</option>
       </select>
-      <button class="btn btn-primary" id="yt-add-url-btn">同期追加</button>
-    </div>
+    </div></details>
+    <div id="yt-url-preferences-status" class="yt-list-feedback" role="status"></div>
     <div id="yt-add-url-error" class="error-msg" style="display:none"></div>
   `;
+  bindMediaDefaults(document.getElementById("yt-url-format"), document.getElementById("yt-url-quality"), document.getElementById("yt-url-media-summary"), document.getElementById("yt-url-preferences-status"));
   document.getElementById("yt-add-url-btn").addEventListener("click", addSyncFromUrl);
   document.getElementById("yt-playlist-url-input").addEventListener("keydown", (e) => {
     if (e.key === "Enter") addSyncFromUrl();
@@ -276,8 +284,6 @@ function renderUrlSyncSection() {
 async function addSyncFromUrl() {
   const urlInput = document.getElementById("yt-playlist-url-input");
   const url = urlInput.value.trim();
-  const audio_format = document.getElementById("yt-url-format").value;
-  const audio_quality = document.getElementById("yt-url-quality").value;
   const errDiv = document.getElementById("yt-add-url-error");
   const btn = document.getElementById("yt-add-url-btn");
 
@@ -292,6 +298,9 @@ async function addSyncFromUrl() {
   btn.disabled = true;
   btn.textContent = "解析中…";
   try {
+    await loadDownloadPreferences();
+    const audio_format = document.getElementById("yt-url-format").value;
+    const audio_quality = document.getElementById("yt-url-quality").value;
     invalidateSyncRequests();
     const sync = await api.youtubeCreateSync({ source_type: "url", source_url: url, audio_format, audio_quality });
     invalidateSyncRequests();
@@ -430,6 +439,7 @@ function showAddSyncDialog(btn) {
 
   const privacy = btn.dataset.privacy || "";
   const isPrivate = privacy === "private";
+  const preferences = currentDownloadPreferences();
 
   // Private playlists can't be reached by a share URL unless switched to
   // unlisted first; public/unlisted ones can use the share URL right away.
@@ -476,16 +486,19 @@ function showAddSyncDialog(btn) {
   dialog.innerHTML = `
     <div class="yt-add-sync-dialog-inner">
       <div class="yt-add-sync-dialog-title">同期設定: ${escHtml(btn.dataset.name)}</div>
+      <div class="download-default-summary"><span id="yt-dialog-media-summary"></span><a href="#settings" id="yt-dialog-settings-link">設定を変更</a></div>
+      <p class="muted-hint" id="yt-dialog-method-summary"></p>
+      <details class="media-overrides"><summary>今回だけ設定を変更</summary>
       ${methodSectionHTML}
       <div class="format-row" style="margin-bottom:8px">
-        <select id="yt-sync-format">${formatOptionsHTML()}</select>
-        <select id="yt-sync-quality">
+        <select id="yt-sync-format" aria-label="今回の保存形式">${formatOptionsHTML()}</select>
+        <select id="yt-sync-quality" aria-label="今回の音声の品質">
           <option value="192">192 kbps</option>
           <option value="320">320 kbps</option>
           <option value="best">Best</option>
         </select>
       </div>
-      <div style="display:flex;gap:8px">
+      </details><div style="display:flex;gap:8px">
         <button class="btn btn-primary" id="yt-sync-confirm-btn" style="flex:1">同期追加</button>
         <button class="btn btn-ghost" id="yt-sync-cancel-btn">キャンセル</button>
       </div>
@@ -494,6 +507,21 @@ function showAddSyncDialog(btn) {
 
   // Position near button
   document.body.appendChild(dialog);
+  const format = dialog.querySelector("#yt-sync-format");
+  const quality = dialog.querySelector("#yt-sync-quality");
+  format.value = preferences.default_audio_format;
+  quality.value = preferences.default_audio_quality;
+  const preferredMethod = isPrivate ? "api" : preferences.account_playlist_method;
+  dialog.querySelector(`input[name="yt-sync-method"][value="${preferredMethod}"]`).checked = true;
+  function updateSummary() {
+    dialog.querySelector("#yt-dialog-media-summary").textContent = mediaDescription(format.value, quality.value);
+    quality.disabled = ["mp4", "webm"].includes(format.value);
+    const method = dialog.querySelector('input[name="yt-sync-method"]:checked').value;
+    dialog.querySelector("#yt-dialog-method-summary").textContent = method === "api" ? "YouTube APIで取得します。" : method === "url-switch" ? "限定公開に変更して共有URLで取得します。" : "共有URLで取得します（API不要）。";
+  }
+  dialog.addEventListener("change", updateSummary);
+  updateSummary();
+  dialog.querySelector("#yt-dialog-settings-link").addEventListener("click", () => dialog.remove());
 
   document.getElementById("yt-sync-cancel-btn").addEventListener("click", () => dialog.remove());
   document.getElementById("yt-sync-confirm-btn").addEventListener("click", async () => {
@@ -506,6 +534,7 @@ function showAddSyncDialog(btn) {
     btn.textContent = "追加中…";
     clearAddResult();
     try {
+      await loadDownloadPreferences();
       invalidateSyncRequests();
       let sync;
       if (method === "api") {

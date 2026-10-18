@@ -64,6 +64,8 @@ class PlaylistSyncTrack(Base):
     error_message: Mapped[str | None] = mapped_column(Text)
     added_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     downloaded_at: Mapped[datetime | None] = mapped_column(DateTime)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    celery_task_id: Mapped[str | None] = mapped_column(String(64))
 
     playlist_sync: Mapped["YoutubePlaylistSync"] = relationship(back_populates="tracks")
 

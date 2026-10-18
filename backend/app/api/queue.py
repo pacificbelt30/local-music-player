@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import AsyncGenerator
 
 import redis as redis_lib
@@ -22,6 +22,7 @@ _TERMINAL_TASK_STATES = {"FAILURE", "REVOKED"}
 
 
 def _mark_stuck_jobs_failed(db: Session) -> None:
+    _mark_stuck_downloads_failed(db)
     now = datetime.utcnow()
     cutoff = now - _STUCK_PENDING_TIMEOUT
     pending_jobs = db.query(DownloadJob).filter(DownloadJob.status == "pending").all()
@@ -52,6 +53,49 @@ def _mark_stuck_jobs_failed(db: Session) -> None:
             job.finished_at = now
             changed = True
 
+    if changed:
+        db.commit()
+
+
+def _mark_stuck_downloads_failed(db: Session) -> None:
+    """Recover interrupted downloads without mistaking long conversions for crashes."""
+    from app.tasks.celery_app import celery_app
+
+    now = datetime.now(timezone.utc)
+    changed = False
+    inspected = False
+    active_tasks = None
+    for job in db.query(DownloadJob).filter(DownloadJob.status == "downloading").all():
+        reference = job.started_at or job.created_at
+        if reference is None:
+            continue
+        reference = reference.replace(tzinfo=timezone.utc) if reference.tzinfo is None else reference
+        age = now - reference
+        if age < _STUCK_PENDING_TIMEOUT:
+            continue
+        try:
+            state = celery_app.AsyncResult(job.celery_task_id).state if job.celery_task_id else None
+            if state in _TERMINAL_TASK_STATES:
+                reason = "Download worker task ended before completion."
+            else:
+                if age < _HARD_PENDING_TIMEOUT or _redis.get(f"job:{job.id}:progress") is not None:
+                    continue
+                if not inspected:
+                    active_tasks = celery_app.control.inspect(timeout=1).active()
+                    inspected = True
+                # No worker reply cannot establish that the task has stopped.
+                if not active_tasks or not job.celery_task_id:
+                    continue
+                if any(task.get("id") == job.celery_task_id for tasks in active_tasks.values() for task in tasks):
+                    continue
+                reason = "Download worker no longer has this task and progress updates have stopped."
+        except Exception:
+            # Redis/broker outages are not evidence of a dead worker.
+            continue
+        job.status = "failed"
+        job.error_message = reason
+        job.finished_at = now
+        changed = True
     if changed:
         db.commit()
 

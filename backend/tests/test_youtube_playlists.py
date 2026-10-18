@@ -458,7 +458,7 @@ class TestSyncNow:
                 resp = client.post(f"/api/v1/youtube/syncs/{sync.id}/run")
         assert resp.status_code == 202
         assert resp.json()["queued"] is True
-        mock_task.assert_called_once_with(args=[sync.id])
+        mock_task.assert_called_once_with(args=[sync.id], kwargs={"manual": True})
 
     def test_sync_now_not_found(self, client):
         resp = client.post("/api/v1/youtube/syncs/999/run")
@@ -1161,7 +1161,7 @@ class TestSyncNowUrlBased:
         with patch("app.tasks.sync_playlist.sync_youtube_playlist.apply_async") as mock_task:
             resp = client.post(f"/api/v1/youtube/syncs/{sync.id}/run")
         assert resp.status_code == 202
-        mock_task.assert_called_once_with(args=[sync.id])
+        mock_task.assert_called_once_with(args=[sync.id], kwargs={"manual": True})
 
 
 class TestSyncYoutubePlaylistTaskUrlBased:

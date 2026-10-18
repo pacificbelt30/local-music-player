@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
+from typing import Literal
 
 from app.database import get_db
 from app.models import AppSetting
 from app.tasks.scheduler import DEFAULTS
+from app.schemas import MediaFormat, AudioQuality
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -13,6 +15,9 @@ SILENCE_TRIM_KEYS = ("silence_trim_start_secs", "silence_trim_end_secs")
 
 
 class SyncSettings(BaseModel):
+    default_audio_format: MediaFormat = "mp3"
+    default_audio_quality: AudioQuality = "192"
+    account_playlist_method: Literal["url", "api"] = "url"
     url_sync_interval_minutes: int
     youtube_sync_interval_minutes: int
     download_gain_percent: float
@@ -40,6 +45,9 @@ class SyncSettings(BaseModel):
 
 
 class SyncSettingsUpdate(BaseModel):
+    default_audio_format: MediaFormat | None = None
+    default_audio_quality: AudioQuality | None = None
+    account_playlist_method: Literal["url", "api"] | None = None
     url_sync_interval_minutes: int | None = None
     youtube_sync_interval_minutes: int | None = None
     download_gain_percent: float | None = None
@@ -97,6 +105,9 @@ def _read(db: Session) -> SyncSettings:
         return row.value if row else DEFAULTS[key]
 
     return SyncSettings(
+        default_audio_format=get("default_audio_format"),
+        default_audio_quality=get("default_audio_quality"),
+        account_playlist_method=get("account_playlist_method"),
         url_sync_interval_minutes=int(get("url_sync_interval_minutes")),
         youtube_sync_interval_minutes=int(get("youtube_sync_interval_minutes")),
         download_gain_percent=float(get("download_gain_percent")),

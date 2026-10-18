@@ -5,6 +5,9 @@ from app.models import AppSetting, UrlSource, YoutubePlaylistSync, YouTubeOAuthT
 from app.tasks.celery_app import celery_app
 
 DEFAULTS = {
+    "default_audio_format": "mp3",
+    "default_audio_quality": "192",
+    "account_playlist_method": "url",
     "url_sync_interval_minutes": "60",
     "youtube_sync_interval_minutes": "60",
     "download_gain_percent": "0",
