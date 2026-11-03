@@ -104,6 +104,7 @@ async function setup(t, options = {}) {
     .addEventListener("click", () => state.refreshes++);
   const row = card(document);
   initWorkspace();
+  document.querySelector("#sync-add-panel").open = true;
   await until(() => document.querySelector(".profile-row"));
   t.after(() => {
     Object.assign(api, original);
@@ -162,6 +163,7 @@ test("editing input while its preview is pending discards stale preview", async 
   const form = document.querySelector("#workspace-intake");
   form.elements.text.value = "old";
   form.dispatchEvent(new s.dom.window.Event("submit", { cancelable: true }));
+  await until(() => typeof finish === "function");
   form.elements.text.value = "new";
   form.elements.text.dispatchEvent(new s.dom.window.Event("input"));
   finish({

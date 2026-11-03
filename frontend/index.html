@@ -359,52 +359,6 @@
   <button class="ctrl-btn close-player" title="プレイヤーを閉じる" style="font-size:0.75rem;flex-shrink:0">✕</button>
 </div>
 
-<script type="module">
-  import { initNavigation } from "/js/navigation.js";
-  import { initQueue } from "/js/queue.js";
-  import { initLibrary } from "/js/library.js";
-  import { initPlaylists } from "/js/playlists.js";
-  import { initSyncthing } from "/js/syncthing.js";
-  import { initSettings } from "/js/settings.js";
-  import { initWorkspace } from "/js/workspace.js";
-  import { initDebug } from "/js/debug.js";
-  import { badgePresentation } from "/js/syncthing-status.js";
-
-  initNavigation();
-  initQueue();
-  initLibrary();
-  initPlaylists();
-  initSyncthing();
-  initSettings();
-  initWorkspace();
-  initDebug();
-
-  // Syncthing status badge
-  let syncthingBadgeUpdating = false;
-  async function updateSyncthingBadge() {
-    if (syncthingBadgeUpdating) return;
-    syncthingBadgeUpdating = true;
-    const badge = document.getElementById("syncthing-badge");
-    try {
-      const { api } = await import("/js/api.js");
-      const status = await api.syncthingStatus();
-      const view = badgePresentation(status);
-      badge.querySelector("span").textContent = view.text;
-      badge.title = view.title;
-      badge.className = "settings-card " + view.className;
-    } catch (error) {
-      badge.querySelector("span").textContent = "接続状況を取得できません";
-      badge.title = error.message;
-      badge.className = "settings-card";
-    } finally { syncthingBadgeUpdating = false; }
-  }
-  updateSyncthingBadge();
-  window.addEventListener("syncthing-config-changed", updateSyncthingBadge);
-  setInterval(updateSyncthingBadge, 30000);
-
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js");
-  }
-</script>
+<script type="module" src="/js/app.js"></script>
 </body>
 </html>

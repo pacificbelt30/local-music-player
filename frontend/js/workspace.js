@@ -1,4 +1,6 @@
 import { api } from "./api.js";
+import { loadApplicationSettings } from "./download-preferences.js";
+import { whenPanelVisible } from "./panel-lifecycle.js";
 
 const call = (method, path, body) => api.workspace(method, path, body);
 const labels = {
@@ -52,6 +54,7 @@ export function initWorkspace() {
     intakePlan = null,
     applying = null,
     refreshing = false,
+    delivering = false,
     intakeVersion = 0,
     profileVersion = 0;
   const add = document.getElementById("sync-add-panel");
@@ -93,6 +96,15 @@ export function initWorkspace() {
     intakePlan = null;
     status(intakeStatus, "種類・重複・取得可否を確認中…");
     try {
+      await ensureProfiles();
+      if (!Array.isArray(profiles) || !profiles.length)
+        throw Error(
+          "保存プロファイルを取得できません。もう一度お試しください。",
+        );
+      if (version !== intakeVersion) {
+        status(intakeStatus, "入力が変わりました。内容を再確認してください。");
+        return;
+      }
       const result = await call("POST", "/intake/preview", {
         text: form.elements.namedItem("text").value,
         profile_id: profileSelect.value ? Number(profileSelect.value) : null,
@@ -868,30 +880,41 @@ export function initWorkspace() {
     }
   }
   async function refreshDelivery() {
-    decorateCards();
-    await Promise.all(
-      [...document.querySelectorAll(".yt-sync-card")].map(async (card) => {
-        const output = card.querySelector(".delivery-state");
-        card.querySelector(".sync-profile-label").textContent =
-          card.dataset.profileName || "";
-        const history = card.querySelector(".sync-history");
-        if (history.open) await refreshHistory(card, history);
-        try {
-          const result = await call(
-            "GET",
-            `/syncs/${card.dataset.syncId}/delivery`,
-          );
-          output.textContent = `${result.device_name ? result.device_name + " · " : ""}${labels[result.state] || labels.unknown}${result.total && card.dataset.targetDevice ? ` · ${result.verified}/${result.total}曲確認済み` : ""}`;
-          output.classList.toggle("is-ready", result.state === "ready");
-          output.title = result.checked_at
-            ? `最終確認: ${new Date(result.checked_at * 1000).toLocaleString("ja-JP")}（最大30秒の確認キャッシュ）`
-            : "";
-        } catch {
-          output.textContent = labels.unknown;
-          output.classList.remove("is-ready");
-        }
-      }),
-    );
+    if (
+      delivering ||
+      document.hidden ||
+      !document.getElementById("playlists-panel").classList.contains("active")
+    )
+      return;
+    delivering = true;
+    try {
+      decorateCards();
+      await Promise.all(
+        [...document.querySelectorAll(".yt-sync-card")].map(async (card) => {
+          const output = card.querySelector(".delivery-state");
+          card.querySelector(".sync-profile-label").textContent =
+            card.dataset.profileName || "";
+          const history = card.querySelector(".sync-history");
+          if (history.open) await refreshHistory(card, history);
+          try {
+            const result = await call(
+              "GET",
+              `/syncs/${card.dataset.syncId}/delivery`,
+            );
+            output.textContent = `${result.device_name ? result.device_name + " · " : ""}${labels[result.state] || labels.unknown}${result.total && card.dataset.targetDevice ? ` · ${result.verified}/${result.total}曲確認済み` : ""}`;
+            output.classList.toggle("is-ready", result.state === "ready");
+            output.title = result.checked_at
+              ? `最終確認: ${new Date(result.checked_at * 1000).toLocaleString("ja-JP")}（最大30秒の確認キャッシュ）`
+              : "";
+          } catch {
+            output.textContent = labels.unknown;
+            output.classList.remove("is-ready");
+          }
+        }),
+      );
+    } finally {
+      delivering = false;
+    }
   }
   async function refresh() {
     if (
@@ -909,7 +932,7 @@ export function initWorkspace() {
   }
   document.addEventListener("sync-list-updated", () => {
     decorateCards();
-    refresh();
+    refreshDelivery();
   });
   document.addEventListener("visibilitychange", refresh);
   document.addEventListener("workspace-navigation", refresh);
@@ -927,15 +950,29 @@ export function initWorkspace() {
     },
     { once: true },
   );
-  loadProfiles();
-  destinations();
-  api
-    .getSettings()
-    .then((values) => {
-      profileSection.querySelector(".retention-setting input").value =
-        values.removed_track_retention_days ?? 7;
-    })
-    .catch(() => {});
+  let initialProfiles;
+  function ensureProfiles() {
+    if (Array.isArray(profiles) && profiles.length) return;
+    if (!initialProfiles)
+      initialProfiles = loadProfiles().finally(() => {
+        initialProfiles = null;
+      });
+    return initialProfiles;
+  }
+  add.addEventListener("toggle", () => {
+    if (add.open) ensureProfiles();
+  });
+  if (add.open) ensureProfiles();
+  whenPanelVisible("settings-panel", () => {
+    ensureProfiles();
+    destinations();
+    loadApplicationSettings()
+      .then((values) => {
+        profileSection.querySelector(".retention-setting input").value =
+          values.removed_track_retention_days ?? 7;
+      })
+      .catch(() => {});
+  });
   decorateCards();
   refresh();
 }

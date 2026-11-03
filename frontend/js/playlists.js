@@ -1,4 +1,6 @@
 import { api } from "./api.js";
+import { renderTrackPage, pauseTrackPage } from "./sync-tracks.js";
+import { whenPanelVisible } from "./panel-lifecycle.js";
 import { oauthStatusLines, connectionGuide } from "./oauth-status.js";
 import { bindMediaDefaults, currentDownloadPreferences, loadDownloadPreferences, mediaDescription } from "./download-preferences.js";
 
@@ -6,12 +8,34 @@ const accountPlaylists = new Map();
 const accountRows = new Map();
 const syncRecords = new Map();
 const syncCards = new Map();
-const trackRequests = new WeakMap();
+
 const trackValues = new WeakMap();
 let syncLoads = 0;
 let accountListRequest = 0;
 let syncListRequest = 0;
 let lastAddedSyncId = null;
+let authPending, authRendered = false, accountAuthenticated = false;
+let accountLoaded = false, accountLoading = false;
+
+function accountPickerVisible() {
+  const add = document.getElementById("sync-add-panel");
+  const legacy = add.querySelector(".legacy-add");
+  return add.open && (!legacy || legacy.open);
+}
+function maybeLoadAccount() {
+  if (accountAuthenticated && accountPickerVisible() && !accountLoaded && !accountLoading) return renderAccountPlaylists();
+}
+function ensureAuth() {
+  if (authRendered) return Promise.resolve();
+  if (!authPending) authPending = renderAuthSection().finally(() => {authPending = null;});
+  return authPending;
+}
+function activateAddition() {
+  const add = document.getElementById("sync-add-panel");
+  if (!add.open) return;
+  ensureAuth().then(maybeLoadAccount);
+  if (accountPickerVisible() && !document.getElementById("yt-playlist-url-input")) renderUrlSyncSection();
+}
 
 function setText(element, value) {
   if (element.textContent !== value) element.textContent = value;
@@ -45,6 +69,7 @@ function invalidateSyncRequests() {
 
 function resetAccountPlaylists() {
   accountListRequest++;
+  accountLoaded = accountLoading = false;
   accountPlaylists.clear();
   accountRows.clear();
   document.getElementById("yt-account-playlists")?.replaceChildren();
@@ -66,10 +91,14 @@ export function initPlaylists() {
     card.scrollIntoView?.({behavior: "smooth", block: "center"});
     card.querySelector(".yt-sync-detail-btn").focus({preventScroll: true});
   });
-  renderAuthSection();
-  renderUrlSyncSection();
-  renderSyncList();
-  startSyncPolling();
+  whenPanelVisible("settings-panel", ensureAuth);
+  whenPanelVisible("playlists-panel", () => {renderSyncList(); startSyncPolling();});
+  const add = document.getElementById("sync-add-panel");
+  add.addEventListener("toggle", activateAddition);
+  add.addEventListener("toggle", event => {
+    if (event.target.classList.contains("legacy-add")) activateAddition();
+  }, true);
+  activateAddition();
   document.getElementById("yt-refresh-account-btn")?.addEventListener("click", renderAccountPlaylists);
   document.getElementById("yt-refresh-syncs-btn")?.addEventListener("click", renderSyncList);
 }
@@ -92,10 +121,12 @@ function startSyncPolling() {
   const timer = window.setInterval(refresh, 5000);
   document.addEventListener("visibilitychange", refresh);
   window.addEventListener("hashchange", refresh);
+  document.addEventListener("workspace-navigation", refresh);
   window.addEventListener("pagehide", () => {
     window.clearInterval(timer);
     document.removeEventListener("visibilitychange", refresh);
     window.removeEventListener("hashchange", refresh);
+    document.removeEventListener("workspace-navigation", refresh);
     window.addEventListener("pageshow", event => {if (event.persisted) startSyncPolling();}, {once: true});
   }, {once: true});
 }
@@ -122,7 +153,8 @@ async function renderAuthSection() {
 
   try {
     const status = await api.youtubeAuthStatus();
-    await loadDownloadPreferences().catch(() => {});
+    authRendered = true;
+    accountAuthenticated = Boolean(status.authenticated);
     displayConnectionGuide(status);
     if (status.authenticated) {
       container.innerHTML = `
@@ -149,7 +181,7 @@ async function renderAuthSection() {
       document.getElementById("yt-disconnect-btn").addEventListener("click", disconnectYouTube);
       bindTokenForm();
       document.getElementById("yt-playlist-picker").style.display = "";
-      renderAccountPlaylists();
+      maybeLoadAccount();
     } else {
       container.innerHTML = `
         <div class="yt-auth-disconnected">
@@ -356,6 +388,7 @@ async function renderAccountPlaylists() {
   const container = document.getElementById("yt-account-playlists");
   if (!container) return;
   const request = ++accountListRequest;
+  accountLoading = true;
   container.setAttribute("aria-busy", "true");
   feedback("yt-account-status", accountRows.size ? "プレイリストを更新中…" : "");
   if (!accountRows.size) container.innerHTML = '<div class="empty-state">プレイリスト読込中…</div>';
@@ -385,6 +418,7 @@ async function renderAccountPlaylists() {
     for (const id of accountRows.keys()) {
       if (!ids.has(id)) { accountRows.delete(id); accountPlaylists.delete(id); }
     }
+    accountLoaded = true;
     reconcileRows(container, rows, ".yt-pl-item", "プレイリストが見つかりません");
     feedback("yt-account-status");
   } catch (e) {
@@ -392,7 +426,7 @@ async function renderAccountPlaylists() {
     feedback("yt-account-status", `更新に失敗しました: ${e.message}`, true);
     if (!accountRows.size) container.innerHTML = '<div class="empty-state">プレイリストを取得できませんでした</div>';
   } finally {
-    if (request === accountListRequest) { container.removeAttribute("aria-busy"); refreshOAuthStatus(); }
+    if (request === accountListRequest) { accountLoading = false; container.removeAttribute("aria-busy"); refreshOAuthStatus(); }
   }
 }
 
@@ -794,6 +828,7 @@ function prepareSyncDetails(card, sync) {
   actions.append(open);
   const close = () => {
     drawer.hidden = true;
+    pauseTrackPage(card.querySelector(".yt-sync-tracks"));
     card.classList.remove("details-open");
     open.setAttribute("aria-expanded", "false");
     open.focus({preventScroll: true});
@@ -802,6 +837,7 @@ function prepareSyncDetails(card, sync) {
     if (!drawer.hidden) return;
     document.querySelectorAll(".sync-detail-panel").forEach(panel => {
       panel.hidden = true;
+      pauseTrackPage(panel.querySelector(".yt-sync-tracks"));
       panel.closest(".yt-sync-card").classList.remove("details-open");
       panel.closest(".yt-sync-card").querySelector(".yt-sync-detail-btn").setAttribute("aria-expanded", "false");
     });
@@ -922,23 +958,17 @@ function bindSyncCardEvents(card, sync) {
       renderSyncTracks(sync.id, tracksDiv);
     } else {
       tracksDiv.style.display = "none";
+      pauseTrackPage(tracksDiv);
       btn.textContent = "トラック一覧を表示 ▾";
     }
   });
 }
 
-async function renderSyncTracks(syncId, container) {
-  const request = (trackRequests.get(container) || 0) + 1;
-  trackRequests.set(container, request);
-  if (!container.querySelector(".yt-track-item")) container.innerHTML = '<div class="empty-state">読込中…</div>';
-  try {
-    const tracks = await api.youtubeListSyncTracks(syncId);
-    if (request !== trackRequests.get(container) || !container.isConnected) return;
-    if (!Array.isArray(tracks)) throw new Error("トラックを取得できませんでした");
-    if (!tracks.length) {
-      container.innerHTML = '<div class="empty-state">トラックなし</div>';
-      return;
-    }
+function renderSyncTracks(syncId, container) {
+  return renderTrackPage(syncId, container, renderSyncTrackRows);
+}
+
+function renderSyncTrackRows(tracks, container) {
     const existing = new Map([...container.querySelectorAll(".yt-track-item")].map(item => [item.dataset.trackId, item]));
     const rows = [];
     for (const t of tracks) {
@@ -989,15 +1019,6 @@ async function renderSyncTracks(syncId, container) {
     const scrollTop = container.scrollTop;
     reconcileRows(container, rows, ".yt-track-item", "トラックなし");
     container.scrollTop = scrollTop;
-  } catch (e) {
-    if (request !== trackRequests.get(container) || !container.isConnected) return;
-    if (!container.querySelector(".yt-track-item")) container.innerHTML = `<div class="error-msg">${escHtml(e.message)}</div>`;
-    else {
-      let notice = container.querySelector(".yt-track-refresh-error");
-      if (!notice) { notice = document.createElement("div"); notice.className = "error-msg yt-track-refresh-error"; container.prepend(notice); }
-      notice.textContent = `更新に失敗しました: ${e.message}`;
-    }
-  }
 }
 
 // ── Player integration ────────────────────────────────────────────────────────

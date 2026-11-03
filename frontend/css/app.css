@@ -1554,3 +1554,18 @@ input,select,textarea { font-size:13px; border-radius:5px; box-shadow:none; }
 @media (prefers-color-scheme:light) {
   .job-item, .url-item { --queue-error:#b43d40; }
 }
+
+.yt-sync-tracks { max-height:none; overflow:visible; }
+.sync-track-toolbar { display:grid; grid-template-columns:minmax(0,1fr) minmax(120px,auto); gap:12px; margin:4px 0 12px; }
+.sync-track-toolbar label { display:flex; flex-direction:column; gap:5px; min-width:0; font-size:12px; color:var(--text-dim); }
+.sync-track-toolbar input,.sync-track-toolbar select { width:100%; min-width:0; padding:9px 10px; border:1px solid var(--border); border-radius:5px; background:var(--surface); color:var(--text); font:inherit; }
+.sync-track-results { max-height:340px; overflow-y:auto; overscroll-behavior:contain; }
+.sync-track-pagination { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-top:12px; font-size:12px; color:var(--text-dim); }
+.sync-track-feedback { display:flex; gap:8px; align-items:center; font-size:12px; overflow-wrap:anywhere; }
+.sync-track-feedback:has(span:empty) { display:none; }
+@media (max-width:420px) { .sync-track-toolbar { grid-template-columns:minmax(0,1fr); } }
+.sync-track-results .status-complete { color:var(--good-text); background:var(--good-bg); border-color:var(--border); }
+.sync-track-results .status-failed, .sync-track-feedback.error-msg { color:#ff9c9c; }
+@media (prefers-color-scheme:light) {
+  .sync-track-results .status-failed, .sync-track-feedback.error-msg { color:#b43d40; }
+}

@@ -2,11 +2,12 @@
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Literal
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse
-from sqlalchemy import case, func
+from sqlalchemy import case, func, or_, and_
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -21,6 +22,7 @@ from app.schemas import (
     YoutubePlaylistSyncResponse,
     YoutubePlaylistSyncUpdate,
     PlaylistSyncTrackResponse,
+    PlaylistSyncTrackPage,
 )
 from app.services import sync_dirs, youtube_api_service, ytdlp_service
 from app.api.stream import _range_response
@@ -31,14 +33,22 @@ router = APIRouter(prefix="/youtube", tags=["youtube"])
 _STUCK_TRACK_TIMEOUT = timedelta(hours=2)
 
 
-def _mark_stuck_playlist_tracks_failed(db: Session, sync_id: int) -> None:
+def _mark_stuck_playlist_tracks_failed(db: Session, sync_id: int, track_ids=None) -> bool:
     now = datetime.now(timezone.utc)
     cutoff = now - _STUCK_TRACK_TIMEOUT
 
-    tracks = db.query(PlaylistSyncTrack).filter(
+    q = db.query(PlaylistSyncTrack).filter(
         PlaylistSyncTrack.playlist_sync_id == sync_id,
-        PlaylistSyncTrack.status.in_(["pending", "downloading"]),
-    ).all()
+        or_(
+            and_(PlaylistSyncTrack.status == "pending", PlaylistSyncTrack.added_at <= now - timedelta(minutes=10)),
+            and_(PlaylistSyncTrack.status == "downloading", PlaylistSyncTrack.started_at <= now - timedelta(minutes=10)),
+        ),
+    )
+    if track_ids is not None:
+        if not track_ids:
+            return False
+        q = q.filter(PlaylistSyncTrack.id.in_(track_ids))
+    tracks = q.all()
 
     from app.tasks.celery_app import celery_app
     from app.tasks.sync_playlist import _redis
@@ -84,6 +94,7 @@ def _mark_stuck_playlist_tracks_failed(db: Session, sync_id: int) -> None:
 
     if changed:
         db.commit()
+    return changed
 
 
 
@@ -409,6 +420,49 @@ def run_sync_now(sync_id: int, db: Session = Depends(get_db)):
 
 # ── Tracks in a sync ──────────────────────────────────────────────────────────
 
+def _sync_tracks_to_response(tracks):
+    result = []
+    for t in tracks:
+        r = PlaylistSyncTrackResponse.model_validate(t)
+        if t.thumbnail_path:
+            r.thumbnail_url = f"/api/v1/youtube/syncs/tracks/{t.id}/thumbnail"
+        if t.status == "complete" and t.file_path:
+            r.stream_url = f"/api/v1/youtube/syncs/tracks/{t.id}/stream"
+        result.append(r)
+    return result
+
+
+@router.get("/syncs/{sync_id}/tracks/page", response_model=PlaylistSyncTrackPage)
+def list_sync_track_page(
+    sync_id: int,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    search: str = Query("", max_length=200),
+    status: Literal["active", "complete", "failed", "skipped"] | None = None,
+    db: Session = Depends(get_db),
+):
+    if db.get(YoutubePlaylistSync, sync_id) is None:
+        raise HTTPException(404, "Sync not found")
+    q = db.query(PlaylistSyncTrack).filter(
+        PlaylistSyncTrack.playlist_sync_id == sync_id,
+        PlaylistSyncTrack.status != "removed",
+    )
+    if search.strip():
+        q = q.filter(or_(
+            PlaylistSyncTrack.title.icontains(search.strip(), autoescape=True),
+            PlaylistSyncTrack.artist.icontains(search.strip(), autoescape=True),
+        ))
+    if status:
+        q = q.filter(PlaylistSyncTrack.status.in_(["pending", "downloading"]) if status == "active" else PlaylistSyncTrack.status == status)
+    ordered = q.order_by(PlaylistSyncTrack.position, PlaylistSyncTrack.id)
+    tracks = ordered.limit(limit).offset(offset).all()
+    # Only inspect downloads on the displayed page; polling never materializes
+    # all pending downloads in a large playlist.
+    if _mark_stuck_playlist_tracks_failed(db, sync_id, [track.id for track in tracks]):
+        tracks = ordered.limit(limit).offset(offset).all()
+    return PlaylistSyncTrackPage(items=_sync_tracks_to_response(tracks), total=q.count(), offset=offset, limit=limit)
+
+
 @router.get("/syncs/{sync_id}/tracks", response_model=list[PlaylistSyncTrackResponse])
 def list_sync_tracks(sync_id: int, db: Session = Depends(get_db)):
     sync = db.get(YoutubePlaylistSync, sync_id)
@@ -420,19 +474,11 @@ def list_sync_tracks(sync_id: int, db: Session = Depends(get_db)):
     tracks = (
         db.query(PlaylistSyncTrack)
         .filter(PlaylistSyncTrack.playlist_sync_id == sync_id, PlaylistSyncTrack.status != "removed")
-        .order_by(PlaylistSyncTrack.position)
+        .order_by(PlaylistSyncTrack.position, PlaylistSyncTrack.id)
         .all()
     )
 
-    result = []
-    for t in tracks:
-        r = PlaylistSyncTrackResponse.model_validate(t)
-        if t.thumbnail_path:
-            r.thumbnail_url = f"/api/v1/youtube/syncs/tracks/{t.id}/thumbnail"
-        if t.status == "complete" and t.file_path:
-            r.stream_url = f"/api/v1/youtube/syncs/tracks/{t.id}/stream"
-        result.append(r)
-    return result
+    return _sync_tracks_to_response(tracks)
 
 
 # ── Stream / thumbnail for playlist sync tracks ───────────────────────────────

@@ -41,6 +41,9 @@ def test_workspace_migration_preserves_existing_downloads(tmp_path):
     migrate("upgrade", "head")
     with sqlite3.connect(path) as conn:
         assert conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name='ix_sync_tracks_position'"
+        ).fetchone()
+        assert conn.execute(
             "SELECT title,file_path,status,removed_at,keep_local,excluded FROM playlist_sync_tracks"
         ).fetchone() == ("Saved", "/downloads/Legacy/saved.mp3", "complete", None, 0, 0)
         assert conn.execute(

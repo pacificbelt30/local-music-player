@@ -23,7 +23,7 @@ const sync = (id = 1, playlistId = 'PL1') => ({id, playlist_id: playlistId, play
 const track = (id = 10) => ({id, title: 'Song ' + id, artist: 'Artist', status: 'failed', error_message: 'track error', duration_secs: 60});
 
 async function setup(t, options = {}) {
-  const dom = new JSDOM(html, {url: 'http://localhost/'});
+  const dom = new JSDOM(html, {url: 'http://localhost/', pretendToBeVisual:true});
   for (const key of ['window', 'document', 'location', 'history', 'CustomEvent']) {
     Object.defineProperty(globalThis, key, {value: dom.window[key], configurable: true, writable: true});
   }
@@ -37,7 +37,9 @@ async function setup(t, options = {}) {
   globalThis.confirm = () => true;
   globalThis.fetch = async (path, opts = {}) => {
     const method = opts.method || 'GET';
-    const key = `${method} ${path}`;
+    const parsed=new URL(path,'http://localhost');
+    const paged=parsed.pathname.endsWith('/tracks/page');
+    const key = `${method} ${paged ? parsed.pathname : path}`;
     const body = opts.body ? JSON.parse(opts.body) : null;
     state.calls.push({key, body});
     let value;
@@ -45,7 +47,7 @@ async function setup(t, options = {}) {
     else if (path.endsWith('/youtube/auth/status')) value = options.authStatus || {authenticated: true};
     else if (path.endsWith('/youtube/playlists')) value = state.playlists;
     else if (path.endsWith('/youtube/syncs') && method === 'GET') value = state.syncs;
-    else if (path.endsWith('/tracks')) value = [track()];
+    else if (paged) value = [track()];
     else if (/\/syncs\/\d+$/.test(path) && method === 'PATCH') {
       const id = Number(path.split('/').at(-1));
       state.syncs = state.syncs.map(s => s.id === id ? {...s, ...body} : s);
@@ -58,6 +60,7 @@ async function setup(t, options = {}) {
       state.syncs = state.syncs.filter(s => s.id !== id);
       return new Response(null, {status: 204});
     } else value = {};
+    if(paged&&Array.isArray(value))value={items:value,total:value.length,offset:Number(parsed.searchParams.get('offset')||0),limit:50};
     return value instanceof Response ? value : new Response(JSON.stringify(value), {status: 200, headers: {'Content-Type': 'application/json'}});
   };
   t.after(() => {
@@ -69,6 +72,7 @@ async function setup(t, options = {}) {
   });
   const {initPlaylists} = await import(new URL(`../../frontend/js/playlists.js?test=${++moduleId}`, import.meta.url));
   initPlaylists();
+  dom.window.document.getElementById("sync-add-panel").open=true;
   await until(() => (options.authStatus?.authenticated === false ? document.querySelector('#yt-connect-btn') : document.querySelector('.yt-pl-item')) && (state.syncs.length ? document.querySelector('.yt-sync-card') : document.querySelector('#yt-sync-list .empty-state')));
   state.doc = dom.window.document;
   state.count = key => state.calls.filter(call => call.key === key).length;
@@ -348,12 +352,12 @@ test('track refresh failure retains previously loaded rows and their error detai
   const state = await setup(t);
   const {card, tracks, track: row} = await expandDetails(state);
   const pending = deferred();
-  state.handlers.set('GET /api/v1/youtube/syncs/1/tracks', () => pending.promise);
+  state.handlers.set('GET /api/v1/youtube/syncs/1/tracks/page', () => pending.promise);
   card.querySelector('.yt-tracks-toggle').click();
   card.querySelector('.yt-tracks-toggle').click();
   assert.equal(tracks.querySelector('.yt-track-item'), row);
   pending.reject(new Error('tracks offline'));
-  await until(() => tracks.querySelector('.yt-track-refresh-error'));
+  await until(() => tracks.querySelector('.sync-track-feedback.error-msg'));
   assert.equal(tracks.querySelector('.yt-track-item'), row);
   assert.equal(row.querySelector('.yt-track-error-text').style.display, '');
 });
@@ -363,7 +367,7 @@ test('an older track response cannot overwrite the latest expanded list', async 
   const {card, tracks} = await expandDetails(state);
   const older = deferred(), newer = deferred();
   let request = 0;
-  state.handlers.set('GET /api/v1/youtube/syncs/1/tracks', () => (++request === 1 ? older.promise : newer.promise));
+  state.handlers.set('GET /api/v1/youtube/syncs/1/tracks/page', () => (++request === 1 ? older.promise : newer.promise));
   for (let i = 0; i < 2; i++) {
     card.querySelector('.yt-tracks-toggle').click();
     card.querySelector('.yt-tracks-toggle').click();
@@ -691,7 +695,7 @@ test('background refresh preserves the drawer, track rows, expanded errors, focu
   tracks.scrollTop = 85;
   const button = row.querySelector('.yt-track-error-btn');button.focus();
   state.syncs = state.syncs.map(s=>({...s,downloaded_count:2}));
-  state.handlers.set('GET /api/v1/youtube/syncs/1/tracks',()=>[{...track(),error_message:'updated error'}]);
+  state.handlers.set('GET /api/v1/youtube/syncs/1/tracks/page',()=>[{...track(),error_message:'updated error'}]);
   await state.poll();
   assert.equal(state.doc.querySelector('.yt-sync-card'),card);
   assert.equal(tracks.querySelector('.yt-track-item'),row);
@@ -708,7 +712,7 @@ test('background refresh preserves the drawer, track rows, expanded errors, focu
 test('background refresh updates download status in place and uses the latest playback URL',async t=>{
   const state=await setup(t,{livePolling:true});
   const {tracks,track:row}=await expandDetails(state);
-  state.handlers.set('GET /api/v1/youtube/syncs/1/tracks',()=>[{...track(),status:'complete',stream_url:'/fresh-stream'}]);
+  state.handlers.set('GET /api/v1/youtube/syncs/1/tracks/page',()=>[{...track(),status:'complete',stream_url:'/fresh-stream'}]);
   await state.poll();
   assert.equal(tracks.querySelector('.yt-track-item'),row);
   assert.equal(row.querySelector('.status-badge').textContent,'完了');

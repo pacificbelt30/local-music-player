@@ -3,7 +3,7 @@ import { api } from "./api.js";
 const DEFAULTS = {default_audio_format: "mp3", default_audio_quality: "192", account_playlist_method: "url"};
 const states = new WeakMap();
 function state() {
-  if (!states.has(document)) states.set(document, {values: {...DEFAULTS}, pending: null, loaded: false});
+  if (!states.has(document)) states.set(document, {values: {...DEFAULTS}, pending: null, loaded: false, settings: null});
   return states.get(document);
 }
 function normalize(values) {
@@ -12,24 +12,29 @@ function normalize(values) {
   return result;
 }
 export function currentDownloadPreferences() { return {...state().values}; }
-export function loadDownloadPreferences(reload = false) {
+export function loadApplicationSettings(reload = false) {
   const owner = document;
   const current = state();
-  if (current.loaded && !reload) return Promise.resolve({...current.values});
-  if (!current.pending) {
-    current.pending = api.getSettings().then(values => {
-      current.values = normalize(values);
-      current.loaded = true;
-      owner.dispatchEvent(new owner.defaultView.CustomEvent("download-preferences-changed", {detail: {...current.values}}));
-      return {...current.values};
-    }).finally(() => {current.pending = null;});
-  }
+  if (current.pending) return current.pending;
+  if (current.settings && !reload) return Promise.resolve({...current.settings});
+  current.pending = api.getSettings().then(values => {
+    current.settings = {...values};
+    current.values = normalize(values);
+    current.loaded = true;
+    owner.dispatchEvent(new owner.defaultView.CustomEvent("download-preferences-changed", {detail: {...current.values}}));
+    return {...values};
+  }).finally(() => {current.pending = null;});
   return current.pending;
+}
+export function loadDownloadPreferences(reload = false) {
+  return loadApplicationSettings(reload).then(normalize);
 }
 export async function saveDownloadPreferences(values) {
   const owner = document;
   const current = state();
-  const result = normalize(await api.updateSettings(values));
+  const saved = await api.updateSettings(values);
+  current.settings = {...current.settings, ...saved};
+  const result = normalize(current.settings);
   current.values = result;
   current.loaded = true;
   owner.dispatchEvent(new owner.defaultView.CustomEvent("download-preferences-changed", {detail: result}));

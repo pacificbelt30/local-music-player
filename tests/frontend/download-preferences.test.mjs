@@ -41,6 +41,7 @@ async function setup(t,options={}){
   state.initWorkspaces=async()=>{
     const {initQueue}=await import(`../../frontend/js/queue.js?preferences=${++sequence}`);initQueue();
     const {initPlaylists}=await import(`../../frontend/js/playlists.js?preferences=${++sequence}`);initPlaylists();
+    document.querySelector("#sync-add-panel").open=true;
     await until(()=>options.authenticated===false?document.querySelector('#yt-connect-btn'):document.querySelector('.yt-add-sync-btn'));
   };
   state.dom=dom;

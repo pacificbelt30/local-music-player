@@ -1,4 +1,4 @@
-import { api } from "/js/api.js";
+import { api } from "./api.js";
 
 const REFRESH_INTERVAL = 15_000;
 let _timer = null;

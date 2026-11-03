@@ -70,6 +70,7 @@ export const api = {
 
   // YouTube Sync tracks
   youtubeListSyncTracks: (syncId) => request("GET", `/youtube/syncs/${syncId}/tracks`),
+  youtubeSyncTrackPage: (syncId, params = {}, signal) => request("GET", `/youtube/syncs/${syncId}/tracks/page?${new URLSearchParams(params)}`, undefined, signal),
 
   // Settings
   getSettings: () => request("GET", "/settings"),

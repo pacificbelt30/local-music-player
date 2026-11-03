@@ -195,3 +195,17 @@ def test_progress_stream_does_not_hold_other_api_requests_while_redis_waits(stac
         assert elapsed<2, f'API blocked by progress stream for {elapsed:.2f}s'
         assert stream.readline().startswith(b'data: ')
     stack.docker('exec',stack.name+'-api','python','-c',"from app.database import SessionLocal; from app.models import DownloadJob; s=SessionLocal(); s.query(DownloadJob).filter(DownloadJob.youtube_id.like('perf-stream-%')).delete(synchronize_session=False); s.commit(); s.close()")
+
+
+def test_large_sync_details_use_bounded_pages_and_search_on_real_database(stack):
+    code = "from app.database import SessionLocal; from app.models import YoutubePlaylistSync,PlaylistSyncTrack; s=SessionLocal(); p=YoutubePlaylistSync(playlist_id='PLlargepages',playlist_name='Large page test',enabled=False); s.add(p); s.flush(); s.add_all([PlaylistSyncTrack(playlist_sync_id=p.id,youtube_id=f'pg-{i}',title=f'Track {i}',artist='Artist',position=i,status='failed' if i%3==0 else 'complete') for i in range(6000)]); s.commit(); print(p.id); s.close()"
+    sid=int(stack.docker('exec',stack.name+'-api','python','-c',code).splitlines()[-1])
+    first=stack.request('GET',f'/youtube/syncs/{sid}/tracks/page')
+    second=stack.request('GET',f'/youtube/syncs/{sid}/tracks/page?offset=50')
+    assert first['total']==second['total']==6000
+    assert len(first['items'])==len(second['items'])==50
+    assert not set(t['id'] for t in first['items'])&set(t['id'] for t in second['items'])
+    selected=stack.request('GET',f'/youtube/syncs/{sid}/tracks/page?search=99&status=failed')
+    assert selected['total']>0
+    assert all('99' in t['title'] and t['status']=='failed' for t in selected['items'])
+    assert len(stack.request('GET',f'/youtube/syncs/{sid}/tracks'))==6000

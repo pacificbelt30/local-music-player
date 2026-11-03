@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -52,7 +52,10 @@ class YoutubePlaylistSync(Base):
 
 class PlaylistSyncTrack(Base):
     __tablename__ = "playlist_sync_tracks"
-    __table_args__ = (UniqueConstraint("playlist_sync_id", "youtube_id"),)
+    __table_args__ = (
+        UniqueConstraint("playlist_sync_id", "youtube_id"),
+        Index("ix_sync_tracks_position", "playlist_sync_id", "position", "id"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     playlist_sync_id: Mapped[int] = mapped_column(Integer, ForeignKey("youtube_playlist_syncs.id", ondelete="CASCADE"), nullable=False)

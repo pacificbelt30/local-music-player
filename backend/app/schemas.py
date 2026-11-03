@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 from urllib.parse import parse_qsl, urlencode, urlparse
-from pydantic import BaseModel, HttpUrl, field_validator, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 # "audio_format" fields also accept video containers (mp4/webm); the name is
@@ -377,3 +377,10 @@ class PlaylistSyncTrackResponse(BaseModel):
     error_message: str | None
     added_at: datetime
     downloaded_at: datetime | None
+
+
+class PlaylistSyncTrackPage(BaseModel):
+    items: list[PlaylistSyncTrackResponse]
+    total: int
+    offset: int
+    limit: int
