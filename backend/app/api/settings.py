@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 from typing import Literal
 
@@ -15,6 +15,7 @@ SILENCE_TRIM_KEYS = ("silence_trim_start_secs", "silence_trim_end_secs")
 
 
 class SyncSettings(BaseModel):
+    removed_track_retention_days: int = 7
     default_audio_format: MediaFormat = "mp3"
     default_audio_quality: AudioQuality = "192"
     account_playlist_method: Literal["url", "api"] = "url"
@@ -45,6 +46,7 @@ class SyncSettings(BaseModel):
 
 
 class SyncSettingsUpdate(BaseModel):
+    removed_track_retention_days: int | None = Field(default=None, ge=1, le=90)
     default_audio_format: MediaFormat | None = None
     default_audio_quality: AudioQuality | None = None
     account_playlist_method: Literal["url", "api"] | None = None
@@ -105,7 +107,7 @@ def _read(db: Session) -> SyncSettings:
         return row.value if row else DEFAULTS[key]
 
     return SyncSettings(
-        default_audio_format=get("default_audio_format"),
+        removed_track_retention_days=int(get("removed_track_retention_days")),        default_audio_format=get("default_audio_format"),
         default_audio_quality=get("default_audio_quality"),
         account_playlist_method=get("account_playlist_method"),
         url_sync_interval_minutes=int(get("url_sync_interval_minutes")),

@@ -120,6 +120,8 @@ def set_token_directly(payload: YouTubeTokenInput, db: Session = Depends(get_db)
         db.add(record)
     youtube_api_service.record_authorization(record, payload.model_dump(), now, issued_here=False)
     db.commit()
+    from app.services.recovery import resume_after_authorization
+    resume_after_authorization(db)
     return {"ok": True}
 
 
@@ -153,6 +155,8 @@ def oauth_callback(code: str = Query(...), db: Session = Depends(get_db)):
         db.add(record)
     youtube_api_service.record_authorization(record, data, now)
     db.commit()
+    from app.services.recovery import resume_after_authorization
+    resume_after_authorization(db)
     return RedirectResponse(url="/?youtube_auth=success")
 
 
@@ -277,7 +281,9 @@ def create_sync(payload: YoutubePlaylistSyncCreate, db: Session = Depends(get_db
     if existing:
         raise HTTPException(status_code=409, detail="Playlist already configured for sync with this format")
 
+    from app.services.profiles import snapshot
     sync = YoutubePlaylistSync(
+        **snapshot(db, payload.profile_id),
         playlist_id=playlist_id,
         playlist_name=playlist_name,
         # Fixed at creation so the folder never changes once downloads start
@@ -347,6 +353,12 @@ def delete_sync(sync_id: int, delete_files: bool = False, db: Session = Depends(
     sync = db.get(YoutubePlaylistSync, sync_id)
     if not sync:
         raise HTTPException(status_code=404, detail="Sync not found")
+
+    # Persist the choice with the deletion, including across Redis restarts.
+    from app.models import AppSetting
+    for track in sync.tracks:
+        if track.celery_task_id and track.status in ("pending", "downloading", "failed"):
+            db.merge(AppSetting(key=f"deleted-download:{track.celery_task_id}", value="files" if delete_files else "keep"))
 
     if delete_files:
         from app.tasks.sync_playlist import _delete_sync_track_file

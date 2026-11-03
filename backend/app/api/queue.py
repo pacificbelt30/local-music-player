@@ -167,6 +167,7 @@ def retry_job(job_id: int, db: Session = Depends(get_db)):
     job.status = "pending"
     job.error_message = None
     job.progress_pct = 0.0
+    job.created_at = datetime.now(timezone.utc)
     job.started_at = None
     job.finished_at = None
     db.flush()

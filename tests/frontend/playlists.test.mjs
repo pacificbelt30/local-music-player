@@ -28,6 +28,11 @@ async function setup(t, options = {}) {
     Object.defineProperty(globalThis, key, {value: dom.window[key], configurable: true, writable: true});
   }
   const state = {playlists: options.playlists || [playlist()], syncs: options.syncs || [sync()], calls: [], handlers: new Map(), alerts: []};
+  if (options.livePolling) {
+    Object.defineProperty(dom.window.document, 'hidden', {value:false, configurable:true});
+    dom.window.setInterval = callback => {state.poll = callback;return 1;};
+    dom.window.clearInterval = () => {};
+  }
   globalThis.alert = message => state.alerts.push(message);
   globalThis.confirm = () => true;
   globalThis.fetch = async (path, opts = {}) => {
@@ -677,4 +682,67 @@ test('paused and attention states stay distinct when changing sync settings',asy
   assert.match(badge.textContent,/要対応/);
   assert.equal(badge.classList.contains('needs-attention'),true);
   assert.equal(badge.classList.contains('is-paused'),false);
+});
+
+
+test('background refresh preserves the drawer, track rows, expanded errors, focus and scroll', async t => {
+  const state = await setup(t, {livePolling:true});
+  const {card,tracks,track:row} = await expandDetails(state);
+  tracks.scrollTop = 85;
+  const button = row.querySelector('.yt-track-error-btn');button.focus();
+  state.syncs = state.syncs.map(s=>({...s,downloaded_count:2}));
+  state.handlers.set('GET /api/v1/youtube/syncs/1/tracks',()=>[{...track(),error_message:'updated error'}]);
+  await state.poll();
+  assert.equal(state.doc.querySelector('.yt-sync-card'),card);
+  assert.equal(tracks.querySelector('.yt-track-item'),row);
+  assert.equal(row.querySelector('.yt-track-error-btn'),button);
+  assert.equal(state.doc.activeElement,button);
+  assert.equal(row.querySelector('.yt-track-error-text').style.display,'');
+  assert.equal(row.querySelector('.yt-track-error-text').textContent,'updated error');
+  assert.equal(tracks.scrollTop,85);
+  assert.equal(card.querySelector('.sync-detail-panel').hidden,false);
+  assert.match(card.querySelector('.yt-sync-progress').textContent,/2\/2/);
+  assert.equal(state.count('GET /api/v1/youtube/playlists'),1);
+});
+
+test('background refresh updates download status in place and uses the latest playback URL',async t=>{
+  const state=await setup(t,{livePolling:true});
+  const {tracks,track:row}=await expandDetails(state);
+  state.handlers.set('GET /api/v1/youtube/syncs/1/tracks',()=>[{...track(),status:'complete',stream_url:'/fresh-stream'}]);
+  await state.poll();
+  assert.equal(tracks.querySelector('.yt-track-item'),row);
+  assert.equal(row.querySelector('.status-badge').textContent,'完了');
+  assert.equal(row.querySelector('.yt-track-error-btn'),null);
+  let played;window.addEventListener('play-playlist-track',event=>{played=event.detail;},{once:true});
+  row.click();assert.equal(played.stream_url,'/fresh-stream');
+});
+
+test('polling skips hidden workspaces and documents and blocks overlapping requests',async t=>{
+  const state=await setup(t,{livePolling:true});
+  const initial=state.count('GET /api/v1/youtube/syncs');
+  state.doc.getElementById('playlists-panel').classList.remove('active');await state.poll();
+  assert.equal(state.count('GET /api/v1/youtube/syncs'),initial);
+  state.doc.getElementById('playlists-panel').classList.add('active');
+  Object.defineProperty(state.doc,'hidden',{value:true,configurable:true});await state.poll();
+  assert.equal(state.count('GET /api/v1/youtube/syncs'),initial);
+  Object.defineProperty(state.doc,'hidden',{value:false,configurable:true});
+  const waiting=deferred();state.handlers.set('GET /api/v1/youtube/syncs',()=>waiting.promise);
+  const first=state.poll();await state.poll();
+  assert.equal(state.count('GET /api/v1/youtube/syncs'),initial+1);
+  waiting.resolve(state.syncs);await first;
+});
+
+test('polling does not overwrite a pending pause and keeps the list through transient errors',async t=>{
+  const state=await setup(t,{livePolling:true});
+  const card=state.doc.querySelector('.yt-sync-card');
+  const waiting=deferred();state.handlers.set('PATCH /api/v1/youtube/syncs/1',()=>waiting.promise);
+  card.querySelector('.yt-sync-toggle-btn').click();
+  const initial=state.count('GET /api/v1/youtube/syncs');await state.poll();
+  assert.equal(state.count('GET /api/v1/youtube/syncs'),initial);
+  waiting.resolve({...state.syncs[0],enabled:false});await until(()=>!card.dataset.mutating);
+  state.handlers.set('GET /api/v1/youtube/syncs',()=>{throw Error('offline');});
+  await state.poll();assert.equal(state.doc.querySelector('.yt-sync-card'),card);
+  assert.match(state.doc.getElementById('yt-sync-list-status').textContent,/offline/);
+  state.handlers.delete('GET /api/v1/youtube/syncs');await state.poll();
+  assert.equal(state.doc.getElementById('yt-sync-list-status').textContent,'');
 });

@@ -746,7 +746,8 @@ class TestFolderNamingMultipleFormats:
                         download_playlist_sync_track.apply(args=[track.id])
 
         _, kwargs = mock_dl.call_args
-        assert kwargs["base_path"] == tmp_path / "Base Path [mp4]"
+        assert kwargs["base_path"].name.startswith(".lmp-")
+        assert kwargs["base_path"].parent == tmp_path / "Base Path [mp4]"
 
     def test_folder_rename_on_disk_when_second_format_added(self, client, db, tmp_path):
         """The original folder is renamed on disk when a second format forces suffixes."""

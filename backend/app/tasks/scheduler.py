@@ -5,6 +5,7 @@ from app.models import AppSetting, UrlSource, YoutubePlaylistSync, YouTubeOAuthT
 from app.tasks.celery_app import celery_app
 
 DEFAULTS = {
+    "removed_track_retention_days": "7",
     "default_audio_format": "mp3",
     "default_audio_quality": "192",
     "account_playlist_method": "url",

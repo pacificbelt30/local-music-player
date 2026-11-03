@@ -19,7 +19,9 @@ def add_url(payload: UrlSourceCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=409, detail="URL already registered")
 
+    from app.services.profiles import snapshot
     source = UrlSource(
+        **snapshot(db, payload.profile_id),
         url=payload.url,
         canonical_url=canonical_url,
         url_type="video",  # resolved by worker

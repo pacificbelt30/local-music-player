@@ -15,16 +15,20 @@ export function initNavigation() {
     }
     const route = buttons.find(button => button.dataset.panel === id)?.dataset.route;
     if (route && location.hash !== '#' + route) history.replaceState({}, '', '#' + route);
+    document.dispatchEvent(new document.defaultView.CustomEvent('workspace-navigation', {detail:{panel:id}}));
   }
   for (const button of buttons) button.addEventListener('click', () => show(button.dataset.panel));
   for (const button of document.querySelectorAll('[data-navigate]')) button.addEventListener('click', () => show(button.dataset.navigate));
   const fromHash = () => show(buttons.find(button => '#' + button.dataset.route === location.hash)?.dataset.panel || 'playlists-panel');
   window.addEventListener('hashchange', fromHash);
-  document.getElementById('open-sync-add')?.addEventListener('click', () => {
+  const openAddition = () => {
+    show('playlists-panel');
     const panel = document.getElementById('sync-add-panel');
     panel.open = true;
     panel.scrollIntoView?.({behavior: 'smooth', block: 'nearest'});
-    panel.querySelector('input')?.focus({preventScroll: true});
-  });
+    panel.querySelector('textarea, input')?.focus({preventScroll: true});
+  };
+  document.getElementById('open-sync-add')?.addEventListener('click', openAddition);
+  document.getElementById('downloads-open-intake')?.addEventListener('click', openAddition);
   fromHash();
 }

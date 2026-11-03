@@ -53,3 +53,10 @@ test('snapshot reconciliation retries after a failed list request',async t=>{
   q.setRead(async()=>[]);q.send([]);await until(()=>!document.querySelector('.job-item'));
   assert.equal(q.reads(),3);
 });
+
+test('unified intake refreshes the URL list and queue in the download workspace',async t=>{
+  const q=await setup(t);api.listUrls=async()=>[{id:2,title:'Added through intake',url:'https://youtu.be/new',url_type:'video',audio_format:'m4a',audio_quality:'192',sync_enabled:true}];
+  document.dispatchEvent(new document.defaultView.CustomEvent('url-sources-updated'));
+  await until(()=>document.querySelector('.url-item-title')?.textContent==='Added through intake');
+  assert.equal(q.reads(),2);
+});

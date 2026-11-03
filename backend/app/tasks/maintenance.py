@@ -113,3 +113,11 @@ def retrim_existing_silence_locally() -> None:
         db.commit()
     finally:
         db.close()
+
+
+@celery_app.task(name="app.tasks.maintenance.purge_removed_tracks")
+def purge_removed_tracks():
+    from app.services.sync_history import purge_removed
+    db=SessionLocal()
+    try:return purge_removed(db)
+    finally:db.close()

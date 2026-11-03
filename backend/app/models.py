@@ -38,6 +38,11 @@ class YoutubePlaylistSync(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     source_type: Mapped[str] = mapped_column(String(8), default="api")  # "api" | "url"
     source_url: Mapped[str] = mapped_column(String(2048), default="")
+    profile_id: Mapped[int | None] = mapped_column(Integer)
+    profile_name: Mapped[str | None] = mapped_column(String(80))
+    target_folder_id: Mapped[str | None] = mapped_column(String(128))
+    target_device_id: Mapped[str | None] = mapped_column(String(128))
+    target_scope: Mapped[str] = mapped_column(String(16), default="downloads")
     last_synced: Mapped[datetime | None] = mapped_column(DateTime)
     last_error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
@@ -67,6 +72,10 @@ class PlaylistSyncTrack(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime)
     celery_task_id: Mapped[str | None] = mapped_column(String(64))
 
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    keep_local: Mapped[bool] = mapped_column(Boolean, default=False)
+    excluded: Mapped[bool] = mapped_column(Boolean, default=False)
+
     playlist_sync: Mapped["YoutubePlaylistSync"] = relationship(back_populates="tracks")
 
 
@@ -92,6 +101,11 @@ class UrlSource(Base):
     audio_quality: Mapped[str] = mapped_column(String(10), default="192")  # best/192/320
     title: Mapped[str | None] = mapped_column(Text)
     added_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    profile_id: Mapped[int | None] = mapped_column(Integer)
+    profile_name: Mapped[str | None] = mapped_column(String(80))
+    target_folder_id: Mapped[str | None] = mapped_column(String(128))
+    target_device_id: Mapped[str | None] = mapped_column(String(128))
+    target_scope: Mapped[str] = mapped_column(String(16), default="downloads")
     last_synced: Mapped[datetime | None] = mapped_column(DateTime)
     sync_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
@@ -147,3 +161,23 @@ class PlaylistTrack(Base):
 
     url_source: Mapped["UrlSource"] = relationship(back_populates="playlist_tracks")
     track: Mapped["Track"] = relationship(back_populates="playlist_tracks")
+
+
+class MediaProfile(Base):
+    __tablename__ = "media_profiles"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    audio_format: Mapped[str] = mapped_column(String(10), nullable=False)
+    audio_quality: Mapped[str] = mapped_column(String(10), nullable=False)
+    target_folder_id: Mapped[str | None] = mapped_column(String(128))
+    target_device_id: Mapped[str | None] = mapped_column(String(128))
+    target_scope: Mapped[str] = mapped_column(String(16), default="downloads")
+
+
+class SyncEvent(Base):
+    __tablename__ = "sync_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    sync_id: Mapped[int] = mapped_column(Integer, ForeignKey("youtube_playlist_syncs.id", ondelete="CASCADE"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    details: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

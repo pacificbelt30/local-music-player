@@ -267,3 +267,27 @@ def test_api_container_recovers_via_service_dns_without_changing_configuration(p
     wait(lambda: peers.file("b", "from-recreated.txt").exists())
     wait(lambda: peers.app_request(app_port, "status").get("state") == "synced")
     assert peers.app_request(app_port, "config")["url"] == "http://a:8384"
+
+
+def test_file_level_delivery_evidence_confirms_the_selected_peer(peers, db, monkeypatch):
+    """The ready label uses real Syncthing file versions, not a folder percentage."""
+    from app.models import YoutubePlaylistSync, PlaylistSyncTrack
+    from app.services import delivery
+    pa,ida=peers.start('a');pb,idb=peers.start('b');peers.pair(pa,ida,pb,idb)
+    peers.file('a','proof.bin').write_text('proof')
+    peers.api(pa,'db/scan?folder=music',method='POST')
+    wait(lambda:peers.file('b','proof.bin').exists())
+    path=peers.directory/'a'/'syncthing-state'/'Sync'/'proof.bin'
+    monkeypatch.setattr('app.config.settings.downloads_path',path.parent)
+    db.add_all([AppSetting(key='syncthing_url',value=f'http://127.0.0.1:{pa}'),AppSetting(key='syncthing_api_key',value=peers.key)])
+    source=YoutubePlaylistSync(playlist_id='proof',playlist_name='Proof',target_folder_id='music',target_device_id=idb)
+    db.add(source);db.flush();db.add(PlaylistSyncTrack(playlist_sync_id=source.id,youtube_id='proof',title='Proof',status='complete',file_path=str(path)));db.commit()
+    delivery._cache.clear()
+    def ready():
+        delivery._cache.clear()
+        return asyncio.run(delivery.readiness(db,source))['state']=='ready'
+    try:wait(ready,timeout=15)
+    except AssertionError:
+        raise AssertionError({'readiness':asyncio.run(delivery.readiness(db,source)), 'file':peers.api(pa,'db/file?folder=music&file=proof.bin'), 'mtime_ns':path.stat().st_mtime_ns})
+    peers.remove('b')
+    wait(lambda:asyncio.run(delivery.readiness(db,source))['state']=='device_offline')

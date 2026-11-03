@@ -7,9 +7,15 @@ const accountRows = new Map();
 const syncRecords = new Map();
 const syncCards = new Map();
 const trackRequests = new WeakMap();
+const trackValues = new WeakMap();
+let syncLoads = 0;
 let accountListRequest = 0;
 let syncListRequest = 0;
 let lastAddedSyncId = null;
+
+function setText(element, value) {
+  if (element.textContent !== value) element.textContent = value;
+}
 
 function feedback(id, message = "", error = false) {
   const element = document.getElementById(id);
@@ -63,8 +69,35 @@ export function initPlaylists() {
   renderAuthSection();
   renderUrlSyncSection();
   renderSyncList();
+  startSyncPolling();
   document.getElementById("yt-refresh-account-btn")?.addEventListener("click", renderAccountPlaylists);
   document.getElementById("yt-refresh-syncs-btn")?.addEventListener("click", renderSyncList);
+}
+
+function startSyncPolling() {
+  let pending = false;
+  const refresh = async () => {
+    if (pending || syncLoads || document.hidden || !document.getElementById("playlists-panel")?.classList.contains("active")) return;
+    if ([...syncCards.values()].some(card => card.dataset.mutating || card.querySelector("[data-busy]"))) return;
+    pending = true;
+    try {
+      await renderSyncList({background: true});
+      await Promise.all([...syncCards].filter(([, card]) => !card.querySelector(".sync-detail-panel").hidden)
+        .map(([id, card]) => {
+          const tracks = card.querySelector(".yt-sync-tracks");
+          if (tracks.style.display !== "none") return renderSyncTracks(id, tracks);
+        }));
+    } finally { pending = false; }
+  };
+  const timer = window.setInterval(refresh, 5000);
+  document.addEventListener("visibilitychange", refresh);
+  window.addEventListener("hashchange", refresh);
+  window.addEventListener("pagehide", () => {
+    window.clearInterval(timer);
+    document.removeEventListener("visibilitychange", refresh);
+    window.removeEventListener("hashchange", refresh);
+    window.addEventListener("pageshow", event => {if (event.persisted) startSyncPolling();}, {once: true});
+  }, {once: true});
 }
 
 function clearAddResult() {
@@ -578,12 +611,15 @@ function showAddSyncDialog(btn) {
 
 // ── Sync List ─────────────────────────────────────────────────────────────────
 
-async function renderSyncList() {
+async function renderSyncList({background = false} = {}) {
   const container = document.getElementById("yt-sync-list");
   if (!container) return;
   const request = ++syncListRequest;
-  container.setAttribute("aria-busy", "true");
-  feedback("yt-sync-list-status", syncCards.size ? "同期情報を更新中…" : "");
+  syncLoads++;
+  if (!background) {
+    container.setAttribute("aria-busy", "true");
+    feedback("yt-sync-list-status", syncCards.size ? "同期情報を更新中…" : "");
+  }
   try {
     const syncs = await api.youtubeListSyncs();
     if (request !== syncListRequest) return;
@@ -597,11 +633,13 @@ async function renderSyncList() {
     }
     reconcileRows(container, syncs.map(sync => syncCards.get(String(sync.id))), ".yt-sync-card", "同期中のプレイリストはありません");
     updateAccountSyncBadges();
+    document.dispatchEvent(new document.defaultView.CustomEvent("sync-list-updated"));
     feedback("yt-sync-list-status");
   } catch (e) {
     if (request !== syncListRequest) return;
     feedback("yt-sync-list-status", `更新に失敗しました: ${e.message}`, true);
   } finally {
+    syncLoads--;
     if (request === syncListRequest) container.removeAttribute("aria-busy");
   }
 }
@@ -641,30 +679,33 @@ function setCardMutation(card, pending) {
 }
 
 function updateSyncCard(card, sync) {
-  card.querySelector(".yt-sync-name").textContent = sync.playlist_name;
-  card.querySelector(".sync-detail-title").textContent = sync.playlist_name;
+  card.dataset.targetDevice = sync.target_device_id || "";
+  card.dataset.profileName = sync.profile_name || "";
+  card.dataset.serverComplete = String(sync.track_count > 0 && sync.downloaded_count >= sync.track_count);
+  setText(card.querySelector(".yt-sync-name"), sync.playlist_name);
+  setText(card.querySelector(".sync-detail-title"), sync.playlist_name);
   const state = card.querySelector(".yt-sync-state");
-  state.textContent = sync.last_error ? "要対応" : sync.enabled ? "自動同期 有効" : "一時停止中";
+  setText(state, sync.last_error ? "要対応" : sync.enabled ? "自動同期 有効" : "一時停止中");
   state.classList.toggle("needs-attention", Boolean(sync.last_error));
   state.classList.toggle("is-paused", !sync.enabled && !sync.last_error);
   card.querySelector(".yt-sync-detail-btn").setAttribute("aria-label", `${sync.playlist_name}の詳細を開く`);
   card.querySelector(".yt-sync-name").title = sync.playlist_name;
   const source = card.querySelector(".yt-sync-source");
-  source.textContent = sync.source_type === "url" ? "共有URL同期" : "API同期";
+  setText(source, sync.source_type === "url" ? "共有URL同期" : "API同期");
   source.classList.toggle("status-complete", sync.source_type !== "url");
   const lastSynced = sync.last_synced ? new Date(sync.last_synced).toLocaleString("ja-JP", {year:"numeric", month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"}) : "未同期";
   const progress = sync.track_count ? `${sync.downloaded_count}/${sync.track_count} 曲ダウンロード済み` : "トラックなし";
-  card.querySelector(".yt-sync-progress").textContent = `${progress} · 最終同期: ${lastSynced}`;
-  card.querySelector(".yt-sync-format").textContent = ["mp4", "webm"].includes(sync.audio_format)
+  setText(card.querySelector(".yt-sync-progress"), `${progress} · 最終同期: ${lastSynced}`);
+  setText(card.querySelector(".yt-sync-format"), ["mp4", "webm"].includes(sync.audio_format)
     ? `${sync.audio_format.toUpperCase()} (動画)`
-    : `${sync.audio_format.toUpperCase()} / ${sync.audio_quality === "best" ? "Best" : sync.audio_quality + "kbps"}`;
+    : `${sync.audio_format.toUpperCase()} / ${sync.audio_quality === "best" ? "Best" : sync.audio_quality + "kbps"}`);
   const toggle = card.querySelector(".yt-sync-toggle-btn");
   toggle.dataset.enabled = String(sync.enabled);
   if (!toggle.dataset.busy) toggle.textContent = sync.enabled ? "一時停止" : "再開";
   const errors = card.querySelector(".yt-sync-error-section");
   const text = errors.querySelector(".yt-sync-error-text");
   if (!sync.last_error) errors.replaceChildren();
-  else if (text) text.textContent = sync.last_error;
+  else if (text) setText(text, sync.last_error);
   else errors.innerHTML = `
     <div class="yt-sync-error-banner"><span class="yt-sync-error-icon">⚠</span><span class="yt-sync-error-summary">同期エラーが発生しました</span>
       <button class="btn btn-ghost yt-sync-error-detail-btn" data-id="${sync.id}">詳細を見る ▾</button></div>
@@ -898,51 +939,55 @@ async function renderSyncTracks(syncId, container) {
       container.innerHTML = '<div class="empty-state">トラックなし</div>';
       return;
     }
-    const fragment = document.createDocumentFragment();
+    const existing = new Map([...container.querySelectorAll(".yt-track-item")].map(item => [item.dataset.trackId, item]));
+    const rows = [];
     for (const t of tracks) {
-      const item = document.createElement("div");
-      item.className = "yt-track-item";
-      const errorSection = t.status === "failed" && t.error_message ? `
-        <div class="yt-track-error-row">
-          <button class="btn btn-ghost yt-track-error-btn" data-track-id="${t.id}">詳細を見る ▾</button>
-          <pre class="yt-track-error-text" id="yt-track-err-${t.id}" style="display:none">${escHtml(t.error_message)}</pre>
-        </div>
-      ` : "";
-      item.innerHTML = `
-        ${t.thumbnail_url
-          ? `<img class="track-thumb" src="${escHtml(t.thumbnail_url)}" alt="" loading="lazy">`
-          : '<div class="track-thumb-placeholder">♪</div>'}
-        <div class="track-info">
-          <div class="track-title">
-            <span class="yt-id-badge" title="トラックID（DB障害メッセージの track_id= と一致）">#${t.id}</span>
-            ${escHtml(t.title)}
-          </div>
-          <div class="track-artist">${escHtml(t.artist || "")}</div>
-          ${errorSection}
-        </div>
-        <div class="yt-track-right">
-          <span class="status-badge status-${t.status}">${statusLabel(t.status)}</span>
-          ${t.duration_secs ? `<span class="track-duration">${fmtDuration(t.duration_secs)}</span>` : ""}
-        </div>
-      `;
-      if (t.stream_url) {
-        item.style.cursor = "pointer";
-        item.addEventListener("click", () => playTrack(t));
-      }
-      const errBtn = item.querySelector(".yt-track-error-btn");
-      if (errBtn) {
-        errBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const errPre = document.getElementById(`yt-track-err-${t.id}`);
-          const expanded = errPre.style.display !== "none";
-          errPre.style.display = expanded ? "none" : "";
-          errBtn.textContent = expanded ? "詳細を見る ▾" : "詳細を隠す ▴";
+      let item = existing.get(String(t.id));
+      if (!item) {
+        item = document.createElement("div");
+        item.className = "yt-track-item";
+        item.dataset.trackId = String(t.id);
+        item.innerHTML = `<div class="track-thumb-placeholder">♪</div><div class="track-info"><div class="track-title"><span class="yt-id-badge">#${t.id}</span> <span class="yt-track-title"></span></div><div class="track-artist"></div><div class="yt-track-errors"></div></div><div class="yt-track-right"><span class="status-badge"></span><span class="track-duration"></span></div>`;
+        item.addEventListener("click", event => {
+          const button = event.target.closest(".yt-track-error-btn");
+          if (button) {
+            event.stopPropagation();
+            const pre = item.querySelector(".yt-track-error-text");
+            const expanded = pre.style.display !== "none";
+            pre.style.display = expanded ? "none" : "";
+            button.textContent = expanded ? "詳細を見る ▾" : "詳細を隠す ▴";
+          } else if (trackValues.get(item)?.stream_url) playTrack(trackValues.get(item));
         });
       }
-      fragment.appendChild(item);
+      trackValues.set(item, t);
+      setText(item.querySelector(".yt-track-title"), t.title);
+      setText(item.querySelector(".track-artist"), t.artist || "");
+      item.style.cursor = t.stream_url ? "pointer" : "";
+      let thumb = item.firstElementChild;
+      if (t.thumbnail_url) {
+        if (thumb.tagName !== "IMG") {
+          const img = document.createElement("img"); img.className = "track-thumb"; img.alt = ""; img.loading = "lazy";
+          thumb.replaceWith(img); thumb = img;
+        }
+        if (thumb.getAttribute("src") !== t.thumbnail_url) thumb.setAttribute("src", t.thumbnail_url);
+      } else if (thumb.tagName === "IMG") {
+        const placeholder = document.createElement("div");
+        placeholder.className = "track-thumb-placeholder"; placeholder.textContent = "♪";
+        thumb.replaceWith(placeholder);
+      }
+      const badge = item.querySelector(".status-badge");
+      badge.className = `status-badge status-${t.status}`; setText(badge, statusLabel(t.status));
+      const duration = item.querySelector(".track-duration");
+      setText(duration, t.duration_secs ? fmtDuration(t.duration_secs) : "");
+      const errors = item.querySelector(".yt-track-errors");
+      if (t.status === "failed" && t.error_message) {
+        if (!errors.firstElementChild) errors.innerHTML = `<div class="yt-track-error-row"><button class="btn btn-ghost yt-track-error-btn" data-track-id="${t.id}">詳細を見る ▾</button><pre class="yt-track-error-text" id="yt-track-err-${t.id}" style="display:none"></pre></div>`;
+        setText(errors.querySelector("pre"), t.error_message);
+      } else errors.replaceChildren();
+      rows.push(item);
     }
     const scrollTop = container.scrollTop;
-    container.replaceChildren(fragment);
+    reconcileRows(container, rows, ".yt-track-item", "トラックなし");
     container.scrollTop = scrollTop;
   } catch (e) {
     if (request !== trackRequests.get(container) || !container.isConnected) return;

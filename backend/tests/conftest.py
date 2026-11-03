@@ -68,3 +68,13 @@ def client(db):
     app.dependency_overrides[get_db] = override_get_db
     yield TestClient(app)
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def isolated_task_leases():
+    from unittest.mock import MagicMock
+    with patch("app.tasks.sync_playlist._redis.lock", side_effect=lambda *a, **k: MagicMock()), \
+         patch("app.tasks.sync_playlist._redis.setex"), \
+         patch("app.tasks.sync_playlist._redis.exists", return_value=False), \
+         patch("app.tasks.download._redis.lock", side_effect=lambda *a, **k: MagicMock()):
+        yield

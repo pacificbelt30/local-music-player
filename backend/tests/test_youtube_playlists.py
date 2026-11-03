@@ -1012,7 +1012,8 @@ class TestDownloadPlaylistSyncTrackTask:
                         download_playlist_sync_track.apply(args=[track.id])
 
         _, kwargs = mock_dl.call_args
-        assert kwargs["base_path"] == tmp_path / "Solo List"
+        assert kwargs["base_path"].name.startswith(".lmp-")
+        assert kwargs["base_path"].parent == tmp_path / "Solo List"
 
     def test_stored_dir_name_wins_over_later_collision(self, db, tmp_path):
         """A sync keeps its creation-time folder even after a same-name sync appears."""
@@ -1038,7 +1039,8 @@ class TestDownloadPlaylistSyncTrackTask:
                         download_playlist_sync_track.apply(args=[track.id])
 
         _, kwargs = mock_dl.call_args
-        assert kwargs["base_path"] == tmp_path / "Fixed List"
+        assert kwargs["base_path"].name.startswith(".lmp-")
+        assert kwargs["base_path"].parent == tmp_path / "Fixed List"
 
     def test_appends_format_suffix_on_name_collision(self, db, tmp_path):
         """Legacy rows without dir_name fall back to the dynamic collision rule."""
@@ -1059,7 +1061,8 @@ class TestDownloadPlaylistSyncTrackTask:
                         download_playlist_sync_track.apply(args=[track.id])
 
         _, kwargs = mock_dl.call_args
-        assert kwargs["base_path"] == tmp_path / "Dual List [mp4]"
+        assert kwargs["base_path"].name.startswith(".lmp-")
+        assert kwargs["base_path"].parent == tmp_path / "Dual List [mp4]"
 
 
 # ── URL-based sync tests ──────────────────────────────────────────────────────

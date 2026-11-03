@@ -12,6 +12,7 @@ from app.services import ytdlp_service
 from app.services.notification import notify
 from app.tasks.celery_app import celery_app
 from app.tasks.scheduler import DEFAULTS
+from app.services.task_lease import exclusive_task
 
 _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
 
@@ -31,6 +32,7 @@ def _download_base_path(source: UrlSource | None) -> Path:
 
 
 @celery_app.task(name="app.tasks.download.resolve_url", bind=True, max_retries=2)
+@exclusive_task(lambda: _redis, "url-source")
 def resolve_url(self, url_source_id: int) -> None:
     db = SessionLocal()
     try:
@@ -106,12 +108,13 @@ def resolve_url(self, url_source_id: int) -> None:
 
 
 @celery_app.task(name="app.tasks.download.download_track", bind=True, max_retries=3)
+@exclusive_task(lambda: _redis, "download-job")
 def download_track(self, job_id: int) -> None:
     db = SessionLocal()
     job: DownloadJob | None = None
     try:
         job = db.get(DownloadJob, job_id)
-        if not job:
+        if not job or job.status in ("complete", "skipped"):
             return
 
         source = db.get(UrlSource, job.url_source_id) if job.url_source_id else None

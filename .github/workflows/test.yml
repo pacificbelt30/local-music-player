@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - work
   pull_request:
 
 jobs:
@@ -17,7 +18,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r backend/requirements.txt pytest httpx
+        run: pip install -r backend/requirements.txt pytest httpx pyyaml
 
       - name: Install FFmpeg for runtime compatibility checks
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
@@ -53,3 +54,10 @@ jobs:
         run: |
           docker pull caddy:2.10.2-alpine
           python -m pytest tests/integration/test_https_recreate.py -v
+
+      - name: Test playlist sync concurrency and container lifecycle
+        working-directory: backend
+        env:
+          SYNC_DOCKER_TESTS: "1"
+          SYNC_APP_TEST_IMAGE: local-music-player:syncthing-recovery-test
+        run: python -m pytest tests/integration/test_sync_lifecycle.py -v

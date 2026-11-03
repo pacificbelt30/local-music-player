@@ -45,3 +45,9 @@ test('add action opens the addition form without replacing the sync list',t=>{
   assert.equal(doc.querySelector('#sync-add-panel').open,true);
   assert.equal(doc.querySelector('#yt-sync-list'),list);
 });
+
+test('download workspace opens the same unified addition entry',t=>{
+  const doc=setup(t,'#downloads');doc.querySelector('#downloads-open-intake').click();
+  assert.equal(doc.querySelector('.panel.active').id,'playlists-panel');
+  assert.equal(doc.querySelector('#sync-add-panel').open,true);
+});

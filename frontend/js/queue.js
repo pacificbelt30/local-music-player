@@ -11,6 +11,7 @@ export function initQueue() {
   renderUrlList();
   renderJobList();
   startSSE();
+  document.addEventListener("url-sources-updated", () => {renderUrlList();renderJobList();});
   document.getElementById("add-url-form").addEventListener("submit", handleAddUrl);
 }
 

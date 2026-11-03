@@ -10,6 +10,6 @@ def delete_track_files(file_path: str, thumbnail_path: str | None = None) -> Non
 
     # Remove .info.json sidecar if present
     p = Path(file_path)
-    info_json = p.with_suffix("").with_suffix(".info.json")
+    info_json = p.with_suffix(".info.json")
     if info_json.exists():
         info_json.unlink()

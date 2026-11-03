@@ -125,7 +125,7 @@ def test_dispatch_failure_is_visible_and_retryable(db):
 
 
 def test_worker_persists_actual_start_and_task_id(db, tmp_path):
-    track = make_track(db, status="pending", started_at=None)
+    track = make_track(db, status="pending", started_at=None, celery_task_id="actual-attempt")
     track_id = track.id
     def download(**kwargs):
         db.refresh(track)

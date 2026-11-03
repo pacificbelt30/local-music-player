@@ -79,6 +79,7 @@ def normalize_youtube_url(v: str) -> str:
 
 
 class UrlSourceCreate(BaseModel):
+    profile_id: int | None = None
     url: str
     audio_format: MediaFormat = "mp3"
     audio_quality: AudioQuality = "192"
@@ -93,6 +94,11 @@ class UrlSourceCreate(BaseModel):
 
 
 class UrlSourceResponse(BaseModel):
+    profile_id: int | None = None
+    profile_name: str | None = None
+    target_folder_id: str | None = None
+    target_device_id: str | None = None
+    target_scope: str = "downloads"
     model_config = {"from_attributes": True}
 
     id: int
@@ -306,6 +312,7 @@ class PlaylistPrivacyUpdate(BaseModel):
 
 
 class YoutubePlaylistSyncCreate(BaseModel):
+    profile_id: int | None = None
     # API方式用
     playlist_id: str = ""
     playlist_name: str = ""
@@ -331,6 +338,11 @@ class YoutubePlaylistSyncUpdate(BaseModel):
 
 
 class YoutubePlaylistSyncResponse(BaseModel):
+    profile_id: int | None = None
+    profile_name: str | None = None
+    target_folder_id: str | None = None
+    target_device_id: str | None = None
+    target_scope: str = "downloads"
     model_config = {"from_attributes": True}
 
     id: int
@@ -349,6 +361,8 @@ class YoutubePlaylistSyncResponse(BaseModel):
 
 
 class PlaylistSyncTrackResponse(BaseModel):
+    file_format: str | None = None
+    file_size_bytes: int | None = None
     model_config = {"from_attributes": True}
 
     id: int

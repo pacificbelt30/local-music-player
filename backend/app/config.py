@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any, Literal
+from pydantic import Field
 from pydantic.fields import FieldInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict, EnvSettingsSource, DotEnvSettingsSource
 
@@ -26,6 +27,8 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:////home/user/SyncTuneHub/data/music.db"
     redis_url: str = "redis://localhost:6379/0"
+    sync_lock_timeout_seconds: int = Field(default=120, ge=6)
+
     redis_result_backend: str = "redis://localhost:6379/1"
 
     downloads_path: Path = Path("/home/user/SyncTuneHub/downloads")
