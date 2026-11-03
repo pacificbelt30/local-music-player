@@ -44,7 +44,10 @@ def setup_db():
 def patch_session_local():
     # Endpoints that bypass get_db (health, rescan) import SessionLocal directly;
     # patching the module attribute intercepts those runtime imports.
-    with patch.object(app_database, "SessionLocal", TestSessionLocal):
+    # Sync tasks keep an imported alias, which must also be isolated when a
+    # test imports the task module during collection instead of during setup.
+    with patch.object(app_database, "SessionLocal", TestSessionLocal), \
+         patch("app.tasks.sync_playlist.SessionLocal", TestSessionLocal):
         yield
 
 

@@ -1,5 +1,6 @@
 """Celery tasks for YouTube playlist sync."""
 import os
+from uuid import uuid4
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -44,12 +45,12 @@ def _sync_dir_name(db, sync: YoutubePlaylistSync | None, audio_format: str) -> s
 
 
 @celery_app.task(name="app.tasks.sync_playlist.sync_youtube_playlist", bind=True, max_retries=2)
-def sync_youtube_playlist(self, playlist_sync_id: int) -> None:
+def sync_youtube_playlist(self, playlist_sync_id: int, manual: bool = False) -> None:
     """Sync a YouTube playlist: download new tracks, mark removed tracks."""
     db = SessionLocal()
     try:
         sync = db.get(YoutubePlaylistSync, playlist_sync_id)
-        if not sync or not sync.enabled:
+        if not sync or (not sync.enabled and not manual):
             return
 
         if sync.source_type == "url":
@@ -117,7 +118,7 @@ def sync_youtube_playlist(self, playlist_sync_id: int) -> None:
 
         # Dispatch download tasks after commit so workers can find the records
         for track_id in tracks_to_download:
-            download_playlist_sync_track.apply_async(args=[track_id])
+            enqueue_playlist_track(db, db.get(PlaylistSyncTrack, track_id))
 
     except httpx.HTTPStatusError as exc:
         db.rollback()
@@ -159,6 +160,21 @@ def sync_youtube_playlist(self, playlist_sync_id: int) -> None:
         db.close()
 
 
+def enqueue_playlist_track(db, track: PlaylistSyncTrack) -> None:
+    """Persist attempt metadata before a worker can start the download."""
+    track.celery_task_id = str(uuid4())
+    track.started_at = None
+    track.added_at = datetime.now(timezone.utc)
+    db.commit()
+    try:
+        download_playlist_sync_track.apply_async(args=[track.id], task_id=track.celery_task_id)
+    except Exception as exc:
+        track.status = "failed"
+        track.error_message = str(exc)[:500]
+        db.commit()
+        raise
+
+
 @celery_app.task(name="app.tasks.sync_playlist.download_playlist_sync_track", bind=True, max_retries=3)
 def download_playlist_sync_track(self, track_id: int) -> None:
     """Download a single PlaylistSyncTrack using yt-dlp into the playlists directory."""
@@ -194,6 +210,9 @@ def download_playlist_sync_track(self, track_id: int) -> None:
         base_path.mkdir(parents=True, exist_ok=True)
 
         track.status = "downloading"
+        track.started_at = datetime.now(timezone.utc)
+        if self.request.id:
+            track.celery_task_id = self.request.id
         db.commit()
 
         def progress_hook(d: dict) -> None:

@@ -40,22 +40,47 @@ def _mark_stuck_playlist_tracks_failed(db: Session, sync_id: int) -> None:
         PlaylistSyncTrack.status.in_(["pending", "downloading"]),
     ).all()
 
-    changed = False
-    for track in tracks:
-        ref_time = track.added_at
-        if not ref_time:
-            continue
-        ref = ref_time if ref_time.tzinfo else ref_time.replace(tzinfo=timezone.utc)
-        if ref > cutoff:
-            continue
+    from app.tasks.celery_app import celery_app
+    from app.tasks.sync_playlist import _redis
 
-        if track.status == "pending":
-            track.status = "failed"
-            track.error_message = "Track stayed pending too long without starting download."
+    changed = False
+    inspected = False
+    active_tasks = None
+    for track in tracks:
+        # Discovery time says nothing about how long a download has run.
+        reference = track.started_at if track.status == "downloading" else track.added_at
+        if reference is None:
+            continue  # Legacy downloads have no reliable start time.
+        reference = reference if reference.tzinfo else reference.replace(tzinfo=timezone.utc)
+        if now - reference < timedelta(minutes=10):
+            continue
+        reason = None
+        if not track.celery_task_id:
+            if track.status == "pending" and reference <= cutoff:
+                reason = "Track stayed pending too long without starting download."
         else:
+            try:
+                state = celery_app.AsyncResult(track.celery_task_id).state
+                if state in {"FAILURE", "REVOKED"}:
+                    reason = "Playlist download task ended before completion."
+                elif track.status == "downloading" and reference <= cutoff:
+                    if _redis.get(f"pstrack:{track.id}:progress") is not None:
+                        continue
+                    if not inspected:
+                        active_tasks = celery_app.control.inspect(timeout=1).active()
+                        inspected = True
+                    if not active_tasks:
+                        continue
+                    if any(task.get("id") == track.celery_task_id for tasks in active_tasks.values() for task in tasks):
+                        continue
+                    reason = "Download appeared to stall or worker crashed."
+                # A pending task may still be waiting in a long broker queue.
+            except Exception:
+                continue  # An unavailable broker cannot prove a task has stopped.
+        if reason:
             track.status = "failed"
-            track.error_message = "Download appeared to stall or worker crashed."
-        changed = True
+            track.error_message = reason
+            changed = True
 
     if changed:
         db.commit()
@@ -227,6 +252,8 @@ def list_syncs(db: Session = Depends(get_db)):
 
 @router.post("/syncs", response_model=YoutubePlaylistSyncResponse, status_code=201)
 def create_sync(payload: YoutubePlaylistSyncCreate, db: Session = Depends(get_db)):
+    from app.services.download_preferences import apply_download_defaults
+    apply_download_defaults(payload, db)
     if payload.source_type == "url":
         if not payload.source_url:
             raise HTTPException(status_code=422, detail="source_url is required for URL-based sync")
@@ -349,7 +376,7 @@ def run_sync_now(sync_id: int, db: Session = Depends(get_db)):
             raise HTTPException(status_code=401, detail="Not authenticated with YouTube")
 
     from app.tasks.sync_playlist import sync_youtube_playlist
-    sync_youtube_playlist.apply_async(args=[sync.id])
+    sync_youtube_playlist.apply_async(args=[sync.id], kwargs={"manual": True})
     return {"queued": True}
 
 

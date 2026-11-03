@@ -55,6 +55,18 @@ def resolve_url(self, url_source_id: int) -> None:
             # INSERT OR IGNORE semantics: skip if already exists
             existing = db.query(DownloadJob).filter_by(youtube_id=youtube_id).first()
             if existing:
+                # A completed job is not proof that its library file still
+                # exists: users can delete the Track independently.
+                if existing.status == "complete" and db.query(Track).filter_by(youtube_id=youtube_id).first() is None:
+                    existing.status = "pending"
+                    existing.url_source_id = url_source_id
+                    existing.progress_pct = 0.0
+                    existing.error_message = None
+                    existing.started_at = None
+                    existing.finished_at = None
+                    existing.created_at = datetime.now(timezone.utc)
+                    existing.celery_task_id = None
+                    new_jobs.append(existing)
                 continue
 
             job = DownloadJob(

@@ -82,8 +82,8 @@ class TestRequeueSilenceTrimChanged:
             with patch("app.tasks.sync_playlist.download_playlist_sync_track.apply_async") as mock_task:
                 requeue_silence_trim_changed.apply()
 
-        mock_task.assert_called_once_with(args=[track_id])
         refreshed = db.get(PlaylistSyncTrack, track_id)
+        mock_task.assert_called_once_with(args=[track_id], task_id=refreshed.celery_task_id)
         assert refreshed.status == "pending"
 
     def test_skips_video_sync_track(self, db):

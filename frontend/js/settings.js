@@ -1,6 +1,8 @@
 import { api } from "./api.js";
+import { loadDownloadPreferences, saveDownloadPreferences } from "./download-preferences.js";
 
 export function initSettings() {
+  initDownloadPreferenceSettings();
   const modal = document.getElementById("settings-modal");
   const openBtn = document.getElementById("settings-badge");
   const closeEls = modal.querySelectorAll("[data-close-settings-modal]");
@@ -100,6 +102,60 @@ export function initSettings() {
       err.textContent = e2.message;
     }
   });
+}
+
+export function initDownloadPreferenceSettings() {
+  const form = document.getElementById("download-preferences-form");
+  if (!form) return;
+  const status = document.getElementById("download-preferences-status");
+  const retry = document.getElementById("download-preferences-retry");
+  const fields = ["default_audio_format", "default_audio_quality", "account_playlist_method"];
+  const field = name => form.elements.namedItem(name);
+  const submit = form.querySelector('[type="submit"]');
+  const qualityState = () => {field("default_audio_quality").disabled = ["mp4", "webm"].includes(field("default_audio_format").value);};
+  const busy = pending => {
+    for (const name of fields) field(name).disabled = pending;
+    submit.disabled = pending;
+    retry.disabled = pending;
+    form.setAttribute("aria-busy", String(pending));
+    if (!pending) qualityState();
+  };
+  const fill = values => {for (const name of fields) field(name).value = values[name];};
+  async function load() {
+    busy(true);
+    status.classList.remove("error-msg");
+    status.textContent = "設定を読み込み中…";
+    try {
+      fill(await loadDownloadPreferences(true));
+      retry.hidden = true;
+      status.textContent = "";
+      busy(false);
+    } catch (error) {
+      status.textContent = "設定の取得に失敗しました: " + error.message;
+      status.classList.add("error-msg");
+      retry.hidden = false;
+      retry.disabled = false;
+      form.setAttribute("aria-busy", "false");
+    }
+  }
+  field("default_audio_format").addEventListener("change", qualityState);
+  retry.addEventListener("click", load);
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (submit.disabled) return;
+    const values = Object.fromEntries(fields.map(name => [name, field(name).value]));
+    busy(true);
+    status.classList.remove("error-msg");
+    status.textContent = "保存中…";
+    try {
+      fill(await saveDownloadPreferences(values));
+      status.textContent = "保存しました。次に追加する同期・ダウンロードから適用します。";
+    } catch (error) {
+      status.textContent = "保存に失敗しました: " + error.message;
+      status.classList.add("error-msg");
+    } finally { busy(false); }
+  });
+  load();
 }
 
 async function loadSettings() {

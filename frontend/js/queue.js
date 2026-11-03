@@ -1,9 +1,13 @@
 import { api, subscribeQueueEvents } from "./api.js";
+import { bindMediaDefaults, loadDownloadPreferences } from "./download-preferences.js";
 
 let jobs = [];
 let es = null;
+let jobListRequest = 0;
 
 export function initQueue() {
+  const form = document.getElementById("add-url-form");
+  bindMediaDefaults(form.elements.namedItem("audio_format"), form.elements.namedItem("audio_quality"), document.getElementById("download-media-summary"), document.getElementById("url-error"));
   renderUrlList();
   renderJobList();
   startSSE();
@@ -13,15 +17,16 @@ export function initQueue() {
 async function handleAddUrl(e) {
   e.preventDefault();
   const form = e.target;
-  const url = form.url.value.trim();
-  const audio_format = form.audio_format.value;
-  const audio_quality = form.audio_quality.value;
+  const url = form.elements.namedItem("url").value.trim();
   const errEl = document.getElementById("url-error");
   errEl.textContent = "";
 
   try {
+    await loadDownloadPreferences();
+    const audio_format = form.elements.namedItem("audio_format").value;
+    const audio_quality = form.elements.namedItem("audio_quality").value;
     await api.addUrl({ url, audio_format, audio_quality, sync_enabled: true });
-    form.url.value = "";
+    form.elements.namedItem("url").value = "";
     renderUrlList();
     renderJobList();
   } catch (err) {
@@ -59,8 +64,11 @@ async function renderUrlList() {
 
 async function renderJobList() {
   const container = document.getElementById("job-list");
+  const request = ++jobListRequest;
   try {
-    jobs = await api.listQueue("pending,downloading,failed");
+    const result = await api.listQueue("pending,downloading,failed");
+    if (request !== jobListRequest) return;
+    jobs = result;
     renderJobs(container, jobs);
   } catch {}
 }
@@ -107,6 +115,7 @@ function bindJobActions(container) {
 
 function startSSE() {
   if (es) es.close();
+  let refreshing = false;
   es = subscribeQueueEvents((events) => {
     const container = document.getElementById("job-list");
     for (const ev of events) {
@@ -117,9 +126,14 @@ function startSSE() {
         el.querySelector(".progress-fill").style.width = `${ev.progress_pct}%`;
       }
     }
-    // Refresh list if any job completed/failed
-    if (events.some((e) => e.status === "complete" || e.status === "failed")) {
-      setTimeout(() => renderJobList(), 500);
+    // The server sends a snapshot of active jobs, excluding finished jobs.
+    const activeIds = new Set(events.map(event => event.job_id));
+    const changed = events.some(event => !jobs.some(job => job.id === event.job_id))
+      || jobs.some(job => ["pending", "downloading"].includes(job.status) && !activeIds.has(job.id))
+      || events.some(event => ["complete", "failed"].includes(event.status));
+    if (changed && !refreshing) {
+      refreshing = true;
+      renderJobList().finally(() => { refreshing = false; });
     }
   });
 }
