@@ -1,12 +1,15 @@
 import asyncio
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import AsyncGenerator
 
 import redis as redis_lib
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from sqlalchemy import case
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.config import settings
 from app.database import get_db
@@ -19,11 +22,15 @@ _redis = redis_lib.from_url(settings.redis_url, decode_responses=True)
 _STUCK_PENDING_TIMEOUT = timedelta(minutes=10)
 _HARD_PENDING_TIMEOUT = timedelta(hours=2)
 _TERMINAL_TASK_STATES = {"FAILURE", "REVOKED"}
+_ACTIVE_STATUSES = ("pending", "downloading")
+_QUEUE_LIMIT = 200
+_RECOVERY_INTERVAL = 30
+logger = logging.getLogger(__name__)
 
 
 def _mark_stuck_jobs_failed(db: Session) -> None:
     _mark_stuck_downloads_failed(db)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     cutoff = now - _STUCK_PENDING_TIMEOUT
     pending_jobs = db.query(DownloadJob).filter(DownloadJob.status == "pending").all()
 
@@ -32,7 +39,8 @@ def _mark_stuck_jobs_failed(db: Session) -> None:
         if not job.celery_task_id:
             continue
 
-        if job.created_at and job.created_at > cutoff:
+        created = job.created_at.replace(tzinfo=None) if job.created_at else None
+        if created and created > cutoff:
             continue
 
         from app.tasks.celery_app import celery_app
@@ -47,7 +55,7 @@ def _mark_stuck_jobs_failed(db: Session) -> None:
 
         hard_cutoff = now - _HARD_PENDING_TIMEOUT
         has_progress = _redis.get(f"job:{job.id}:progress") is not None
-        if job.created_at and job.created_at <= hard_cutoff and not has_progress:
+        if created and created <= hard_cutoff and not has_progress:
             job.status = "failed"
             job.error_message = "Task stayed pending too long without progress updates."
             job.finished_at = now
@@ -108,37 +116,52 @@ def list_queue(status: str | None = None, db: Session = Depends(get_db)):
     if status:
         statuses = [s.strip() for s in status.split(",")]
         q = q.filter(DownloadJob.status.in_(statuses))
-    return q.order_by(DownloadJob.created_at.desc()).limit(200).all()
+    return q.order_by(
+        case((DownloadJob.status.in_(_ACTIVE_STATUSES), 0), else_=1),
+        DownloadJob.created_at.desc(), DownloadJob.id.desc(),
+    ).limit(_QUEUE_LIMIT).all()
+
+
+def _queue_snapshot(recover: bool = False) -> list[dict]:
+    # All blocking database/Redis/Celery work and the session stay in one worker
+    # thread. A long-lived stream never holds a database connection between ticks.
+    from app.database import SessionLocal
+
+    with SessionLocal() as db:
+        if recover:
+            try:
+                _mark_stuck_jobs_failed(db)
+            except Exception:
+                db.rollback()
+                logger.warning("Queue recovery check unavailable", exc_info=True)
+        active_jobs = db.query(DownloadJob).filter(
+            DownloadJob.status.in_(_ACTIVE_STATUSES)
+        ).order_by(DownloadJob.created_at.desc(), DownloadJob.id.desc()).limit(_QUEUE_LIMIT).all()
+        progress = _redis.mget([f"job:{job.id}:progress" for job in active_jobs]) if active_jobs else []
+        return [{
+            "job_id": job.id,
+            "youtube_id": job.youtube_id,
+            "status": job.status,
+            "progress_pct": float(pct) if pct is not None else job.progress_pct,
+        } for job, pct in zip(active_jobs, progress)]
 
 
 @router.get("/events")
-async def queue_events(db: Session = Depends(get_db)):
+async def queue_events():
     async def event_stream() -> AsyncGenerator[str, None]:
+        next_recovery = 0
+        loop = asyncio.get_running_loop()
         while True:
-            session = next(get_db())
-            try:
-                _mark_stuck_jobs_failed(session)
-                active_jobs = session.query(DownloadJob).filter(
-                    DownloadJob.status.in_(["pending", "downloading"])
-                ).all()
-
-                events = []
-                for job in active_jobs:
-                    pct = _redis.get(f"job:{job.id}:progress")
-                    events.append({
-                        "job_id": job.id,
-                        "youtube_id": job.youtube_id,
-                        "status": job.status,
-                        "progress_pct": float(pct) if pct else job.progress_pct,
-                    })
-
-                yield f"data: {json.dumps(events)}\n\n"
-            finally:
-                session.close()
-
+            recover = loop.time() >= next_recovery
+            events = await run_in_threadpool(_queue_snapshot, recover=recover)
+            if recover:
+                next_recovery = loop.time() + _RECOVERY_INTERVAL
+            yield f"data: {json.dumps(events)}\n\n"
             await asyncio.sleep(1)
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(event_stream(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache", "X-Accel-Buffering": "no",
+    })
 
 
 @router.delete("/{job_id}", status_code=204)

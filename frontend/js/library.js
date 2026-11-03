@@ -8,10 +8,27 @@ let currentParams = {};
 let hasMore = false;
 let listGeneration = 0;
 let loadingMore = false;
+let displayedGeneration = 0;
+let controller;
+const deleting = new Set();
+
+function feedback(message = "", retry) {
+  const notice = document.getElementById("library-status");
+  notice.replaceChildren(document.createTextNode(message));
+  if (retry) {
+    const button = document.createElement("button");
+    button.className = "btn btn-ghost";
+    button.textContent = "再試行";
+    button.addEventListener("click", retry);
+    notice.appendChild(button);
+  }
+}
 
 export function initLibrary() {
   loadTracks();
-  document.getElementById("search-input").addEventListener("input", debounce(onSearch, 300));
+  document
+    .getElementById("search-input")
+    .addEventListener("input", debounce(onSearch, 300));
 }
 
 async function loadTracks(params = {}, append = false) {
@@ -20,37 +37,60 @@ async function loadTracks(params = {}, append = false) {
   if (!append) {
     listGeneration++;
     loadingMore = false;
-    container.innerHTML = '<div class="empty-state">読込中…</div>';
-    tracks = [];
-    currentOffset = 0;
+    controller?.abort();
+    if (!tracks.length)
+      container.innerHTML = '<div class="empty-state">読込中…</div>';
     currentParams = params;
   }
+  controller = new AbortController();
   const generation = listGeneration;
-  const offset = currentOffset;
+  const offset = append ? currentOffset : 0;
   if (append) loadingMore = true;
+  container.setAttribute("aria-busy", "true");
+  feedback(append ? "続きを読み込み中…" : "ファイルを検索中…");
+  const more = container.querySelector(".load-more-btn");
+  if (more) more.disabled = true;
 
   try {
-    const page = await api.listTracks({ limit: PAGE_SIZE, offset, ...currentParams });
+    const page = await api.listTracks(
+      { limit: PAGE_SIZE, offset, ...currentParams },
+      { signal: controller.signal },
+    );
     if (generation !== listGeneration) return;
     hasMore = page.length === PAGE_SIZE;
-    currentOffset += page.length;
+    currentOffset = offset + page.length;
     if (append) {
       appendTracks(page, container);
     } else {
       tracks = page;
+      displayedGeneration = generation;
       renderAll(container);
     }
-  } catch {
+    feedback();
+  } catch (error) {
     if (generation !== listGeneration) return;
-    if (!append) container.innerHTML = '<div class="empty-state">ファイルの取得に失敗しました</div>';
+    feedback(`ファイルの取得に失敗しました: ${error.message}`, () =>
+      loadTracks(currentParams, append),
+    );
+    if (!tracks.length) container.replaceChildren();
   } finally {
-    if (generation === listGeneration && append) loadingMore = false;
+    if (generation === listGeneration) {
+      loadingMore = false;
+      container.removeAttribute("aria-busy");
+      const button = container.querySelector(".load-more-btn");
+      if (button) button.disabled = displayedGeneration !== listGeneration;
+    }
   }
 }
 
 function renderAll(container) {
   if (!tracks.length) {
-    container.innerHTML = '<div class="empty-state">保存済みのファイルはありません。ダウンロードからURLを追加できます。</div>';
+    container.innerHTML = hasMore
+      ? '<div class="empty-state">表示中のファイルを削除しました。続きのファイルを読み込めます。</div>'
+      : currentParams.search
+        ? '<div class="empty-state">検索条件に一致するファイルはありません</div>'
+        : '<div class="empty-state">保存済みのファイルはありません。ダウンロードからURLを追加できます。</div>';
+    renderLoadMore(container);
     return;
   }
   container.innerHTML = "";
@@ -62,6 +102,7 @@ function renderAll(container) {
 }
 
 function appendTracks(newTracks, container) {
+  if (newTracks.length) container.querySelector(".empty-state")?.remove();
   const btn = container.querySelector(".load-more-btn");
   if (btn) btn.remove();
   const startIndex = tracks.length;
@@ -109,7 +150,9 @@ function buildItem(t, index) {
     </div>
   `;
 
-  item.querySelector(".preview-track").addEventListener("click", () => player.play([t], 0));
+  item
+    .querySelector(".preview-track")
+    .addEventListener("click", () => player.play([t], 0));
 
   return item;
 }
@@ -122,9 +165,12 @@ function bindDeleteButtons(container) {
     const notice = row.querySelector(".track-delete-feedback");
     const message = notice.querySelector(".track-delete-message");
     const retry = notice.querySelector("button");
+    const id = Number(btn.dataset.id);
+    btn.disabled = deleting.has(id);
     const remove = async (event) => {
       event.stopPropagation();
-      if (btn.disabled || !confirm("このファイルを削除しますか？")) return;
+      if (deleting.has(id) || !confirm("このファイルを削除しますか？")) return;
+      deleting.add(id);
       btn.disabled = retry.disabled = true;
       row.setAttribute("aria-busy", "true");
       notice.hidden = false;
@@ -132,15 +178,53 @@ function bindDeleteButtons(container) {
       message.textContent = "削除中…";
       retry.hidden = true;
       try {
-        await api.deleteTrack(Number(btn.dataset.id), true);
-        await loadTracks(currentParams);
+        await api.deleteTrack(id, true);
+        const removedRow = container.querySelector(`[data-track-id="${id}"]`);
+        if (!removedRow) return;
+        const searchPending =
+          displayedGeneration !== listGeneration &&
+          container.hasAttribute("aria-busy");
+        tracks = tracks.filter((track) => track.id !== id);
+        // A concurrent page was requested against the old offset. Discard it
+        // and keep the next request aligned with the deleted row.
+        if (displayedGeneration === listGeneration) {
+          listGeneration++;
+          displayedGeneration = listGeneration;
+          controller?.abort();
+          loadingMore = false;
+          currentOffset = Math.max(0, currentOffset - 1);
+          container.removeAttribute("aria-busy");
+          feedback();
+        }
+        const focused = removedRow.contains(document.activeElement);
+        const next =
+          removedRow.nextElementSibling?.querySelector("button") ||
+          removedRow.previousElementSibling?.querySelector("button");
+        removedRow.remove();
+        if (!tracks.length) renderAll(container);
+        const more = container.querySelector(".load-more-btn");
+        if (more) more.disabled = displayedGeneration !== listGeneration;
+        if (focused)
+          (next || document.getElementById("search-input")).focus({
+            preventScroll: true,
+          });
+        if (searchPending) loadTracks(currentParams);
       } catch (error) {
-        message.textContent = "削除に失敗しました: " + error.message;
-        notice.classList.add("error-msg");
-        retry.hidden = false;
+        const currentNotice =
+          container.querySelector(
+            `[data-track-id="${id}"] .track-delete-feedback`,
+          ) || notice;
+        currentNotice.hidden = false;
+        currentNotice.querySelector(".track-delete-message").textContent =
+          "削除に失敗しました: " + error.message;
+        currentNotice.classList.add("error-msg");
+        currentNotice.querySelector("button").hidden = false;
       } finally {
+        deleting.delete(id);
         btn.disabled = retry.disabled = false;
         row.removeAttribute("aria-busy");
+        const current = container.querySelector(`[data-track-id="${id}"]`);
+        if (current) current.querySelector(".delete-track").disabled = false;
       }
     };
     btn.addEventListener("click", remove);
@@ -155,17 +239,28 @@ function onSearch(e) {
 function fmt(secs) {
   if (!secs) return "";
   const m = Math.floor(secs / 60);
-  const s = Math.floor(secs % 60).toString().padStart(2, "0");
+  const s = Math.floor(secs % 60)
+    .toString()
+    .padStart(2, "0");
   return `${m}:${s}`;
 }
 
 function debounce(fn, delay) {
   let t;
-  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); };
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), delay);
+  };
 }
 
 function escHtml(str) {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  return String(str).replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ],
+  );
 }
 
 export function refreshLibrary() {

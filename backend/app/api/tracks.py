@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -24,8 +24,8 @@ def list_tracks(
     search: str | None = None,
     artist: str | None = None,
     sort: str = "added_at",
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
     q = db.query(Track)
@@ -34,8 +34,12 @@ def list_tracks(
     if artist:
         q = q.filter(Track.artist.ilike(f"%{artist}%"))
 
-    sort_col = getattr(Track, sort, Track.added_at)
-    q = q.order_by(sort_col.desc())
+    sort_col = {
+        "added_at": Track.added_at, "title": Track.title, "artist": Track.artist,
+        "duration_secs": Track.duration_secs, "file_size_bytes": Track.file_size_bytes,
+        "id": Track.id,
+    }.get(sort, Track.added_at)
+    q = q.order_by(sort_col.desc(), Track.id.desc())
 
     tracks = q.limit(limit).offset(offset).all()
     return [_track_to_response(t, request) for t in tracks]

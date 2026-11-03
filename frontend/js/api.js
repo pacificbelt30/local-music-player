@@ -1,7 +1,8 @@
 const BASE = "/api/v1";
 
-async function request(method, path, body) {
+async function request(method, path, body, signal) {
   const opts = { method, headers: {} };
+  if (signal) opts.signal = signal;
   if (body !== undefined) {
     opts.headers["Content-Type"] = "application/json";
     opts.body = JSON.stringify(body);
@@ -29,9 +30,9 @@ export const api = {
   retryJob: (id) => request("POST", `/queue/${id}/retry`),
 
   // Tracks
-  listTracks: (params = {}) => {
+  listTracks: (params = {}, { signal } = {}) => {
     const q = new URLSearchParams(params).toString();
-    return request("GET", "/tracks" + (q ? "?" + q : ""));
+    return request("GET", "/tracks" + (q ? "?" + q : ""), undefined, signal);
   },
   updateTrack: (id, data) => request("PATCH", `/tracks/${id}`, data),
   deleteTrack: (id, deleteFile = false) => request("DELETE", `/tracks/${id}?delete_file=${deleteFile}`),

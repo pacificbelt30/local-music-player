@@ -3,10 +3,10 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import aiofiles
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, RedirectResponse
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -238,10 +238,24 @@ def change_playlist_privacy(
 
 # ── Sync configs ──────────────────────────────────────────────────────────────
 
-def _build_sync_response(sync: YoutubePlaylistSync, db: Session) -> YoutubePlaylistSyncResponse:
-    tracks = db.query(PlaylistSyncTrack).filter_by(playlist_sync_id=sync.id).all()
-    track_count = len([t for t in tracks if t.status != "removed"])
-    downloaded_count = len([t for t in tracks if t.status == "complete"])
+def _sync_track_counts(db: Session, sync_ids: list[int]) -> dict[int, tuple[int, int]]:
+    if not sync_ids:
+        return {}
+    rows = db.query(
+        PlaylistSyncTrack.playlist_sync_id,
+        func.count(PlaylistSyncTrack.id),
+        func.sum(case((PlaylistSyncTrack.status == "complete", 1), else_=0)),
+    ).filter(
+        PlaylistSyncTrack.playlist_sync_id.in_(sync_ids),
+        PlaylistSyncTrack.status != "removed",
+    ).group_by(PlaylistSyncTrack.playlist_sync_id).all()
+    return {sync_id: (total, complete) for sync_id, total, complete in rows}
+
+
+def _build_sync_response(sync: YoutubePlaylistSync, db: Session, counts=None) -> YoutubePlaylistSyncResponse:
+    if counts is None:
+        counts = _sync_track_counts(db, [sync.id]).get(sync.id, (0, 0))
+    track_count, downloaded_count = counts
     r = YoutubePlaylistSyncResponse.model_validate(sync)
     r.track_count = track_count
     r.downloaded_count = downloaded_count
@@ -251,7 +265,8 @@ def _build_sync_response(sync: YoutubePlaylistSync, db: Session) -> YoutubePlayl
 @router.get("/syncs", response_model=list[YoutubePlaylistSyncResponse])
 def list_syncs(db: Session = Depends(get_db)):
     syncs = db.query(YoutubePlaylistSync).order_by(YoutubePlaylistSync.created_at.desc()).all()
-    return [_build_sync_response(s, db) for s in syncs]
+    counts = _sync_track_counts(db, [sync.id for sync in syncs])
+    return [_build_sync_response(s, db, counts.get(s.id, (0, 0))) for s in syncs]
 
 
 @router.post("/syncs", response_model=YoutubePlaylistSyncResponse, status_code=201)

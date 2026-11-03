@@ -175,3 +175,23 @@ def test_batch_profile_history_and_retained_restore_through_real_api(stack):
     assert len(list(directory.glob('*.m4a')))==2 # Previous formats are retained.
     assert len(list(directory.glob('*.flac')))==2
     assert stack.request('GET',f'/workspace/syncs/{sync["id"]}/history')['events'][0]['kind']=='profile'
+
+
+def test_progress_stream_does_not_hold_other_api_requests_while_redis_waits(stack):
+    code = "from app.database import SessionLocal; from app.models import DownloadJob; from app.api.queue import _redis; s=SessionLocal(); jobs=[DownloadJob(youtube_id=f'perf-stream-{i}',status='pending') for i in range(20)]; s.add_all(jobs); s.commit(); _redis.mset({f'job:{j.id}:progress':'45' for j in jobs}); s.close()"
+    stack.docker('exec',stack.name+'-api','python','-c',code)
+    opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open(f'http://127.0.0.1:{stack.port}/api/v1/queue/events',timeout=10) as stream:
+        assert stream.headers['X-Accel-Buffering']=='no'
+        events=json.loads(stream.readline().decode().removeprefix('data: '))
+        selected=[event for event in events if event['youtube_id'].startswith('perf-stream-')]
+        assert len(selected)==20 and all(event['progress_pct']==45 for event in selected)
+        stream.readline() # SSE blank separator
+        stack.docker('exec',stack.name+'-redis','redis-cli','CLIENT','PAUSE','5000','ALL')
+        time.sleep(1.3) # The next SSE tick is now waiting for Redis.
+        started=time.monotonic()
+        assert isinstance(stack.request('GET','/youtube/syncs'),list)
+        elapsed=time.monotonic()-started
+        assert elapsed<2, f'API blocked by progress stream for {elapsed:.2f}s'
+        assert stream.readline().startswith(b'data: ')
+    stack.docker('exec',stack.name+'-api','python','-c',"from app.database import SessionLocal; from app.models import DownloadJob; s=SessionLocal(); s.query(DownloadJob).filter(DownloadJob.youtube_id.like('perf-stream-%')).delete(synchronize_session=False); s.commit(); s.close()")

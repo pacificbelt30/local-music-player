@@ -57,9 +57,12 @@
     </form></details>
 
     <div class="section-title" style="margin-top:18px">登録済みのURL</div>
+    <div id="url-list-status" class="yt-list-feedback" role="status" aria-live="polite"></div>
     <div class="url-list" id="url-list"><div class="empty-state">登録済みのURLはありません</div></div>
 
     <div class="section-title" style="margin-top:18px">ダウンロードキュー</div>
+    <div id="queue-connection-status" class="yt-list-feedback" role="status" aria-live="polite"></div>
+    <div id="queue-status" class="yt-list-feedback" role="status" aria-live="polite"></div>
     <div class="queue-list" id="job-list"><div class="empty-state">処理中のダウンロードはありません</div></div>
 
   </div>
@@ -106,6 +109,7 @@
     <div class="library-toolbar">
       <input type="search" id="search-input" placeholder="タイトル・アーティストで検索">
     </div>
+    <div id="library-status" class="yt-list-feedback" role="status" aria-live="polite"></div>
 
     <div class="track-grid" id="track-grid">
       <div class="empty-state">保存済みのファイルはありません</div>

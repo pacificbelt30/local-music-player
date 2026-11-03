@@ -257,6 +257,8 @@ header h1 {
 
 .job-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .job-title { font-size: 0.8rem; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.job-error:empty, .row-action-feedback:empty { display: none; }
+.job-error, .row-action-feedback { overflow-wrap: anywhere; }
 
 .status-badge {
   font-size: 0.65rem;
@@ -1544,3 +1546,11 @@ input,select,textarea { font-size:13px; border-radius:5px; box-shadow:none; }
   .delivery-state.is-ready { color:#82d49d; }
 }
 .intake-box,.profile-editor,.profile-settings,.profile-apply { scroll-margin-top:88px; }
+
+/* Queue feedback stays readable in either color scheme. */
+.job-item, .url-item { --queue-error:#ff9c9c; }
+.job-item .job-error, .job-item .row-action-feedback, .url-item .row-action-feedback, .job-item .status-failed { color:var(--queue-error); }
+.job-item .status-downloading { color:var(--accent); background:var(--accent-dim); border-color:var(--border); }
+@media (prefers-color-scheme:light) {
+  .job-item, .url-item { --queue-error:#b43d40; }
+}
