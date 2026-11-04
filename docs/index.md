@@ -28,6 +28,10 @@ graph LR
 
 ---
 
+## 機能の仕様案
+
+[チャートとプレイリスト推薦](specifications/music-discovery.md) — 取得元、推薦方式、画面、実装段階と検証条件。
+
 ## クイックスタート
 
 === "Docker（推奨）"

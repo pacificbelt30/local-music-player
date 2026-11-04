@@ -65,6 +65,8 @@ nav:
       - Syncthing モバイル設定（iPhone / Android）: setup/syncthing-mobile.md
       - Android クライアント設定: android-client.md
   - 今後の課題: future-work.md
+  - 機能の仕様案:
+      - チャートとプレイリスト推薦: specifications/music-discovery.md
   - アーキテクチャ:
       - システム概要: architecture/overview.md
       - データフロー: architecture/data-flow.md
