@@ -37,7 +37,11 @@ class Stack:
         for part in ('data','downloads','fixtures'):(directory/part).mkdir()
         self.docker('network','create',self.name)
     def docker(self,*args):
-        return subprocess.check_output(['docker','--host=unix:///var/run/docker.sock',*args],env=self.env,text=True,stderr=subprocess.PIPE).strip()
+        try:
+            return subprocess.check_output(['docker','--host=unix:///var/run/docker.sock',*args],env=self.env,text=True,stderr=subprocess.PIPE).strip()
+        except subprocess.CalledProcessError as exc:
+            exc.add_note(exc.stderr.strip())
+            raise
     def run(self,node,*args):
         name=self.name+'-'+node
         if name not in self.names:self.names.append(name)
@@ -140,6 +144,40 @@ def test_api_and_worker_recreation_preserve_settings_and_recover_interrupted_dow
     wait(lambda:stack.tracks(sync)[0]['status']=='complete')
     assert stack.starts('restart')==2
     assert len(list((stack.root/'downloads'/'PLrestart').glob('*.mp3')))==1
+
+
+def test_discovery_keys_survive_container_recreation_without_plaintext_or_outbound_calls(stack):
+    for provider in ('youtube', 'lastfm'):
+        result = stack.request('PATCH', '/discovery/config/' + provider, {
+            'api_key': 'fixture-only-key-' + provider, 'enabled': True, 'region': 'JP',
+        })
+        assert result['api_key_set'] and result['enabled']
+        assert 'fixture-only-key' not in json.dumps(result)
+    master = stack.root / 'data' / '.discovery-key'
+    before = master.stat()
+    assert master.stat().st_mode & 0o777 == 0o600
+    stack.restart('api')
+    after = master.stat()
+    assert (after.st_ino, after.st_mtime_ns, after.st_size) == (before.st_ino, before.st_mtime_ns, before.st_size)
+    config = stack.request('GET', '/discovery/config')
+    assert all(value['api_key_set'] and value['enabled'] for value in config.values())
+    assert 'fixture-only-key' not in json.dumps(config)
+    code = """
+from app.database import SessionLocal
+from app.models import AppSetting
+from app.services.discovery_config import api_key, read_config
+with SessionLocal() as db:
+    for provider in ('youtube', 'lastfm'):
+        assert api_key(read_config(db, provider)) == 'fixture-only-key-' + provider
+    assert all('fixture-only-key' not in row.value for row in db.query(AppSetting))
+    assert not db.query(AppSetting).filter(AppSetting.key.like('discovery:usage:%')).count()
+print('persisted and encrypted')
+"""
+    assert stack.docker('exec', stack.name + '-api', 'python', '-c', code) == 'persisted and encrypted'
+    for provider in ('youtube', 'lastfm'):
+        result = stack.request('PATCH', '/discovery/config/' + provider, {'clear_key': True})
+        assert not result['enabled'] and not result['api_key_set']
+        assert stack.request('GET', '/discovery/popular/' + provider)['state'] == 'disabled'
 
 
 def test_delete_during_download_does_not_resurrect_files_or_rows(stack):

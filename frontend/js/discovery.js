@@ -1,0 +1,535 @@
+import { api } from "./api.js";
+
+const providers = ["youtube", "lastfm"];
+const names = { youtube: "YouTube Data API", lastfm: "Last.fm" };
+const countries = { JP: "日本", US: "米国", GB: "英国" };
+const owners = new WeakMap();
+const call = (method, path, body, signal) =>
+  api.discovery(method, path, body, signal);
+const el = (tag, className = "", text = "") => {
+  const node = document.createElement(tag);
+  node.className = className;
+  node.textContent = text;
+  return node;
+};
+function state() {
+  if (!owners.has(document))
+    owners.set(document, {
+      config: null,
+      pending: null,
+      forms: new Map(),
+      panels: new Map(),
+      sequences: new Map(),
+      controllers: new Map(),
+      dirty: true,
+    });
+  return owners.get(document);
+}
+function message(host, text = "", error = false, retry) {
+  host.replaceChildren(document.createTextNode(text));
+  host.classList.toggle("error-msg", error);
+  if (retry) {
+    const button = el("button", "btn btn-ghost", "再試行");
+    button.type = "button";
+    button.addEventListener("click", retry);
+    host.append(button);
+  }
+}
+async function config(reload = false) {
+  const s = state();
+  if (s.pending) return s.pending;
+  if (s.config && !reload) return s.config;
+  s.pending = call("GET", "/config")
+    .then((value) => {
+      if (
+        !providers.every(
+          (p) => value[p] && typeof value[p].enabled === "boolean",
+        )
+      )
+        throw Error("連携設定を読み取れませんでした");
+      s.config = value;
+      return value;
+    })
+    .finally(() => {
+      s.pending = null;
+    });
+  return s.pending;
+}
+function configured(value) {
+  return Boolean(value?.enabled && value?.api_key_set);
+}
+function changed(provider, value) {
+  const s = state();
+  if (s.config) s.config[provider] = value;
+  document.dispatchEvent(
+    new document.defaultView.CustomEvent("discovery-config-changed", {
+      detail: { provider },
+    }),
+  );
+}
+
+export function initDiscoverySettings() {
+  const s = state(),
+    container = document.getElementById("discovery-provider-settings");
+  for (const provider of providers) {
+    const form = document.createElement("form");
+    form.className = "discovery-config-form";
+    form.dataset.provider = provider;
+    form.innerHTML =
+      '<div class="discovery-provider-heading"><h3></h3><span class="discovery-key-state"></span></div><p class="muted-hint provider-description"></p><label class="discovery-enable"><input type="checkbox" name="enabled">この連携を有効にする</label><div class="preference-fields"><label class="syncthing-field"><span>APIキー</span><input type="password" name="api_key" maxlength="512" autocomplete="new-password" autocapitalize="off" spellcheck="false" placeholder="APIキーを入力"></label><label class="syncthing-field"><span>人気情報の地域</span><select name="region"><option value="JP">日本</option><option value="US">米国</option><option value="GB">英国</option></select></label></div><div class="discovery-config-actions"><button type="submit" class="btn btn-primary">保存</button><button type="button" class="btn btn-ghost discovery-test">接続確認</button><button type="button" class="btn btn-ghost discovery-clear">キーを削除</button><a class="text-button provider-key-link" target="_blank" rel="noopener noreferrer">キーの取得先 ↗</a></div><div class="discovery-feedback" role="status" aria-live="polite"></div>';
+    form.querySelector("h3").textContent = names[provider];
+    form.querySelector(".provider-description").textContent =
+      provider === "youtube"
+        ? "地域別の人気音楽動画を取得します。YouTube Data API v3を有効にしたAPIキーを指定してください。OAuthは不要です。"
+        : "国別人気曲と類似曲を調べます。Last.fmのAPIキーを指定してください。利用者のLast.fmログインは不要です。";
+    form.querySelector(".provider-key-link").href =
+      provider === "youtube"
+        ? "https://console.cloud.google.com/apis/credentials"
+        : "https://www.last.fm/api/account/create";
+    const feedback = form.querySelector("[role=status]");
+    const entry = { form, feedback, busy: false, value: null };
+    s.forms.set(provider, entry);
+    const busy = (value) => {
+      entry.busy = value;
+      form.setAttribute("aria-busy", String(value));
+      for (const control of form.querySelectorAll("input,select,button"))
+        control.disabled = value;
+      if (!value) {
+        form.querySelector(".discovery-test").disabled =
+          !entry.value?.api_key_set;
+        form.querySelector(".discovery-clear").disabled =
+          !entry.value?.api_key_set;
+      }
+    };
+    entry.busyState = busy;
+    entry.fill = (value) => {
+      entry.value = value;
+      form.elements.namedItem("enabled").checked = value.enabled;
+      form.elements.namedItem("region").value = value.region;
+      form.querySelector(".discovery-key-state").textContent = value.api_key_set
+        ? "キー設定済み"
+        : "キー未設定";
+      form.elements.namedItem("api_key").placeholder = value.api_key_set
+        ? "空欄なら保存済みのキーを保持"
+        : "APIキーを入力";
+    };
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (entry.busy) return;
+      busy(true);
+      message(feedback, "保存中…");
+      try {
+        const input = form.elements.namedItem("api_key");
+        const payload = {
+          enabled: form.elements.namedItem("enabled").checked,
+          region: form.elements.namedItem("region").value,
+        };
+        if (input.value.trim()) payload.api_key = input.value.trim();
+        const value = await call("PATCH", "/config/" + provider, payload);
+        input.value = "";
+        entry.fill(value);
+        changed(provider, value);
+        message(
+          feedback,
+          "保存しました。" +
+            (value.enabled
+              ? "「見つける」で利用できます。"
+              : "連携は無効です。"),
+        );
+      } catch (error) {
+        message(feedback, "保存に失敗しました: " + error.message, true);
+      } finally {
+        busy(false);
+      }
+    });
+    form
+      .querySelector(".discovery-test")
+      .addEventListener("click", async () => {
+        if (entry.busy) return;
+        busy(true);
+        message(feedback, "保存済みのキーで確認中…");
+        try {
+          const result = await call("POST", "/config/" + provider + "/test");
+          message(feedback, result.message, result.state !== "ready");
+        } catch (error) {
+          message(feedback, "確認に失敗しました: " + error.message, true);
+        } finally {
+          busy(false);
+        }
+      });
+    form
+      .querySelector(".discovery-clear")
+      .addEventListener("click", async () => {
+        if (
+          entry.busy ||
+          !window.confirm(
+            names[provider] + "のAPIキーを削除し、連携を無効にしますか？",
+          )
+        )
+          return;
+        busy(true);
+        message(feedback, "キーを削除中…");
+        try {
+          const value = await call("PATCH", "/config/" + provider, {
+            clear_key: true,
+          });
+          form.elements.namedItem("api_key").value = "";
+          entry.fill(value);
+          changed(provider, value);
+          message(feedback, "キーを削除し、連携を無効にしました。");
+        } catch (error) {
+          message(feedback, "削除に失敗しました: " + error.message, true);
+        } finally {
+          busy(false);
+        }
+      });
+    busy(true);
+    container.append(form);
+  }
+  async function load() {
+    for (const entry of s.forms.values()) entry.busyState(true);
+    const status = document.getElementById("discovery-settings-status");
+    message(status, "連携設定を読み込み中…");
+    try {
+      const values = await config(true);
+      for (const p of providers) {
+        s.forms.get(p).fill(values[p]);
+        s.forms.get(p).busyState(false);
+      }
+      message(status);
+    } catch (error) {
+      message(status, "設定を取得できません: " + error.message, true, load);
+    }
+  }
+  load();
+}
+
+function safeLink(label, url) {
+  const link = el("a", "text-button", label);
+  try {
+    const parsed = new URL(url);
+    if (
+      parsed.protocol !== "https:" ||
+      !["www.youtube.com", "youtube.com", "www.last.fm", "last.fm"].includes(
+        parsed.hostname,
+      )
+    )
+      return el("span", "muted-hint", label);
+    link.href = parsed.href;
+  } catch {
+    return el("span", "muted-hint", label);
+  }
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  return link;
+}
+function trackRow(item) {
+  const row = el("li", "discovery-item");
+  row.dataset.itemId = item.id;
+  const info = el("div", "discovery-item-info");
+  info.append(el("strong"), el("span", "discovery-artist"));
+  row.append(info, el("div", "discovery-item-actions"));
+  updateRow(row, item);
+  return row;
+}
+function updateRow(row, item) {
+  const title = row.querySelector("strong"),
+    artist = row.querySelector(".discovery-artist");
+  if (title.textContent !== item.title) title.textContent = item.title;
+  const description = `${item.artist_label || "アーティスト"} · ${item.artist || "不明"}`;
+  if (artist.textContent !== description) artist.textContent = description;
+  const actions = row.querySelector(".discovery-item-actions");
+  const links = [
+    safeLink(item.youtube_id ? "YouTubeで開く" : "曲情報", item.url),
+  ];
+  if (!item.youtube_id)
+    links.push(
+      safeLink(
+        "YouTubeで探す",
+        "https://www.youtube.com/results?search_query=" +
+          encodeURIComponent(item.artist + " " + item.title),
+      ),
+    );
+  links.forEach((link, i) => {
+    const current = actions.children[i];
+    if (current && current.tagName === link.tagName) {
+      if (current.textContent !== link.textContent)
+        current.textContent = link.textContent;
+      if (link.tagName === "A") {
+        current.href = link.href;
+        current.target = link.target;
+        current.rel = link.rel;
+      }
+    } else if (current) current.replaceWith(link);
+    else actions.append(link);
+  });
+  while (actions.children.length > links.length)
+    actions.lastElementChild.remove();
+}
+function renderRows(host, items, limit = 20) {
+  const existing = new Map(
+    [...host.children].map((row) => [row.dataset.itemId, row]),
+  );
+  const rows = items
+    .slice(0, limit)
+    .map((item) =>
+      existing.has(String(item.id))
+        ? (updateRow(existing.get(String(item.id)), item),
+          existing.get(String(item.id)))
+        : trackRow(item),
+    );
+  const keep = new Set(rows);
+  for (const child of [...host.children]) if (!keep.has(child)) child.remove();
+  let cursor = host.firstElementChild;
+  for (const row of rows) {
+    if (row === cursor) cursor = cursor.nextElementSibling;
+    else host.insertBefore(row, cursor);
+  }
+}
+function cancel(s, name) {
+  s.sequences.set(name, (s.sequences.get(name) || 0) + 1);
+  s.controllers.get(name)?.abort();
+}
+function visible() {
+  return (
+    !state().away &&
+    !document.hidden &&
+    document.getElementById("discovery-panel").classList.contains("active")
+  );
+}
+
+export function initDiscovery() {
+  const s = state(),
+    container = document.getElementById("discovery-popular"),
+    overview = document.querySelector(".discovery-overview");
+  for (const provider of providers) {
+    const card = el("article", "discovery-source");
+    card.dataset.provider = provider;
+    const heading = el("div", "discovery-source-heading");
+    heading.append(
+      el(
+        "h2",
+        "",
+        provider === "youtube" ? "人気の音楽動画" : "Last.fmで人気の曲",
+      ),
+    );
+    const refresh = el("button", "btn btn-ghost", "更新");
+    refresh.type = "button";
+    heading.append(refresh);
+    const description = el(
+      "p",
+      "muted-hint",
+      provider === "youtube"
+        ? "YouTubeの人気音楽動画です。週間の楽曲チャートとは集計が異なります。"
+        : "Last.fm利用者の先週の聴取をもとにした国別ランキングです。",
+    );
+    const feedback = el("div", "discovery-feedback");
+    feedback.setAttribute("role", "status");
+    feedback.setAttribute("aria-live", "polite");
+    const timestamp = el("p", "discovery-timestamp");
+    const list = el("ol", "discovery-list");
+    const more = el("button", "btn btn-ghost discovery-more", "もっと見る");
+    more.type = "button";
+    more.hidden = true;
+    const entry = {
+      card,
+      refresh,
+      feedback,
+      timestamp,
+      list,
+      more,
+      items: [],
+      limit: 20,
+      pending: false,
+    };
+    s.panels.set(provider, entry);
+    more.addEventListener("click", () => {
+      entry.limit += 20;
+      renderRows(list, entry.items, entry.limit);
+      more.hidden = entry.limit >= entry.items.length;
+    });
+    refresh.addEventListener("click", () => loadProvider(provider, true));
+    card.append(heading, description, feedback, timestamp, list, more);
+    container.append(card);
+  }
+  const similarForm = document.getElementById("discovery-similar-form"),
+    similarStatus = document.getElementById("discovery-similar-status"),
+    similarResults = document.getElementById("discovery-similar-results");
+  const similarButton = similarForm.querySelector("[type=submit]");
+  function similarAvailability() {
+    similarButton.disabled = !configured(s.config?.lastfm);
+    if (similarButton.disabled)
+      message(similarStatus, "設定からLast.fmを有効にすると利用できます。");
+    else message(similarStatus);
+  }
+  async function loadProvider(provider, force = false) {
+    if (!visible()) return;
+    const entry = s.panels.get(provider),
+      settings = s.config?.[provider];
+    if (entry.pending) return;
+    if (!configured(settings)) {
+      entry.items = [];
+      entry.list.replaceChildren();
+      entry.more.hidden = true;
+      entry.timestamp.textContent = "";
+      message(
+        entry.feedback,
+        "設定から" + names[provider] + "を有効にすると利用できます。",
+      );
+      entry.refresh.disabled = true;
+      return;
+    }
+    cancel(s, provider);
+    const version = s.sequences.get(provider),
+      controller = new AbortController();
+    s.controllers.set(provider, controller);
+    entry.pending = true;
+    entry.refresh.disabled = true;
+    message(entry.feedback, "取得中…");
+    entry.card.setAttribute("aria-busy", "true");
+    try {
+      const result = await call(
+        "GET",
+        "/popular/" + provider + (force ? "?refresh=true" : ""),
+        undefined,
+        controller.signal,
+      );
+      if (version !== s.sequences.get(provider)) return;
+      entry.items = Array.isArray(result.items) ? result.items : [];
+      renderRows(entry.list, entry.items, entry.limit);
+      entry.more.hidden = entry.limit >= entry.items.length;
+      entry.timestamp.textContent = result.fetched_at
+        ? `${countries[result.region] || result.region} · 最終取得 ${new Date(result.fetched_at).toLocaleString("ja-JP")}${result.cached ? " · キャッシュ" : ""}`
+        : "";
+      message(
+        entry.feedback,
+        result.message ||
+          (!entry.items.length && result.state === "ready"
+            ? "曲が見つかりませんでした。"
+            : ""),
+        ["error", "stale", "settings_changed"].includes(result.state),
+      );
+    } catch (error) {
+      if (version === s.sequences.get(provider))
+        message(entry.feedback, "取得に失敗しました: " + error.message, true);
+    } finally {
+      if (version === s.sequences.get(provider)) {
+        entry.pending = false;
+        entry.refresh.disabled = !configured(s.config?.[provider]);
+        entry.card.removeAttribute("aria-busy");
+      }
+    }
+  }
+  async function load() {
+    if (!visible()) return;
+    message(overview, "連携設定を確認中…");
+    try {
+      await config();
+      if (!visible()) return;
+      similarAvailability();
+      message(
+        overview,
+        providers.some((p) => configured(s.config[p]))
+          ? "出典のページから曲を確認できます。"
+          : "外部連携は任意です。設定画面でキーを登録すると利用できます。",
+      );
+      s.dirty = false;
+      await Promise.all(providers.map((p) => loadProvider(p)));
+    } catch (error) {
+      message(overview, "設定を取得できません: " + error.message, true, load);
+    }
+  }
+  similarForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (similarButton.disabled) return;
+    const artist = similarForm.elements.namedItem("artist").value.trim(),
+      track = similarForm.elements.namedItem("track").value.trim();
+    if (!artist || !track) {
+      message(similarStatus, "曲名とアーティスト名を入力してください。", true);
+      return;
+    }
+    cancel(s, "similar");
+    const version = s.sequences.get("similar"),
+      controller = new AbortController();
+    s.controllers.set("similar", controller);
+    similarButton.disabled = true;
+    message(similarStatus, "類似曲を調べています…");
+    try {
+      const result = await call(
+        "GET",
+        "/similar/lastfm?" + new URLSearchParams({ artist, track }),
+        undefined,
+        controller.signal,
+      );
+      if (version !== s.sequences.get("similar")) return;
+      renderRows(similarResults, result.items || [], 20);
+      message(
+        similarStatus,
+        result.message ||
+          ((result.items || []).length
+            ? "Last.fmの類似曲です。好みの確率を示すものではありません。"
+            : "類似曲が見つかりませんでした。"),
+        result.state !== "ready",
+      );
+    } catch (error) {
+      if (version === s.sequences.get("similar"))
+        message(similarStatus, "検索に失敗しました: " + error.message, true);
+    } finally {
+      if (version === s.sequences.get("similar"))
+        similarButton.disabled = !configured(s.config?.lastfm);
+    }
+  });
+  for (const control of similarForm.querySelectorAll("input"))
+    control.addEventListener("input", () => {
+      cancel(s, "similar");
+      similarButton.disabled = !configured(s.config?.lastfm);
+      similarResults.replaceChildren();
+      message(similarStatus);
+    });
+  document.addEventListener("discovery-config-changed", (event) => {
+    const provider = event.detail.provider;
+    cancel(s, provider);
+    const entry = s.panels.get(provider);
+    entry.pending = false;
+    entry.items = [];
+    entry.limit = 20;
+    entry.list.replaceChildren();
+    entry.timestamp.textContent = "";
+    entry.more.hidden = true;
+    entry.card.removeAttribute("aria-busy");
+    s.dirty = true;
+    if (provider === "lastfm") {
+      cancel(s, "similar");
+      similarResults.replaceChildren();
+      similarAvailability();
+    }
+    if (visible()) load();
+  });
+  const stop = () => {
+    for (const name of [...providers, "similar"]) cancel(s, name);
+    for (const entry of s.panels.values()) {
+      if (entry.pending) s.dirty = true;
+      entry.pending = false;
+      entry.refresh.disabled = !configured(
+        s.config?.[entry.card.dataset.provider],
+      );
+      entry.card.removeAttribute("aria-busy");
+    }
+    similarButton.disabled = !configured(s.config?.lastfm);
+  };
+  const resume = () => {
+    if (!visible()) stop();
+    else if (s.dirty) load();
+  };
+  document.addEventListener("workspace-navigation", resume);
+  document.addEventListener("visibilitychange", resume);
+  window.addEventListener("pagehide", () => {
+    s.away = true;
+    stop();
+  });
+  window.addEventListener("pageshow", () => {
+    s.away = false;
+    resume();
+  });
+  load();
+}

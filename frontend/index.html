@@ -22,6 +22,7 @@
   <button class="tab-btn active" data-panel="playlists-panel" data-route="sync" aria-current="page"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 11-2l3 3M4 16l3 3a7 7 0 0 0 11-2"/></svg>同期</button>
   <button class="tab-btn" data-panel="left-panel" data-route="downloads"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>ダウンロード</button>
   <button class="tab-btn" data-panel="right-panel" data-route="files"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H5v18h14V8zM14 3v5h5M8 12h8M8 16h6"/></svg>ファイル</button>
+  <button class="tab-btn" data-panel="discovery-panel" data-route="discover"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m16 8-2.5 5.5L8 16l2.5-5.5z"/></svg>見つける</button>
   <button class="tab-btn" data-panel="settings-panel" data-route="settings"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3-.7 2.2-2 .9-2.1-.5-2 3.4 1.5 1.7v2.6L2.2 15l2 3.4 2.1-.5 2 .9L9 21h4l.7-2.2 2-.9 2.1.5 2-3.4-1.5-1.7v-2.6L19.8 9l-2-3.4-2.1.5-2-.9L13 3z"/><circle cx="11" cy="12" r="3"/></svg>設定</button>
   <div class="nav-note">SyncTune Hub<br>同期・ダウンロード管理</div>
 </nav>
@@ -116,6 +117,17 @@
     </div>
 
   </div>
+  <section class="panel discovery-panel" id="discovery-panel">
+    <div class="page-heading"><div><h1>見つける</h1><p>いま人気の音楽と、気になる曲に近い音楽を探す。</p></div><a class="btn btn-ghost" href="#settings">外部連携を設定</a></div>
+    <div class="discovery-overview" role="status" aria-live="polite">設定を確認すると利用できる取得元が表示されます。</div>
+    <div class="discovery-grid" id="discovery-popular"></div>
+    <section class="discovery-similar settings-block">
+      <h2>似た曲を探す</h2><p class="muted-hint">Last.fmに入力した曲名とアーティスト名を送って、類似曲を調べます。再生履歴は送信しません。</p>
+      <form id="discovery-similar-form"><div class="preference-fields"><label class="syncthing-field"><span>アーティスト</span><input name="artist" required maxlength="160" autocomplete="off" placeholder="アーティスト名"></label><label class="syncthing-field"><span>曲名</span><input name="track" required maxlength="300" autocomplete="off" placeholder="曲名"></label></div><button class="btn btn-primary" type="submit" disabled>似た曲を探す</button></form>
+      <div id="discovery-similar-status" class="discovery-feedback" role="status" aria-live="polite"></div><ol id="discovery-similar-results" class="discovery-list"></ol>
+    </section>
+    <p class="muted-hint discovery-attribution">Last.fmのデータを利用する表示には提供元へのリンクを付けています。<a href="https://www.last.fm/" target="_blank" rel="noopener noreferrer">Powered by AudioScrobbler / Last.fm</a></p>
+  </section>
   <section class="panel settings-panel" id="settings-panel">
     <div class="page-heading"><div><span class="eyebrow">PREFERENCES</span><h1>設定</h1><p>外部サービスとの接続と、自動処理を設定します。</p></div></div>
     <section class="settings-block download-preferences-block" aria-labelledby="download-preferences-title">
@@ -130,6 +142,7 @@
         <div class="preference-save-row"><button class="btn btn-primary" type="submit" disabled>設定を保存</button><button class="btn btn-ghost" type="button" id="download-preferences-retry" hidden>再読込</button><span id="download-preferences-status" role="status" aria-live="polite">設定を読み込み中…</span></div>
       </form>
     </section>
+    <section class="settings-block discovery-settings" id="discovery-settings"><div class="settings-section-heading"><h2>音楽を見つける・外部連携</h2><span class="settings-section-note">どちらも任意</span></div><p class="muted-hint">有効にしたサービスだけを「見つける」で使います。APIキーはサーバーに暗号化保存し、Googleのアカウント接続とは別に管理します。</p><div id="discovery-provider-settings"></div><div id="discovery-settings-status" class="discovery-feedback" role="status" aria-live="polite"></div></section>
     <section class="settings-block"><h2>YouTube接続</h2><p class="muted-hint">アカウントのプレイリスト取得と認証状態の確認。</p>
     <div class="section-title">YouTubeアカウント</div>
     <div id="yt-auth-section" class="yt-auth-section">

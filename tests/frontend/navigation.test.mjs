@@ -20,10 +20,10 @@ test('sync is the default and other workspaces take no space', t=>{
   assert.equal(doc.querySelector('#player-bar').classList.contains('hidden'),true);
   assert.equal(doc.querySelector('[aria-current="page"]').textContent.trim(),'同期');
 });
-test('all four workspaces are reachable and switching retains existing DOM and expanded details',t=>{
+test('all five workspaces are reachable and switching retains existing DOM and expanded details',t=>{
   const doc=setup(t);
   const details=doc.querySelector('#sync-add-panel');details.open=true;
-  for(const id of ['settings-panel','right-panel','left-panel','playlists-panel']){
+  for(const id of ['settings-panel','right-panel','left-panel','discovery-panel','playlists-panel']){
     doc.querySelector(`[data-panel="${id}"]`).click();
     assert.equal(doc.querySelector('.panel.active').id,id);
     assert.equal(doc.querySelectorAll('.layout > .panel:not([hidden])').length,1);

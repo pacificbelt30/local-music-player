@@ -18,6 +18,7 @@ async function request(method, path, body, signal) {
 }
 
 export const api = {
+  discovery: (method, path, payload, signal) => request(method, "/discovery" + path, payload, signal),
   workspace: (method, path, payload) => request(method, "/workspace" + path, payload),
   // URLs
   addUrl: (payload) => request("POST", "/urls", payload),

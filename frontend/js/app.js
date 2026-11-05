@@ -1,4 +1,5 @@
 import { whenPanelVisible } from "./panel-lifecycle.js";
+import { initDiscovery, initDiscoverySettings } from "./discovery.js";
 import { initNavigation } from "./navigation.js";
 import { initQueue } from "./queue.js";
 import { initLibrary } from "./library.js";
@@ -15,8 +16,10 @@ initWorkspace();
 initPlaylists();
 whenPanelVisible("left-panel", initQueue);
 whenPanelVisible("right-panel", initLibrary);
+whenPanelVisible("discovery-panel", initDiscovery);
 whenPanelVisible("settings-panel", () => {
   initSettings();
+  initDiscoverySettings();
   initSyncthing();
   initDebug();
   updateSyncthingBadge();

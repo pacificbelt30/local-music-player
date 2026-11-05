@@ -12,7 +12,7 @@ function worker(fetch) {
     URL, Response, JSON, fetch,
     caches: {
       open: async () => ({addAll: async () => {}, put: async () => {}}),
-      keys: async () => ['lmp-v13', 'lmp-v14'],
+      keys: async () => ['lmp-v14', 'lmp-v15'],
       delete: async key => deleted.push(key), match: async () => undefined,
     },
   };
@@ -41,7 +41,7 @@ test('activation removes the previous shell cache so UI fixes can be loaded', as
   let activation;
   handlers.get('activate')({waitUntil: promise => activation = promise});
   await activation;
-  assert.deepEqual(deleted, ['lmp-v13']);
+  assert.deepEqual(deleted, ['lmp-v14']);
 });
 
 
@@ -50,5 +50,5 @@ test('the shell cache includes the new workspace workflow module',()=>{
 });
 
 test('the cached shell contains the entry point and lazy-loading and track-page modules',()=>{
-  for(const name of ['app.js','sync-tracks.js','panel-lifecycle.js'])assert.ok(source.includes('/js/'+name));
+  for(const name of ['app.js','sync-tracks.js','panel-lifecycle.js','discovery.js'])assert.ok(source.includes('/js/'+name));
 });

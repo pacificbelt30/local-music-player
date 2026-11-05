@@ -235,3 +235,7 @@ CLAUDE.local.md
 https-root.crt
 
 https-setup/
+
+# Discovery credential encryption key (stored in the data volume)
+.discovery-key
+.discovery-key-*

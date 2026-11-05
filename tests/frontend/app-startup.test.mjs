@@ -72,6 +72,7 @@ test("the real app starts only visible work and initializes each visited screen 
     };
   };
   const reads = (name) => calls.filter((c) => c.name === name).length;
+  stub("discovery", {youtube:{provider:"youtube",enabled:false,api_key_set:false,region:"JP"},lastfm:{provider:"lastfm",enabled:false,api_key_set:false,region:"JP"}});
   stub("getSettings", {
     default_audio_format: "m4a",
     default_audio_quality: "192",
@@ -131,6 +132,7 @@ test("the real app starts only visible work and initializes each visited screen 
   await until(() => document.querySelector(".yt-sync-card"));
   for (const name of [
     "getSettings",
+    "discovery",
     "youtubeAuthStatus",
     "youtubeListAccountPlaylists",
     "listTracks",

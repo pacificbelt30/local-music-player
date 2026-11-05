@@ -24,6 +24,7 @@ celery_app.conf.update(
         "app.tasks.ytdlp_update.*": {"queue": "updates"},
     },
     beat_schedule={
+        "purge-discovery-cache": {"task":"app.tasks.maintenance.purge_discovery_cache", "schedule":crontab(minute=15,hour=3)},
         "purge-retained-removals": {"task":"app.tasks.maintenance.purge_removed_tracks", "schedule":crontab(minute=0,hour=3)},
         "check-ytdlp-update": {
             "task": "app.tasks.ytdlp_update.check",

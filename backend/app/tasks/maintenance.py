@@ -121,3 +121,13 @@ def purge_removed_tracks():
     db=SessionLocal()
     try:return purge_removed(db)
     finally:db.close()
+
+
+@celery_app.task(name="app.tasks.maintenance.purge_discovery_cache")
+def purge_discovery_cache():
+    from app.services.discovery import purge_expired
+    db = SessionLocal()
+    try:
+        return purge_expired(db)
+    finally:
+        db.close()
