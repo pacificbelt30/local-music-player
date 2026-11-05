@@ -51,3 +51,26 @@ test('download workspace opens the same unified addition entry',t=>{
   assert.equal(doc.querySelector('.panel.active').id,'playlists-panel');
   assert.equal(doc.querySelector('#sync-add-panel').open,true);
 });
+
+test('discovery setup opens the exact section and moves keyboard focus there',t=>{
+  const doc=setup(t,'#discover');
+  const heading=doc.getElementById('discovery-settings-title');
+  let scrolled=false;
+  heading.scrollIntoView=()=>{scrolled=true;};
+  doc.querySelector('#discovery-panel [data-navigate=settings-panel]').click();
+  assert.equal(doc.querySelector('.panel.active').id,'settings-panel');
+  assert.equal(location.hash,'#settings');
+  assert.equal(doc.activeElement,heading);
+  assert.equal(scrolled,true);
+});
+
+test('a dynamically rendered source link can open and focus its own key form',t=>{
+  const doc=setup(t,'#discover');
+  const title=doc.createElement('h3');title.id='discovery-config-lastfm';title.tabIndex=-1;
+  doc.getElementById('discovery-provider-settings').append(title);
+  const link=doc.createElement('a');link.href='#settings';link.dataset.navigate='settings-panel';link.dataset.focusTarget=title.id;
+  doc.getElementById('discovery-panel').append(link);
+  link.click();
+  assert.equal(doc.activeElement,title);
+  assert.equal(doc.querySelector('.panel.active').id,'settings-panel');
+});

@@ -4,8 +4,29 @@ const providers = ["youtube", "lastfm"];
 const names = { youtube: "YouTube Data API", lastfm: "Last.fm" };
 const countries = { JP: "日本", US: "米国", GB: "英国" };
 const owners = new WeakMap();
-const call = (method, path, body, signal) =>
-  api.discovery(method, path, body, signal);
+const rowItems = new WeakMap();
+async function call(method, path, body, signal) {
+  const result = await api.discovery(method, path, body, signal);
+  if (result?.error_code !== "cooldown") return result;
+  // The provider's shared two-second guard can apply just after a connection
+  // test or a first chart lookup. Keep the current action pending and retry once.
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const abort = () => {
+      window.clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, 2100);
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+  return api.discovery(method, path, body, signal);
+}
 const el = (tag, className = "", text = "") => {
   const node = document.createElement(tag);
   node.className = className;
@@ -22,6 +43,8 @@ function state() {
       sequences: new Map(),
       controllers: new Map(),
       dirty: true,
+      selected: null,
+      selectionExplicit: false,
     });
   return owners.get(document);
 }
@@ -78,6 +101,14 @@ export function initDiscoverySettings() {
     form.innerHTML =
       '<div class="discovery-provider-heading"><h3></h3><span class="discovery-key-state"></span></div><p class="muted-hint provider-description"></p><label class="discovery-enable"><input type="checkbox" name="enabled">この連携を有効にする</label><div class="preference-fields"><label class="syncthing-field"><span>APIキー</span><input type="password" name="api_key" maxlength="512" autocomplete="new-password" autocapitalize="off" spellcheck="false" placeholder="APIキーを入力"></label><label class="syncthing-field"><span>人気情報の地域</span><select name="region"><option value="JP">日本</option><option value="US">米国</option><option value="GB">英国</option></select></label></div><div class="discovery-config-actions"><button type="submit" class="btn btn-primary">保存</button><button type="button" class="btn btn-ghost discovery-test">接続確認</button><button type="button" class="btn btn-ghost discovery-clear">キーを削除</button><a class="text-button provider-key-link" target="_blank" rel="noopener noreferrer">キーの取得先 ↗</a></div><div class="discovery-feedback" role="status" aria-live="polite"></div>';
     form.querySelector("h3").textContent = names[provider];
+    form.querySelector("h3").id = "discovery-config-" + provider;
+    form.querySelector("h3").tabIndex = -1;
+    const keyHint = el(
+      "p",
+      "muted-hint",
+      "新しいキーは保存してから接続確認できます。空欄で保存すると現在のキーを保持します。",
+    );
+    form.querySelector(".preference-fields").after(keyHint);
     form.querySelector(".provider-description").textContent =
       provider === "youtube"
         ? "地域別の人気音楽動画を取得します。YouTube Data API v3を有効にしたAPIキーを指定してください。OAuthは不要です。"
@@ -136,6 +167,17 @@ export function initDiscoverySettings() {
               ? "「見つける」で利用できます。"
               : "連携は無効です。"),
         );
+        if (configured(value)) {
+          const link = el("a", "text-button", "見つけるで確認する");
+          link.href = "#discover";
+          link.dataset.navigate = "discovery-panel";
+          link.dataset.focusTarget = "discovery-title";
+          link.addEventListener("click", () => {
+            s.selected = provider;
+            s.selectionExplicit = true;
+          });
+          feedback.append(document.createTextNode(" "), link);
+        }
       } catch (error) {
         message(feedback, "保存に失敗しました: " + error.message, true);
       } finally {
@@ -233,6 +275,7 @@ function trackRow(item) {
   return row;
 }
 function updateRow(row, item) {
+  rowItems.set(row, item);
   const title = row.querySelector("strong"),
     artist = row.querySelector(".discovery-artist");
   if (title.textContent !== item.title) title.textContent = item.title;
@@ -263,8 +306,18 @@ function updateRow(row, item) {
     } else if (current) current.replaceWith(link);
     else actions.append(link);
   });
-  while (actions.children.length > links.length)
-    actions.lastElementChild.remove();
+  // Keep an existing action focused when a refresh updates its track metadata.
+  for (const child of [...actions.children].slice(links.length))
+    if (!child.classList.contains("discovery-seed")) child.remove();
+  let seed = actions.querySelector(".discovery-seed");
+  if (!item.youtube_id && item.artist?.trim()) {
+    if (!seed) {
+      seed = el("button", "text-button discovery-seed", "似た曲");
+      seed.type = "button";
+      actions.append(seed);
+    }
+    seed.setAttribute("aria-label", `「${item.title}」に似た曲を探す`);
+  } else seed?.remove();
 }
 function renderRows(host, items, limit = 20) {
   const existing = new Map(
@@ -305,6 +358,10 @@ export function initDiscovery() {
   for (const provider of providers) {
     const card = el("article", "discovery-source");
     card.dataset.provider = provider;
+    card.id = "discovery-source-" + provider;
+    card.setAttribute("role", "tabpanel");
+    card.setAttribute("aria-labelledby", "discovery-tab-" + provider);
+    card.hidden = true;
     const heading = el("div", "discovery-source-heading");
     heading.append(
       el(
@@ -341,6 +398,8 @@ export function initDiscovery() {
       items: [],
       limit: 20,
       pending: false,
+      loaded: false,
+      expiresAt: Infinity,
     };
     s.panels.set(provider, entry);
     more.addEventListener("click", () => {
@@ -356,14 +415,75 @@ export function initDiscovery() {
     similarStatus = document.getElementById("discovery-similar-status"),
     similarResults = document.getElementById("discovery-similar-results");
   const similarButton = similarForm.querySelector("[type=submit]");
+  let similarPending = false;
+  const tabs = [
+    ...document.querySelectorAll(".discovery-view-tabs [role=tab]"),
+  ];
+  function selectView(view, explicit = true, fetch = true) {
+    if (![...providers, "similar"].includes(view)) return;
+    s.selected = view;
+    if (explicit) s.selectionExplicit = true;
+    for (const tab of tabs) {
+      const active = tab.dataset.discoveryView === view;
+      tab.setAttribute("aria-selected", String(active));
+      tab.tabIndex = active ? 0 : -1;
+    }
+    for (const [provider, entry] of s.panels) {
+      entry.card.hidden = provider !== view;
+      if (provider !== view && entry.pending) {
+        cancel(s, provider);
+        entry.pending = false;
+        entry.card.removeAttribute("aria-busy");
+      }
+    }
+    container.hidden = view === "similar";
+    similarForm.closest(".discovery-similar").hidden = view !== "similar";
+    if (view !== "similar" && similarPending) {
+      cancel(s, "similar");
+      similarPending = false;
+      similarButton.disabled = !configured(s.config?.lastfm);
+      message(similarStatus, "検索を中断しました。もう一度検索できます。");
+    }
+    const entry = s.panels.get(view);
+    if (
+      fetch &&
+      s.config &&
+      entry &&
+      (!entry.loaded || entry.expiresAt <= Date.now())
+    )
+      return loadProvider(view);
+  }
+  for (const [index, tab] of tabs.entries()) {
+    tab.addEventListener("click", () => selectView(tab.dataset.discoveryView));
+    tab.addEventListener("keydown", (event) => {
+      const next = {
+        ArrowRight: (index + 1) % tabs.length,
+        ArrowLeft: (index + tabs.length - 1) % tabs.length,
+        Home: 0,
+        End: tabs.length - 1,
+      }[event.key];
+      if (next === undefined) return;
+      event.preventDefault();
+      tabs[next].focus();
+      selectView(tabs[next].dataset.discoveryView);
+    });
+  }
+  function setupLink(host, provider) {
+    const link = el("a", "text-button", names[provider] + "を設定する");
+    link.href = "#settings";
+    link.dataset.navigate = "settings-panel";
+    link.dataset.focusTarget = "discovery-config-" + provider;
+    host.append(document.createTextNode(" "), link);
+  }
   function similarAvailability() {
     similarButton.disabled = !configured(s.config?.lastfm);
     if (similarButton.disabled)
       message(similarStatus, "設定からLast.fmを有効にすると利用できます。");
     else message(similarStatus);
+    if (similarButton.disabled) setupLink(similarStatus, "lastfm");
   }
   async function loadProvider(provider, force = false) {
-    if (!visible()) return;
+    if (!visible() || s.selected !== provider) return;
     const entry = s.panels.get(provider),
       settings = s.config?.[provider];
     if (entry.pending) return;
@@ -377,6 +497,7 @@ export function initDiscovery() {
         "設定から" + names[provider] + "を有効にすると利用できます。",
       );
       entry.refresh.disabled = true;
+      setupLink(entry.feedback, provider);
       return;
     }
     cancel(s, provider);
@@ -396,6 +517,10 @@ export function initDiscovery() {
       );
       if (version !== s.sequences.get(provider)) return;
       entry.items = Array.isArray(result.items) ? result.items : [];
+      entry.loaded = ["ready", "stale"].includes(result.state);
+      entry.expiresAt = result.expires_at
+        ? Date.parse(result.expires_at)
+        : Infinity;
       renderRows(entry.list, entry.items, entry.limit);
       entry.more.hidden = entry.limit >= entry.items.length;
       entry.timestamp.textContent = result.fetched_at
@@ -409,9 +534,13 @@ export function initDiscovery() {
             : ""),
         ["error", "stale", "settings_changed"].includes(result.state),
       );
+      if (["key_rejected", "key_unavailable"].includes(result.error_code))
+        setupLink(entry.feedback, provider);
     } catch (error) {
-      if (version === s.sequences.get(provider))
+      if (version === s.sequences.get(provider)) {
+        entry.loaded = false;
         message(entry.feedback, "取得に失敗しました: " + error.message, true);
+      }
     } finally {
       if (version === s.sequences.get(provider)) {
         entry.pending = false;
@@ -426,6 +555,13 @@ export function initDiscovery() {
     try {
       await config();
       if (!visible()) return;
+      if (
+        !s.selected ||
+        (!s.selectionExplicit && !configured(s.config[s.selected]))
+      )
+        s.selected =
+          providers.find((p) => configured(s.config[p])) || "youtube";
+      selectView(s.selected, false, false);
       similarAvailability();
       message(
         overview,
@@ -434,7 +570,7 @@ export function initDiscovery() {
           : "外部連携は任意です。設定画面でキーを登録すると利用できます。",
       );
       s.dirty = false;
-      await Promise.all(providers.map((p) => loadProvider(p)));
+      if (providers.includes(s.selected)) await loadProvider(s.selected);
     } catch (error) {
       message(overview, "設定を取得できません: " + error.message, true, load);
     }
@@ -452,8 +588,9 @@ export function initDiscovery() {
     const version = s.sequences.get("similar"),
       controller = new AbortController();
     s.controllers.set("similar", controller);
+    similarPending = true;
     similarButton.disabled = true;
-    message(similarStatus, "類似曲を調べています…");
+    message(similarStatus, `「${track}」に近い曲を探しています…`);
     try {
       const result = await call(
         "GET",
@@ -467,7 +604,7 @@ export function initDiscovery() {
         similarStatus,
         result.message ||
           ((result.items || []).length
-            ? "Last.fmの類似曲です。好みの確率を示すものではありません。"
+            ? `Last.fmで「${track}」／${artist} に近い曲を見つけました。`
             : "類似曲が見つかりませんでした。"),
         result.state !== "ready",
       );
@@ -475,13 +612,33 @@ export function initDiscovery() {
       if (version === s.sequences.get("similar"))
         message(similarStatus, "検索に失敗しました: " + error.message, true);
     } finally {
-      if (version === s.sequences.get("similar"))
+      if (version === s.sequences.get("similar")) {
+        similarPending = false;
         similarButton.disabled = !configured(s.config?.lastfm);
+      }
     }
   });
+  document
+    .getElementById("discovery-panel")
+    .addEventListener("click", (event) => {
+      const button = event.target.closest?.(".discovery-seed");
+      const item = button && rowItems.get(button.closest(".discovery-item"));
+      if (!item || !configured(s.config?.lastfm)) return;
+      cancel(s, "similar");
+      similarPending = false;
+      similarResults.replaceChildren();
+      similarButton.disabled = false;
+      similarForm.elements.namedItem("artist").value = item.artist;
+      similarForm.elements.namedItem("track").value = item.title;
+      selectView("similar");
+      similarForm.scrollIntoView?.({ block: "start" });
+      similarForm.elements.namedItem("track").focus({ preventScroll: true });
+      similarForm.requestSubmit();
+    });
   for (const control of similarForm.querySelectorAll("input"))
     control.addEventListener("input", () => {
       cancel(s, "similar");
+      similarPending = false;
       similarButton.disabled = !configured(s.config?.lastfm);
       similarResults.replaceChildren();
       message(similarStatus);
@@ -491,6 +648,7 @@ export function initDiscovery() {
     cancel(s, provider);
     const entry = s.panels.get(provider);
     entry.pending = false;
+    entry.loaded = false;
     entry.items = [];
     entry.limit = 20;
     entry.list.replaceChildren();
@@ -500,6 +658,7 @@ export function initDiscovery() {
     s.dirty = true;
     if (provider === "lastfm") {
       cancel(s, "similar");
+      similarPending = false;
       similarResults.replaceChildren();
       similarAvailability();
     }
@@ -507,6 +666,7 @@ export function initDiscovery() {
   });
   const stop = () => {
     for (const name of [...providers, "similar"]) cancel(s, name);
+    similarPending = false;
     for (const entry of s.panels.values()) {
       if (entry.pending) s.dirty = true;
       entry.pending = false;
@@ -520,6 +680,7 @@ export function initDiscovery() {
   const resume = () => {
     if (!visible()) stop();
     else if (s.dirty) load();
+    else selectView(s.selected, false);
   };
   document.addEventListener("workspace-navigation", resume);
   document.addEventListener("visibilitychange", resume);

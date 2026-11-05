@@ -18,7 +18,20 @@ export function initNavigation() {
     document.dispatchEvent(new document.defaultView.CustomEvent('workspace-navigation', {detail:{panel:id}}));
   }
   for (const button of buttons) button.addEventListener('click', () => show(button.dataset.panel));
-  for (const button of document.querySelectorAll('[data-navigate]')) button.addEventListener('click', () => show(button.dataset.navigate));
+  // Links created by a lazily opened workspace use the same navigation.
+  document.addEventListener('click', event => {
+    const button = event.target.closest?.('[data-navigate]');
+    if (!button || button.disabled) return;
+    const panel = document.getElementById(button.dataset.navigate);
+    if (!panel?.classList.contains('panel')) return;
+    event.preventDefault();
+    show(panel.id);
+    const destination = document.getElementById(button.dataset.focusTarget);
+    if (destination && panel.contains(destination)) {
+      destination.scrollIntoView?.({block: 'start'});
+      destination.focus({preventScroll: true});
+    }
+  });
   const fromHash = () => show(buttons.find(button => '#' + button.dataset.route === location.hash)?.dataset.panel || 'playlists-panel');
   window.addEventListener('hashchange', fromHash);
   const openAddition = () => {

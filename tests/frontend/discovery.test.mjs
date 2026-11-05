@@ -282,6 +282,7 @@ test("similar search sends only the selected names and stale results cannot over
     () => !document.querySelector("#discovery-similar-form button").disabled,
   );
   const form = document.querySelector("#discovery-similar-form");
+  document.getElementById("discovery-tab-similar").click();
   form.elements.artist.value = "Artist & <x>";
   form.elements.track.value = "Song";
   let finish;
@@ -337,6 +338,7 @@ test("disabling a source during a request discards its old result immediately", 
       .length,
     0,
   );
+  document.getElementById("discovery-tab-youtube").click();
   assert.match(
     document.querySelector("[data-provider=youtube]").textContent,
     /有効にすると/,
@@ -364,4 +366,292 @@ test("page restoration cancels old reads and starts one fresh request", async (t
   window.dispatchEvent(new s.dom.window.Event("pageshow"));
   await until(() => document.querySelector(".discovery-item"));
   assert.equal(s.count("GET", "/popular/youtube"), 2);
+});
+
+test("source tabs load only the selected provider and preserve its expanded list", async (t) => {
+  const s = await setup(t, { config: defaults(true), count: 50 });
+  s.view("discovery-panel");
+  initDiscovery();
+  await until(() => document.querySelector("[data-provider=youtube] li"));
+  assert.equal(s.count("GET", "/popular/lastfm"), 0);
+  document.querySelector("[data-provider=youtube] .discovery-more").click();
+  document.getElementById("discovery-tab-lastfm").click();
+  await until(() => document.querySelector("[data-provider=lastfm] li"));
+  assert.equal(document.querySelector("[data-provider=youtube]").hidden, true);
+  assert.equal(document.querySelector("[data-provider=lastfm]").hidden, false);
+  const first = document.querySelector("[data-provider=youtube] li");
+  document.getElementById("discovery-tab-youtube").click();
+  assert.equal(document.querySelector("[data-provider=youtube] li"), first);
+  assert.equal(
+    document.querySelectorAll("[data-provider=youtube] li").length,
+    40,
+  );
+  assert.equal(s.count("GET", "/popular/youtube"), 1);
+  assert.equal(s.count("GET", "/popular/lastfm"), 1);
+  const yt = document.getElementById("discovery-tab-youtube");
+  yt.dispatchEvent(
+    new s.dom.window.KeyboardEvent("keydown", { key: "End", bubbles: true }),
+  );
+  assert.equal(document.activeElement.id, "discovery-tab-similar");
+  assert.equal(document.activeElement.getAttribute("aria-selected"), "true");
+  assert.equal(document.querySelectorAll("[role=tab][tabindex='0']").length, 1);
+  assert.equal(document.getElementById("discovery-similar").hidden, false);
+});
+
+test("the only configured provider opens automatically and unavailable sources link to their key form", async (t) => {
+  const settings = defaults(false);
+  settings.lastfm = { ...settings.lastfm, enabled: true, api_key_set: true };
+  const s = await setup(t, { config: settings });
+  s.view("discovery-panel");
+  initDiscovery();
+  await until(() => document.querySelector("[data-provider=lastfm] li"));
+  assert.equal(
+    document
+      .getElementById("discovery-tab-lastfm")
+      .getAttribute("aria-selected"),
+    "true",
+  );
+  assert.equal(s.count("GET", "/popular/youtube"), 0);
+  document.getElementById("discovery-tab-youtube").click();
+  const link = document.querySelector(
+    "[data-provider=youtube] [data-navigate]",
+  );
+  assert.equal(link.dataset.navigate, "settings-panel");
+  assert.equal(link.dataset.focusTarget, "discovery-config-youtube");
+  assert.equal(s.count("GET", "/popular/youtube"), 0);
+});
+
+test("a chart track starts similar discovery without retyping and preserves the selected seed", async (t) => {
+  const s = await setup(t, { config: defaults(true) });
+  s.view("discovery-panel");
+  initDiscovery();
+  await until(() => document.querySelector("[data-provider=youtube] li"));
+  assert.equal(
+    document.querySelector("[data-provider=youtube] .discovery-seed"),
+    null,
+  );
+  document.getElementById("discovery-tab-lastfm").click();
+  await until(() =>
+    document.querySelector("[data-provider=lastfm] .discovery-seed"),
+  );
+  document.querySelector("[data-provider=lastfm] .discovery-seed").click();
+  await until(() => document.querySelector("#discovery-similar-results li"));
+  const form = document.getElementById("discovery-similar-form");
+  assert.equal(form.elements.artist.value, "Artist 0");
+  assert.equal(form.elements.track.value, "曲 0");
+  assert.equal(document.getElementById("discovery-similar").hidden, false);
+  assert.equal(
+    s.count(
+      "GET",
+      "/similar/lastfm?" +
+        new URLSearchParams({ artist: "Artist 0", track: "曲 0" }),
+    ),
+    1,
+  );
+  assert.match(
+    document.getElementById("discovery-similar-status").textContent,
+    /曲 0.*Artist 0/,
+  );
+  assert.equal(s.count("POST"), 0);
+});
+
+test("changing views cancels an unfinished similar lookup and late results stay discarded", async (t) => {
+  const s = await setup(t, { config: defaults(true) });
+  s.view("discovery-panel");
+  initDiscovery();
+  await until(() => document.querySelector("[data-provider=youtube] li"));
+  document.getElementById("discovery-tab-lastfm").click();
+  await until(() =>
+    document.querySelector("[data-provider=lastfm] .discovery-seed"),
+  );
+  let finish;
+  const path =
+    "/similar/lastfm?" +
+    new URLSearchParams({ artist: "Artist 0", track: "曲 0" });
+  s.state.handlers.set(
+    "GET " + path,
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  document.querySelector("[data-provider=lastfm] .discovery-seed").click();
+  await until(() => finish);
+  const request = s.state.calls.at(-1);
+  document.getElementById("discovery-tab-youtube").click();
+  assert.equal(request.signal.aborted, true);
+  finish(result("lastfm"));
+  await tick();
+  document.getElementById("discovery-tab-similar").click();
+  assert.equal(
+    document.querySelectorAll("#discovery-similar-results li").length,
+    0,
+  );
+  assert.equal(
+    document.querySelector("#discovery-similar-form [type=submit]").disabled,
+    false,
+  );
+  assert.match(
+    document.getElementById("discovery-similar-status").textContent,
+    /もう一度/,
+  );
+});
+
+test("returning after the cache expires refreshes the visible list without rebuilding existing rows", async (t) => {
+  const s = await setup(t, { config: defaults(true) });
+  const realNow = Date.now;
+  let time = Date.parse("2026-11-05T12:00:00Z");
+  Date.now = () => time;
+  t.after(() => {
+    Date.now = realNow;
+  });
+  s.state.handlers.set("GET /popular/youtube", () => ({
+    ...result("youtube"),
+    expires_at: new Date(time + 60000).toISOString(),
+  }));
+  s.view("discovery-panel");
+  initDiscovery();
+  await until(() => document.querySelector("[data-provider=youtube] li"));
+  const row = document.querySelector("[data-provider=youtube] li");
+  s.view("settings-panel");
+  s.view("discovery-panel");
+  await tick();
+  assert.equal(s.count("GET", "/popular/youtube"), 1);
+  s.view("settings-panel");
+  time += 61000;
+  s.view("discovery-panel");
+  await until(() => s.count("GET", "/popular/youtube") === 2);
+  await tick();
+  assert.equal(document.querySelector("[data-provider=youtube] li"), row);
+  assert.equal(s.count("GET", "/popular/lastfm"), 0);
+});
+
+test("key errors offer direct repair and a successful save links back to that source", async (t) => {
+  const s = await setup(t, { config: defaults(true) });
+  s.state.handlers.set("GET /popular/youtube", () => ({
+    ...result("youtube", 0),
+    state: "error",
+    error_code: "key_rejected",
+    message: "キーを確認してください。",
+  }));
+  s.view("discovery-panel");
+  initDiscovery();
+  await until(() =>
+    document.querySelector("[data-provider=youtube] .discovery-feedback a"),
+  );
+  assert.equal(
+    document.querySelector("[data-provider=youtube] .discovery-feedback a")
+      .dataset.focusTarget,
+    "discovery-config-youtube",
+  );
+  s.view("settings-panel");
+  initDiscoverySettings();
+  await until(() => !s.form("lastfm").querySelector("[type=submit]").disabled);
+  s.form("lastfm").dispatchEvent(
+    new s.dom.window.Event("submit", { cancelable: true }),
+  );
+  await until(() => s.form("lastfm").querySelector("[data-navigate]"));
+  const link = s.form("lastfm").querySelector("[data-navigate]");
+  link.addEventListener("click", (event) => event.preventDefault());
+  link.click();
+  s.view("discovery-panel");
+  await until(() => document.querySelector("[data-provider=lastfm] li"));
+  assert.equal(
+    document
+      .getElementById("discovery-tab-lastfm")
+      .getAttribute("aria-selected"),
+    "true",
+  );
+});
+
+test("a short provider cooldown retries once without losing the current action", async (t) => {
+  const s = await setup(t, { config: defaults(true) });
+  const realSetTimeout = window.setTimeout.bind(window);
+  const waits = [];
+  window.setTimeout = (fn, delay) => {
+    waits.push(delay);
+    return realSetTimeout(fn, 0);
+  };
+  let attempts = 0;
+  s.state.handlers.set("GET /popular/youtube", () =>
+    ++attempts === 1
+      ? {
+          ...result("youtube", 0),
+          state: "error",
+          error_code: "cooldown",
+          message: "少し待ってください",
+        }
+      : result("youtube"),
+  );
+  s.view("discovery-panel");
+  initDiscovery();
+  await until(() => document.querySelector("[data-provider=youtube] li"));
+  assert.equal(attempts, 2);
+  assert.deepEqual(waits, [2100]);
+  assert.equal(
+    document.querySelector("[data-provider=youtube]").getAttribute("aria-busy"),
+    null,
+  );
+  assert.equal(
+    document.querySelector("[data-provider=youtube] .error-msg"),
+    null,
+  );
+});
+
+test("leaving during a cooldown cancels its retry and preserves the other view", async (t) => {
+  const s = await setup(t, { config: defaults(true) });
+  let waiting;
+  window.setTimeout = (fn) => {
+    waiting = fn;
+    return 123;
+  };
+  const cleared = [];
+  window.clearTimeout = (id) => cleared.push(id);
+  s.state.handlers.set("GET /popular/youtube", () => ({
+    ...result("youtube", 0),
+    state: "error",
+    error_code: "cooldown",
+  }));
+  s.view("discovery-panel");
+  initDiscovery();
+  await until(() => waiting);
+  document.getElementById("discovery-tab-lastfm").click();
+  await until(() => document.querySelector("[data-provider=lastfm] li"));
+  assert.deepEqual(cleared, [123]);
+  assert.equal(s.count("GET", "/popular/youtube"), 1);
+  assert.equal(
+    document
+      .getElementById("discovery-tab-lastfm")
+      .getAttribute("aria-selected"),
+    "true",
+  );
+});
+
+test("quota errors never retry and a persistent cooldown stops after one retry", async (t) => {
+  const s = await setup(t, { config: defaults(true) });
+  const realSetTimeout = window.setTimeout.bind(window);
+  window.setTimeout = (fn) => realSetTimeout(fn, 0);
+  s.state.handlers.set("GET /popular/youtube", () => ({
+    ...result("youtube", 0),
+    state: "error",
+    error_code: "cooldown",
+    message: "後で再試行",
+  }));
+  s.state.handlers.set("GET /popular/lastfm", () => ({
+    ...result("lastfm", 0),
+    state: "error",
+    error_code: "daily_budget",
+    message: "本日の上限",
+  }));
+  s.view("discovery-panel");
+  initDiscovery();
+  await until(() =>
+    document.querySelector("[data-provider=youtube] .error-msg"),
+  );
+  assert.equal(s.count("GET", "/popular/youtube"), 2);
+  document.getElementById("discovery-tab-lastfm").click();
+  await until(() =>
+    document.querySelector("[data-provider=lastfm] .error-msg"),
+  );
+  assert.equal(s.count("GET", "/popular/lastfm"), 1);
 });
