@@ -655,3 +655,97 @@ test("quota errors never retry and a persistent cooldown stops after one retry",
   );
   assert.equal(s.count("GET", "/popular/lastfm"), 1);
 });
+
+test("Last.fm download resolves one source and hands it to confirmation without downloading", async (t) => {
+  const s = await setup(t, { config: defaults(true) });
+  let finish, handed;
+  s.state.handlers.set(
+    "POST /source/lastfm",
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  document.addEventListener("workspace-import-video", (event) => {
+    handed = event.detail;
+    event.detail.accepted = true;
+  });
+  s.view("discovery-panel");
+  initDiscovery();
+  await until(() => document.querySelector("[data-provider=youtube] li"));
+  assert.equal(
+    document.querySelector("[data-provider=youtube] .discovery-download"),
+    null,
+  );
+  document.getElementById("discovery-tab-lastfm").click();
+  await until(() =>
+    document.querySelector("[data-provider=lastfm] .discovery-download"),
+  );
+  const button = document.querySelector(
+    "[data-provider=lastfm] .discovery-download",
+  );
+  assert.equal(s.count("POST"), 0);
+  button.click();
+  button.click();
+  await until(() => finish);
+  assert.equal(s.count("POST", "/source/lastfm"), 1);
+  assert.equal(button.disabled, true);
+  assert.deepEqual(s.state.calls.at(-1).body, {
+    artist: "Artist 0",
+    track: "曲 0",
+  });
+  finish({
+    state: "ready",
+    youtube_url: "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+  });
+  await until(() => handed);
+  assert.equal(handed.url, "https://www.youtube.com/watch?v=jNQXAC9IVRw");
+  assert.equal(handed.title, "曲 0");
+  assert.equal(button.disabled, false);
+});
+
+test("unavailable sources leave a retryable row and switching views cancels late handoff", async (t) => {
+  const s = await setup(t, { config: defaults(true) });
+  let handed = 0;
+  document.addEventListener("workspace-import-video", () => handed++);
+  s.state.handlers.set("POST /source/lastfm", () => ({
+    state: "error",
+    message: "動画が見つかりません。<img>",
+  }));
+  s.view("discovery-panel");
+  initDiscovery();
+  await until(() => document.querySelector("[data-provider=youtube] li"));
+  document.getElementById("discovery-tab-lastfm").click();
+  await until(() =>
+    document.querySelector("[data-provider=lastfm] .discovery-download"),
+  );
+  const button = document.querySelector(
+    "[data-provider=lastfm] .discovery-download",
+  );
+  button.click();
+  await until(() =>
+    document.querySelector(".discovery-row-feedback.error-msg"),
+  );
+  assert.equal(button.disabled, false);
+  assert.equal(document.querySelector(".discovery-row-feedback img"), null);
+  assert.equal(handed, 0);
+  let finish;
+  s.state.handlers.set(
+    "POST /source/lastfm",
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  button.click();
+  await until(() => finish);
+  const request = s.state.calls.at(-1);
+  document.getElementById("discovery-tab-youtube").click();
+  assert.equal(request.signal.aborted, true);
+  finish({
+    state: "ready",
+    youtube_url: "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+  });
+  await tick();
+  assert.equal(handed, 0);
+});

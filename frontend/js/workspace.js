@@ -52,6 +52,7 @@ const bytes = (value) =>
 export function initWorkspace() {
   let profiles = [],
     intakePlan = null,
+    intakeComplete = false,
     applying = null,
     refreshing = false,
     delivering = false,
@@ -69,6 +70,44 @@ export function initWorkspace() {
     intakeStatus = intake.querySelector("[role=status]"),
     preview = intake.querySelector(".intake-preview");
   const profileSelect = form.elements.namedItem("profile_id");
+  const discoveryContext = el("p", "muted-hint discovery-intake-context");
+  discoveryContext.hidden = true;
+  form.before(discoveryContext);
+  document.addEventListener("workspace-import-video", (event) => {
+    const detail = event.detail;
+    if (
+      !detail ||
+      !/^https:\/\/www\.youtube\.com\/watch\?v=[A-Za-z0-9_-]{11}$/.test(
+        detail.url || "",
+      )
+    )
+      return;
+    if (form.querySelector("[type=submit]").disabled) {
+      detail.message =
+        "追加欄で処理中です。完了してからもう一度お試しください。";
+      return;
+    }
+    const input = form.elements.namedItem("text");
+    if (
+      input.value.trim() &&
+      input.value.trim() !== detail.url &&
+      !intakeComplete &&
+      !window.confirm("追加欄の入力を、この曲の動画URLに置き換えますか？")
+    )
+      return;
+    input.value = detail.url;
+    input.dispatchEvent(
+      new document.defaultView.Event("input", { bubbles: true }),
+    );
+    discoveryContext.textContent = `Last.fmから: ${detail.title || "曲"} ／ ${detail.artist || ""}。動画の内容と保存プロファイルを確認してください。DL後はSyncthingで共有済みの端末へ同期します。`;
+    discoveryContext.hidden = false;
+    detail.accepted = true;
+    document.getElementById("open-sync-add").click();
+    add.open = true;
+    form.scrollIntoView?.({ block: "start" });
+    input.focus({ preventScroll: true });
+    form.requestSubmit();
+  });
   try {
     profileSelect.dataset.selected =
       window.localStorage.getItem("intake-profile") || "";
@@ -78,10 +117,17 @@ export function initWorkspace() {
       window.localStorage.setItem("intake-profile", profileSelect.value);
     } catch {}
     intakeVersion++;
+    intakeComplete = false;
     intakePlan = null;
     preview.replaceChildren();
+    status(
+      intakeStatus,
+      "保存プロファイルを変更しました。「内容を確認」を押してください。",
+    );
   });
   form.elements.namedItem("text").addEventListener("input", () => {
+    discoveryContext.hidden = true;
+    intakeComplete = false;
     intakeVersion++;
     intakePlan = null;
     preview.replaceChildren();
@@ -214,6 +260,7 @@ export function initWorkspace() {
             confirm.disabled = true;
             intakePlan = null;
           } else {
+            intakeComplete = Boolean(result.complete);
             confirm.textContent = "追加済み";
             list
               .querySelectorAll("input")

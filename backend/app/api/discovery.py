@@ -3,7 +3,7 @@
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -17,6 +17,11 @@ from app.services.discovery_config import (
 )
 
 router = APIRouter(prefix="/discovery", tags=["discovery"])
+
+
+class TrackSeed(BaseModel):
+    artist: str = Field(min_length=1, max_length=160)
+    track: str = Field(min_length=1, max_length=300)
 
 
 def no_cache(response: Response):
@@ -65,4 +70,17 @@ def similar(
         raise HTTPException(422, "曲名とアーティスト名を入力してください。")
     return discovery.fetch(
         db, "lastfm", kind="similar", artist=artist.strip(), track=track.strip()
+    )
+
+
+@router.post("/source/lastfm", dependencies=[Depends(no_cache)])
+def source(payload: TrackSeed, db: Session = Depends(get_db)):
+    if not payload.artist.strip() or not payload.track.strip():
+        raise HTTPException(422, "曲名とアーティスト名を入力してください。")
+    return discovery.fetch(
+        db,
+        "lastfm",
+        kind="source",
+        artist=payload.artist.strip(),
+        track=payload.track.strip(),
     )

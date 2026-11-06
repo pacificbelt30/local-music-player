@@ -1,4 +1,4 @@
-"""Bounded, read-only Last.fm and YouTube discovery. No downloader dependency."""
+"""Bounded discovery and explicit source lookup. No downloads are started here."""
 
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
@@ -52,6 +52,16 @@ def now():
 
 
 def _request(provider, key, region, kind, artist="", track="", check=False):
+    if kind == "source" and provider == "lastfm":
+        from app.services.ytdlp_service import resolve_lastfm_track
+
+        try:
+            return {"youtube_url": resolve_lastfm_track(artist, track)}, {}
+        except Exception:
+            raise DiscoveryError(
+                "source_unavailable",
+                "Last.fmの曲に紐づく動画を確認できませんでした。「YouTubeで探す」から取得先を選べます。",
+            ) from None
     headers = {"User-Agent": "SyncTuneHub/0.1 (music discovery)"}
     if provider == "youtube":
         url = "https://www.googleapis.com/youtube/v3/videos"
@@ -271,6 +281,8 @@ def _base(provider, config, kind):
         else "https://www.last.fm/charts",
         "source_label": "YouTubeの人気音楽動画"
         if provider == "youtube"
+        else "Last.fmの再生リンク"
+        if kind == "source"
         else "Last.fmの類似曲"
         if kind == "similar"
         else "Last.fmの国別人気曲（先週）",
@@ -413,7 +425,15 @@ def fetch(
             else:
                 _items(provider, data, "popular")
             return {**base, "state": "ready", "message": "接続できました。"}
-        items = _items(provider, data, kind)
+        items = [] if kind == "source" else _items(provider, data, kind)
+        if kind == "source" and (
+            not isinstance(data.get("youtube_url"), str)
+            or not re.fullmatch(
+                r"https://www\.youtube\.com/watch\?v=[A-Za-z0-9_-]{11}",
+                data["youtube_url"],
+            )
+        ):
+            raise DiscoveryError("invalid_response", "取得先を確認できませんでした。")
         fetched = now()
         expires, stale, store = _cache_policy(provider, headers, fetched)
         result = {
@@ -423,6 +443,8 @@ def fetch(
             "fetched_at": fetched.isoformat(),
             "expires_at": expires.isoformat(),
         }
+        if kind == "source":
+            result["youtube_url"] = data["youtube_url"]
         if store:
             _store_cache(
                 db,

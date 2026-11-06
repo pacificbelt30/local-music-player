@@ -1,4 +1,4 @@
-const CACHE = "lmp-v16";
+const CACHE = "lmp-v17";
 const SHELL = ["/fonts/noto-sans-jp-ui.woff2", "/", "/css/app.css", "/js/api.js", "/js/app.js", "/js/discovery.js", "/js/workspace.js", "/js/sync-tracks.js", "/js/panel-lifecycle.js", "/js/download-preferences.js", "/js/queue.js", "/js/library.js", "/js/player.js", "/js/navigation.js", "/js/playlists.js", "/js/settings.js", "/js/syncthing.js", "/js/debug.js", "/js/oauth-status.js", "/js/syncthing-status.js"];
 
 self.addEventListener("install", (e) => {

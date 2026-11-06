@@ -308,8 +308,13 @@ function updateRow(row, item) {
   });
   // Keep an existing action focused when a refresh updates its track metadata.
   for (const child of [...actions.children].slice(links.length))
-    if (!child.classList.contains("discovery-seed")) child.remove();
+    if (
+      !child.classList.contains("discovery-seed") &&
+      !child.classList.contains("discovery-download")
+    )
+      child.remove();
   let seed = actions.querySelector(".discovery-seed");
+  let download = actions.querySelector(".discovery-download");
   if (!item.youtube_id && item.artist?.trim()) {
     if (!seed) {
       seed = el("button", "text-button discovery-seed", "似た曲");
@@ -317,7 +322,16 @@ function updateRow(row, item) {
       actions.append(seed);
     }
     seed.setAttribute("aria-label", `「${item.title}」に似た曲を探す`);
-  } else seed?.remove();
+    if (!download) {
+      download = el("button", "text-button discovery-download", "DL・同期");
+      download.type = "button";
+      actions.append(download);
+    }
+    download.setAttribute("aria-label", `「${item.title}」の保存候補を確認`);
+  } else {
+    seed?.remove();
+    download?.remove();
+  }
 }
 function renderRows(host, items, limit = 20) {
   const existing = new Map(
@@ -342,6 +356,14 @@ function renderRows(host, items, limit = 20) {
 function cancel(s, name) {
   s.sequences.set(name, (s.sequences.get(name) || 0) + 1);
   s.controllers.get(name)?.abort();
+}
+function cancelSource(s) {
+  cancel(s, "source");
+  if (s.sourceRequest) {
+    s.sourceRequest.button.disabled = false;
+    message(s.sourceRequest.feedback);
+    s.sourceRequest = null;
+  }
 }
 function visible() {
   return (
@@ -421,6 +443,7 @@ export function initDiscovery() {
   ];
   function selectView(view, explicit = true, fetch = true) {
     if (![...providers, "similar"].includes(view)) return;
+    if (s.selected !== view) cancelSource(s);
     s.selected = view;
     if (explicit) s.selectionExplicit = true;
     for (const tab of tabs) {
@@ -620,6 +643,76 @@ export function initDiscovery() {
   });
   document
     .getElementById("discovery-panel")
+    .addEventListener("click", async (event) => {
+      const button = event.target.closest?.(".discovery-download");
+      const row = button?.closest(".discovery-item");
+      const item = row && rowItems.get(row);
+      if (!item || button.disabled || !configured(s.config?.lastfm)) return;
+      cancelSource(s);
+      let feedback = row.querySelector(".discovery-row-feedback");
+      if (!feedback) {
+        feedback = el("div", "discovery-feedback discovery-row-feedback");
+        feedback.setAttribute("role", "status");
+        feedback.setAttribute("aria-live", "polite");
+        row.append(feedback);
+      }
+      button.disabled = true;
+      s.sourceRequest = { button, feedback };
+      const version = s.sequences.get("source"),
+        controller = new AbortController();
+      s.controllers.set("source", controller);
+      message(feedback, "Last.fmに紐づく保存候補を確認中…");
+      try {
+        const result = await call(
+          "POST",
+          "/source/lastfm",
+          { artist: item.artist, track: item.title },
+          controller.signal,
+        );
+        if (version !== s.sequences.get("source")) return;
+        if (
+          !["ready", "stale"].includes(result.state) ||
+          !/^https:\/\/www\.youtube\.com\/watch\?v=[A-Za-z0-9_-]{11}$/.test(
+            result.youtube_url || "",
+          )
+        ) {
+          message(
+            feedback,
+            result.message ||
+              "保存候補が見つかりません。「YouTubeで探す」から取得先を選べます。",
+            true,
+          );
+          return;
+        }
+        const detail = {
+          url: result.youtube_url,
+          title: item.title,
+          artist: item.artist,
+          accepted: false,
+        };
+        document.dispatchEvent(
+          new document.defaultView.CustomEvent("workspace-import-video", {
+            detail,
+          }),
+        );
+        if (!detail.accepted)
+          message(
+            feedback,
+            detail.message || "追加欄への移動を中止しました。",
+            true,
+          );
+      } catch (error) {
+        if (version === s.sequences.get("source"))
+          message(feedback, "取得先を確認できません: " + error.message, true);
+      } finally {
+        if (version === s.sequences.get("source")) {
+          button.disabled = false;
+          s.sourceRequest = null;
+        }
+      }
+    });
+  document
+    .getElementById("discovery-panel")
     .addEventListener("click", (event) => {
       const button = event.target.closest?.(".discovery-seed");
       const item = button && rowItems.get(button.closest(".discovery-item"));
@@ -657,6 +750,7 @@ export function initDiscovery() {
     entry.card.removeAttribute("aria-busy");
     s.dirty = true;
     if (provider === "lastfm") {
+      cancelSource(s);
       cancel(s, "similar");
       similarPending = false;
       similarResults.replaceChildren();
@@ -665,6 +759,7 @@ export function initDiscovery() {
     if (visible()) load();
   });
   const stop = () => {
+    cancelSource(s);
     for (const name of [...providers, "similar"]) cancel(s, name);
     similarPending = false;
     for (const entry of s.panels.values()) {

@@ -1,5 +1,6 @@
 import math
 import os
+import re
 import shlex
 import shutil
 import stat
@@ -8,6 +9,7 @@ import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Iterator
+from urllib.parse import parse_qs, quote, urlparse
 
 import yt_dlp
 
@@ -309,6 +311,41 @@ def get_playlist_info(url: str) -> dict:
         "playlist_title": info.get("title", ""),
         "entries": entries,
     }
+
+
+def resolve_lastfm_track(artist: str, track: str) -> str:
+    """Resolve one Last.fm play link, without extracting or downloading video."""
+    if os.environ.get("YTDLP_CHILD") != "1":
+        from app.services.ytdlp_process import call
+        return call(
+            "resolve_lastfm_track", {"artist": artist, "track": track}, timeout=30
+        )
+    url = f"https://www.last.fm/music/{quote(artist, safe='')}/_/{quote(track, safe='')}"
+    options = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "extract_flat": True,
+        "socket_timeout": 10,
+        "retries": 0,
+        "cachedir": False,
+    }
+    with yt_dlp.YoutubeDL(options) as ydl:
+        info = ydl.extract_info(url, download=False, process=False, ie_key="LastFM")
+    target = info.get("url") if isinstance(info, dict) else None
+    parsed = urlparse(target) if isinstance(target, str) else None
+    video_id = ""
+    if parsed and parsed.scheme in ("https", "http"):
+        if (
+            parsed.hostname in ("www.youtube.com", "youtube.com")
+            and parsed.path == "/watch"
+        ):
+            video_id = parse_qs(parsed.query).get("v", [""])[0]
+        elif parsed.hostname == "youtu.be":
+            video_id = parsed.path.lstrip("/")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
+        raise ValueError("Last.fmの曲に対応する動画が見つかりませんでした。")
+    return "https://www.youtube.com/watch?v=" + video_id
 
 
 def resolve_url(url: str) -> list[dict[str, Any]]:

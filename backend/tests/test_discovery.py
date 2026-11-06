@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta, timezone
 import json
 import logging
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
@@ -358,3 +358,113 @@ def test_http_contract_and_safe_provider_errors(
 
 
 REAL_REQUEST = discovery._request
+
+
+def test_explicit_source_lookup_is_cached_and_never_queues_a_download(
+    client, db, providers
+):
+    from app.models import UrlSource, DownloadJob
+
+    configure(client, "lastfm")
+    providers[2].side_effect = None
+    providers[2].return_value = (
+        {"youtube_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw"},
+        {},
+    )
+    payload = {"artist": "Artist", "track": "Song"}
+    first = client.post("/api/v1/discovery/source/lastfm", json=payload).json()
+    assert first["state"] == "ready" and first["youtube_url"].endswith("jNQXAC9IVRw")
+    assert (
+        client.post("/api/v1/discovery/source/lastfm", json=payload).json()["cached"]
+        is True
+    )
+    assert providers[2].call_count == 1
+    assert db.query(UrlSource).count() == db.query(DownloadJob).count() == 0
+    client.patch("/api/v1/discovery/config/lastfm", json={"enabled": False})
+    assert (
+        client.post("/api/v1/discovery/source/lastfm", json=payload).json()["state"]
+        == "disabled"
+    )
+    assert providers[2].call_count == 1
+
+
+def test_source_lookup_validates_seed_and_rejects_unknown_destinations(
+    client, providers
+):
+    configure(client, "lastfm")
+    assert (
+        client.post(
+            "/api/v1/discovery/source/lastfm", json={"artist": " ", "track": "Song"}
+        ).status_code
+        == 422
+    )
+    providers[2].assert_not_called()
+    providers[2].side_effect = None
+    providers[2].return_value = ({"youtube_url": "https://evil.example"}, {})
+    result = client.post(
+        "/api/v1/discovery/source/lastfm", json={"artist": "Artist", "track": "Song"}
+    ).json()
+    assert result["error_code"] == "invalid_response" and "youtube_url" not in result
+
+
+def test_source_lookup_errors_are_safe_and_do_not_use_data_api(monkeypatch):
+    from app.services import ytdlp_service
+
+    helper = MagicMock(side_effect=RuntimeError("private upstream message"))
+    monkeypatch.setattr(ytdlp_service, "resolve_lastfm_track", helper)
+    with pytest.raises(discovery.DiscoveryError) as error:
+        REAL_REQUEST("lastfm", "unused-key", "JP", "source", "Artist", "Song")
+    assert error.value.code == "source_unavailable"
+    assert "private" not in str(error.value)
+
+
+def test_lastfm_source_reaches_download_queue_only_after_confirmation(
+    client, db, providers
+):
+    from app.models import UrlSource
+
+    configure(client, "lastfm")
+    providers[2].side_effect = None
+    providers[2].return_value = (
+        {"youtube_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw"},
+        {},
+    )
+    url = client.post(
+        "/api/v1/discovery/source/lastfm", json={"artist": "Artist", "track": "Song"}
+    ).json()["youtube_url"]
+    profile = client.post(
+        "/api/v1/workspace/profiles",
+        json={
+            "name": "My phone",
+            "audio_format": "m4a",
+            "audio_quality": "192",
+            "target_folder_id": "music",
+            "target_device_id": "phone",
+            "target_scope": "downloads",
+        },
+    ).json()
+    with (
+        patch(
+            "app.api.workspace.ytdlp_service.resolve_url",
+            return_value=[
+                {"id": "jNQXAC9IVRw", "title": "Selected video", "url_type": "video"}
+            ],
+        ),
+        patch("app.tasks.download.resolve_url.apply_async") as queued,
+    ):
+        plan = client.post(
+            "/api/v1/workspace/intake/preview",
+            json={"text": url, "profile_id": profile["id"]},
+        ).json()
+        assert plan["items"][0]["title"] == "Selected video"
+        assert db.query(UrlSource).count() == 0
+        queued.assert_not_called()
+        result = client.post(
+            "/api/v1/workspace/intake/commit",
+            json={"token": plan["token"], "indices": [0]},
+        ).json()
+        assert result["complete"]
+        queued.assert_called_once()
+    source = db.query(UrlSource).one()
+    assert source.audio_format == "m4a"
+    assert source.target_device_id == "phone" and source.target_folder_id == "music"

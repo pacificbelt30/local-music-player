@@ -23,7 +23,7 @@ def main():
             elif operation == "local_probe":
                 from app.services.ytdlp_probe import validate_local
                 result = validate_local()
-            elif operation in ("resolve_url", "get_playlist_info", "download_track"):
+            elif operation in ("resolve_url", "resolve_lastfm_track", "get_playlist_info", "download_track"):
                 if args.get("base_path"):
                     args["base_path"] = Path(args["base_path"])
                 if operation == "download_track":

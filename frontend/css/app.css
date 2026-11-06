@@ -1587,7 +1587,10 @@ input,select,textarea { font-size:13px; border-radius:5px; box-shadow:none; }
 .discovery-timestamp,.discovery-key-state { font-size:11px; color:var(--text-muted); }
 .discovery-timestamp:empty { display:none; }
 .discovery-list { margin:0; padding:0; list-style:none; }
-.discovery-item { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:15px 0; border-bottom:1px solid var(--border); }
+.discovery-item { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:20px; padding:15px 0; border-bottom:1px solid var(--border); }
+.discovery-item-info { flex:1; }
+.discovery-row-feedback { width:100%; }
+#workspace-intake { scroll-margin-top:88px; }
 .discovery-item:last-child { border-bottom:0; }
 .discovery-item-info { display:flex; flex-direction:column; gap:4px; min-width:0; overflow-wrap:anywhere; }
 .discovery-item strong { color:var(--text); font-size:14px; font-weight:600; }

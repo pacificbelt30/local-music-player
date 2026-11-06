@@ -150,6 +150,79 @@ test("one intake accepts mixed inputs, previews safely and commits only selected
   assert.equal(s.state.refreshes, 1);
 });
 
+test("a Last.fm source opens a video preview and still requires explicit queue confirmation", async (t) => {
+  const s = await setup(t);
+  s.state.handlers.set("POST /intake/preview", () => ({
+    token: "a".repeat(32),
+    profile: profile(),
+    items: [
+      { title: "Selected video", kind: "url", state: "available", count: 1 },
+    ],
+  }));
+  const detail = {
+    url: "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+    title: "Song <img>",
+    artist: "Artist",
+    accepted: false,
+  };
+  document.dispatchEvent(
+    new s.dom.window.CustomEvent("workspace-import-video", { detail }),
+  );
+  await until(() => document.querySelector(".intake-item"));
+  assert.equal(detail.accepted, true);
+  assert.equal(
+    document.querySelector("#workspace-intake").elements.text.value,
+    detail.url,
+  );
+  assert.equal(document.querySelector("#sync-add-panel").open, true);
+  assert.equal(document.querySelector(".discovery-intake-context img"), null);
+  assert.match(
+    document.querySelector(".discovery-intake-context").textContent,
+    /Song <img>.*Artist/,
+  );
+  assert.equal(s.count("POST", "/intake/commit"), 0);
+  document.querySelector(".intake-preview > .btn").click();
+  await until(() => s.count("POST", "/intake/commit") === 1);
+  await until(
+    () => !document.querySelector("#workspace-intake [type=submit]").disabled,
+  );
+  window.confirm = () => {
+    throw Error("Completed input is not an unsaved draft");
+  };
+  const next = {
+    url: "https://www.youtube.com/watch?v=abcdefghijk",
+    title: "Next",
+    artist: "Artist",
+    accepted: false,
+  };
+  document.dispatchEvent(
+    new s.dom.window.CustomEvent("workspace-import-video", { detail: next }),
+  );
+  assert.equal(next.accepted, true);
+  assert.equal(
+    document.querySelector("#workspace-intake").elements.text.value,
+    next.url,
+  );
+  assert.equal(s.count("POST", "/intake/commit"), 1);
+});
+
+test("source handoff cannot overwrite an existing draft without the user's decision", async (t) => {
+  const s = await setup(t);
+  const form = document.querySelector("#workspace-intake");
+  form.elements.text.value = "my existing draft";
+  window.confirm = () => false;
+  const detail = {
+    url: "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+    accepted: false,
+  };
+  document.dispatchEvent(
+    new s.dom.window.CustomEvent("workspace-import-video", { detail }),
+  );
+  assert.equal(form.elements.text.value, "my existing draft");
+  assert.equal(detail.accepted, false);
+  assert.equal(s.count("POST", "/intake/preview"), 0);
+});
+
 test("editing input while its preview is pending discards stale preview", async (t) => {
   const s = await setup(t);
   let finish;
